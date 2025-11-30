@@ -27,9 +27,8 @@ def detect_in_long_audio(model,
     Returns:
         DataFrame with detection results
     """
-    print("\n" + "=" * 70)
+  
     print(f"DETECTING IN: {os.path.basename(audio_path)}")
-    print("=" * 70)
     
     # Load long audio
     audio, sr = data_loader.load_long_audio(audio_path)
@@ -37,7 +36,7 @@ def detect_in_long_audio(model,
         return pd.DataFrame()
     
     # Extract sliding windows
-    print(f"\n🔍 Extracting sliding windows...")
+    print(f"\n Extracting sliding windows")
     print(f"   Window size: {config.WINDOW_SIZE}s")
     print(f"   Stride: {config.WINDOW_STRIDE}s")
     
@@ -45,7 +44,7 @@ def detect_in_long_audio(model,
     print(f"   Total windows: {len(windows)}")
     
     # Preprocess windows
-    print(f"\n📊 Preprocessing windows...")
+    print(f"\n Preprocessing windows")
     X_windows = []
     for i, window in enumerate(windows):
         img = preprocessing.preprocess_audio(window, sr)
@@ -56,14 +55,14 @@ def detect_in_long_audio(model,
             print(f"   Processed {i + 1}/{len(windows)}...")
     
     X_windows = np.array(X_windows)
-    print(f"   ✅ Preprocessed {len(X_windows)} windows")
+    print(f" Preprocessed {len(X_windows)} windows")
     
     # Run predictions
-    print(f"\n🤖 Running predictions...")
+    print(f"\n Running predictions")
     predictions = model.predict(X_windows, batch_size=config.BATCH_SIZE, verbose=1)
     
     # Process predictions
-    print(f"\n📋 Processing detections...")
+    print(f"\n Processing detections")
     detections = []
     
     for i, (pred, (start_time, end_time)) in enumerate(zip(predictions, times)):
@@ -86,7 +85,7 @@ def detect_in_long_audio(model,
     
     # Apply Non-Maximum Suppression
     if len(detections) > 0:
-        print(f"\n🔄 Applying Non-Maximum Suppression...")
+        print(f"\n Applying Non-Maximum Suppression")
         detections = apply_nms(detections)
         print(f"   After NMS: {len(detections)} detections")
     
@@ -95,18 +94,17 @@ def detect_in_long_audio(model,
     
     # Print summary
     if len(df) > 0:
-        print("\n📊 Detection Summary:")
-        print("   " + "-" * 60)
+        print("\n Detection Summary:")
+
         for species in df['species'].unique():
             count = len(df[df['species'] == species])
             avg_conf = df[df['species'] == species]['confidence'].mean()
             print(f"   {species:30s}: {count:3d} detections (avg conf: {avg_conf:.4f})")
-        print("   " + "-" * 60)
+
     else:
         print("\n   No detections found.")
     
-    print("=" * 70)
-    
+
     return df
 
 
@@ -210,11 +208,11 @@ def save_detections(detections_df: pd.DataFrame,
         # Select columns to save
         save_df = detections_df[['start_time', 'end_time', 'species', 'confidence']].copy()
         save_df.to_csv(csv_path, index=False)
-        print(f"\n💾 Detections saved to: {csv_path}")
+        print(f"\n Detections saved to: {csv_path}")
     else:
         # Save empty file with headers
         pd.DataFrame(columns=['start_time', 'end_time', 'species', 'confidence']).to_csv(csv_path, index=False)
-        print(f"\n💾 No detections, empty file saved to: {csv_path}")
+        print(f"\n No detections, empty file saved to: {csv_path}")
     
     return csv_path
 
@@ -231,9 +229,7 @@ def process_all_long_audio_files(model,
     Returns:
         Dictionary mapping filename to detection DataFrame
     """
-    print("\n" + "=" * 70)
     print("PROCESSING ALL LONG AUDIO FILES")
-    print("=" * 70)
     
     # Get all long audio files
     audio_files = data_loader.get_long_audio_files()
@@ -256,21 +252,17 @@ def process_all_long_audio_files(model,
         # Store
         all_detections[filename] = detections_df
     
-    print("\n" + "=" * 70)
-    print("✅ ALL FILES PROCESSED!")
-    print("=" * 70)
+
+    print(" ALL FILES PROCESSED!")
     
     # Print overall summary
-    print("\n📊 Overall Summary:")
-    print("   " + "-" * 60)
+    print("\n Overall Summary:")
     total_detections = 0
     for filename, df in all_detections.items():
         count = len(df)
         total_detections += count
         print(f"   {filename:40s}: {count:4d} detections")
-    print("   " + "-" * 60)
     print(f"   TOTAL: {total_detections} detections across {len(audio_files)} files")
-    print("=" * 70)
     
     return all_detections
 

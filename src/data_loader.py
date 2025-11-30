@@ -83,11 +83,10 @@ def load_species_data() -> Dict[str, List[Tuple[np.ndarray, str]]]:
     """
     species_data = {}
     
-    print("\n Loading Species Data...")
-    print("=" * 70)
+    print("\n Loading Species Data")
     
     for species_name, folder_name in config.SPECIES_FOLDERS.items():
-        print(f"\n🐵 Loading {species_name}...")
+        print(f"\n loading {species_name}...")
         
         # Scan for audio files
         audio_files = scan_audio_files(config.AUDIO_ROOT, folder_name)
@@ -198,21 +197,19 @@ def print_data_summary(species_data: Dict, background_data: List):
         species_data: Dictionary of species audio data
         background_data: List of background audio data
     """
-    print("\n" + "=" * 70)
     print("DATA LOADING SUMMARY")
-    print("=" * 70)
     
     total_species_samples = 0
     for species_name, audio_list in species_data.items():
         count = len(audio_list)
         total_species_samples += count
-        print(f"🐵 {species_name}: {count} samples")
+        print(f" {species_name}: {count} samples")
     
-    print(f"🔇 Background: {len(background_data)} samples")
-    print(f"\n📊 Total Samples: {total_species_samples + len(background_data)}")
+    print(f" Background: {len(background_data)} samples")
+    print(f"\n Total Samples: {total_species_samples + len(background_data)}")
     
     # Calculate expected samples after augmentation
-    print(f"\n🔄 After Augmentation (×{config.AUGMENTATION_MULTIPLIER}):")
+    print(f"\n After Augmentation (×{config.AUGMENTATION_MULTIPLIER}):")
     for species_name, audio_list in species_data.items():
         original_count = len(audio_list)
         augmented_count = original_count * config.AUGMENTATION_MULTIPLIER
@@ -220,7 +217,6 @@ def print_data_summary(species_data: Dict, background_data: List):
     
     print(f"   Background: {len(background_data)} (no augmentation)")
     
-    print("=" * 70)
 
 
 if __name__ == "__main__":
@@ -235,7 +231,7 @@ if __name__ == "__main__":
     
     # Test long audio file scanning
     long_audio_files = get_long_audio_files()
-    print(f"\n📂 Found {len(long_audio_files)} long audio files:")
+    print(f"\n Found {len(long_audio_files)} long audio files:")
     for i, file in enumerate(long_audio_files[:5], 1):  # Show first 5
         print(f"   {i}. {os.path.basename(file)}")
     if len(long_audio_files) > 5:
