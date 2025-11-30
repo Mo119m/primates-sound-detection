@@ -129,7 +129,6 @@ if __name__ == "__main__":
     
     print("\n" + "="*70)
     print("NEXT STEPS:")
-    print("="*70)
     print("1. Go to Google Drive: chimp-audio/audio/hard_negative_candidates/")
     print("2. Listen to these audio files")
     print("3. DELETE files that are actual primate calls")
@@ -143,4 +142,3 @@ if __name__ == "__main__":
     print("       'verified_hard_negatives'  # ADD THIS LINE")
     print("   ]")
     print("8. Run: import train; train.run_complete_training_pipeline()")
-    print("="*70)

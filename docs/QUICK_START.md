@@ -1,19 +1,16 @@
 # Quick Start Guide
 
-This guide provides rapid setup instructions for the Primate Vocalization Detection Pipeline. For comprehensive documentation, refer to README.md and SETUP_TUTORIAL.md.
+This guide provides rapid setup instructions for the Primate Vocalization Detection Pipeline. 
 
 ## Prerequisites
-
-- Python 3.8 or higher
-- Google Colab account (recommended) or local GPU
 - Google Drive with organized audio data
-- Basic familiarity with Jupyter notebooks
+
 
 ## Installation
 
 ### Option 1: Google Colab (Recommended)
 
-1. Upload all Python files from `src/` directory to your Colab workspace
+1. Upload all Python files from `src/` directory to Colab workspace
 2. Upload `notebooks/main_pipeline.ipynb`
 3. Mount Google Drive:
 
@@ -52,7 +49,7 @@ pip install -r requirements.txt
 
 ## Data Organization
 
-Ensure your Google Drive follows this structure:
+Ensure Google Drive follows this structure:
 
 ```
 drive/MyDrive/chimp-audio/
@@ -205,27 +202,7 @@ AUGMENTATION_CONFIG = {
 }
 ```
 
-## Troubleshooting
-
-### Module not found error
-
-```python
-import sys
-sys.path.append('/content/drive/MyDrive/chimp-audio/src')
-```
-
-### Path not found error
-
-Verify folder names in Google Drive exactly match `config.py` settings. Names are case-sensitive.
-
-### GPU out of memory
-
-Reduce batch size as described above, or run on CPU (slower):
-
-```python
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-```
+## Troubleshooting (also working now. looking for more ways to solve)
 
 ### Poor detection results
 
@@ -273,27 +250,5 @@ utils.extract_detected_audio_clips(first_audio, detections_df, clips_dir)
 
 4. Implement hard negative mining to improve model (see SETUP_TUTORIAL.md)
 
-## Time Estimates
 
-- Initial setup: 5-10 minutes
-- Data loading: 5-10 minutes
-- Model training: 30-60 minutes
-- Detection on one 30-minute file: 1-2 minutes
-- Detection on all files: Variable
 
-## Additional Resources
-
-- Full documentation: README.md
-- Detailed setup: docs/SETUP_TUTORIAL.md
-- File descriptions: docs/FILE_MANIFEST.md
-- Contributing: CONTRIBUTING.md
-
-## Getting Help
-
-If you encounter issues:
-
-1. Verify all paths in `config.py`
-2. Check data organization matches expected structure
-3. Review error messages carefully
-4. Consult SETUP_TUTORIAL.md for detailed explanations
-5. Open an issue on GitHub with error details

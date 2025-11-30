@@ -1,6 +1,5 @@
 """
 Utilities Module
-================
 Visualization and helper functions
 """
 
@@ -131,8 +130,7 @@ def visualize_all_detections(detections_dict: dict,
     """
     os.makedirs(output_dir, exist_ok=True)
     
-    print("\n📊 Creating visualizations...")
-    print("=" * 70)
+    print("\n Creating visualizations...")
     
     for filename, detections_df in detections_dict.items():
         print(f"\n   Processing: {filename}")
@@ -150,8 +148,7 @@ def visualize_all_detections(detections_dict: dict,
         except Exception as e:
             print(f"   ⚠️  Error: {e}")
     
-    print("\n✅ All visualizations created!")
-    print("=" * 70)
+    print("\n All visualizations created!")
 
 
 def plot_confusion_matrix(cm: np.ndarray, 
@@ -204,7 +201,7 @@ def plot_confusion_matrix(cm: np.ndarray,
     
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"📊 Confusion matrix saved to: {save_path}")
+        print(f" Confusion matrix saved to: {save_path}")
     else:
         plt.show()
     
@@ -257,7 +254,7 @@ def create_detection_summary_report(detections_dict: dict,
     
     if output_path:
         summary_df.to_csv(output_path, index=False)
-        print(f"\n📊 Summary report saved to: {output_path}")
+        print(f"\n Summary report saved to: {output_path}")
     
     return summary_df
 
@@ -303,7 +300,7 @@ def extract_detected_audio_clips(audio_path: str,
         # Save
         sf.write(clip_path, clip, sr)
     
-    print(f"   ✅ Saved {len(detections_df)} clips to: {output_dir}")
+    print(f"Saved {len(detections_df)} clips to: {output_dir}")
 
 
 def print_detection_statistics(detections_dict: dict):
@@ -313,9 +310,7 @@ def print_detection_statistics(detections_dict: dict):
     Args:
         detections_dict: Dictionary mapping filename to detection DataFrame
     """
-    print("\n" + "=" * 70)
     print("DETECTION STATISTICS")
-    print("=" * 70)
     
     all_detections = pd.concat(detections_dict.values(), ignore_index=True)
     
@@ -323,14 +318,13 @@ def print_detection_statistics(detections_dict: dict):
         print("\nNo detections found.")
         return
     
-    print(f"\n📊 Overall Statistics:")
+    print(f"\n Overall Statistics:")
     print(f"   Total Files: {len(detections_dict)}")
     print(f"   Total Detections: {len(all_detections)}")
     print(f"   Average Confidence: {all_detections['confidence'].mean():.4f}")
     print(f"   Confidence Range: [{all_detections['confidence'].min():.4f}, {all_detections['confidence'].max():.4f}]")
     
-    print(f"\n📊 Per-Species Statistics:")
-    print("   " + "-" * 60)
+    print(f"\n Per-Species Statistics:")
     for species in sorted(all_detections['species'].unique()):
         species_df = all_detections[all_detections['species'] == species]
         print(f"   {species:30s}:")
@@ -338,7 +332,6 @@ def print_detection_statistics(detections_dict: dict):
         print(f"      Avg Confidence: {species_df['confidence'].mean():.4f}")
         print(f"      Confidence Range: [{species_df['confidence'].min():.4f}, {species_df['confidence'].max():.4f}]")
     
-    print("=" * 70)
 
 
 if __name__ == "__main__":

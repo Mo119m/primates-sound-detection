@@ -48,7 +48,7 @@ def prepare_dataset():
                 print(f"   Converted {i + 1}/{len(audio_list)}...")
         
         species_specs[species_name] = specs
-        print(f"   ✅ Converted {len(specs)} spectrograms")
+        print(f"  Converted {len(specs)} spectrograms")
     
     # Convert background
     print(f"\n   Processing Background...")
@@ -60,7 +60,7 @@ def prepare_dataset():
         if (i + 1) % 100 == 0:
             print(f"   Converted {i + 1}/{len(background_data)}...")
     
-    print(f"   ✅ Converted {len(background_specs)} background spectrograms")
+    print(f"  Converted {len(background_specs)} background spectrograms")
     
     # Step 3: Augment dataset
     X_aug, y_aug, sample_info = augmentation.augment_dataset(species_specs, background_specs)
@@ -79,13 +79,13 @@ def prepare_dataset():
             print(f"   Processed {i + 1}/{len(X_aug)}...")
     
     X_images = np.array(X_images)
-    print(f"   ✅ Created {len(X_images)} RGB images")
+    print(f"  Created {len(X_images)} RGB images")
     
     # Step 5: Normalize for model input
     X_images = preprocessing.preprocess_for_model(X_images)
     
     # Step 6: Train/validation split
-    print("\n📊 Splitting into Train/Validation Sets...")
+    print("\n Splitting into Train/Validation Sets...")
     X_train, X_val, y_train, y_val = train_test_split(
         X_images, y_aug,
         test_size=config.VALIDATION_SPLIT,
@@ -149,9 +149,8 @@ def train_model(X_train: np.ndarray,
     Returns:
         Tuple of (trained_model, history)
     """
-    print("\n" + "=" * 70)
+
     print("TRAINING MODEL")
-    print("=" * 70)
     
     # Create model
     model = model_module.create_and_compile_model()
@@ -165,12 +164,11 @@ def train_model(X_train: np.ndarray,
     model_save_path = os.path.join(config.MODEL_SAVE_DIR, 'best_model.h5')
     callbacks = model_module.get_callbacks(model_save_path)
     
-    print(f"\n🚀 Starting Training...")
+    print(f"\n  Starting Training...")
     print(f"   Epochs: {config.EPOCHS}")
     print(f"   Batch Size: {config.BATCH_SIZE}")
     print(f"   Model will be saved to: {model_save_path}")
-    print("=" * 70)
-    
+
     # Train model
     history = model.fit(
         X_train, y_train,
@@ -182,7 +180,7 @@ def train_model(X_train: np.ndarray,
         verbose=1
     )
     
-    print("\n✅ Training completed!")
+    print("\n Training completed!")
     
     return model, history
 
@@ -203,7 +201,7 @@ def evaluate_model(model, X_val: np.ndarray, y_val: np.ndarray):
     # Overall evaluation
     results = model.evaluate(X_val, y_val, verbose=0)
     
-    print("\n📊 Overall Metrics:")
+    print("\n Overall Metrics:")
     for metric_name, value in zip(model.metrics_names, results):
         print(f"   {metric_name}: {value:.4f}")
     
@@ -211,10 +209,8 @@ def evaluate_model(model, X_val: np.ndarray, y_val: np.ndarray):
     y_pred = model.predict(X_val, verbose=0)
     y_pred_classes = np.argmax(y_pred, axis=1)
     
-    print("\n📊 Per-Class Performance:")
-    print("   " + "-" * 66)
+    print("\n Per-Class Performance:")
     print(f"   {'Class':<30s} {'Samples':>8s} {'Accuracy':>10s} {'Avg Conf':>10s}")
-    print("   " + "-" * 66)
     
     for i, class_name in enumerate(config.CLASS_NAMES):
         class_mask = y_val == i
@@ -230,13 +226,12 @@ def evaluate_model(model, X_val: np.ndarray, y_val: np.ndarray):
             
             print(f"   {class_name:<30s} {class_samples:>8d} {class_accuracy:>10.2%} {avg_confidence:>10.4f}")
     
-    print("   " + "-" * 66)
     
     # Confusion matrix
     from sklearn.metrics import confusion_matrix
     cm = confusion_matrix(y_val, y_pred_classes)
     
-    print("\n📊 Confusion Matrix:")
+    print("\n Confusion Matrix:")
     print("   (rows=true, cols=predicted)")
     print("   " + "-" * 50)
     
@@ -253,7 +248,6 @@ def evaluate_model(model, X_val: np.ndarray, y_val: np.ndarray):
             row += f"{cm[i, j]:>10d}"
         print(row)
     
-    print("=" * 70)
 
 
 def save_training_history(history, save_path: str):
@@ -274,7 +268,7 @@ def save_training_history(history, save_path: str):
     with open(save_path, 'w') as f:
         json.dump(history_dict, f, indent=2)
     
-    print(f"\n💾 Training history saved to: {save_path}")
+    print(f"\n Training history saved to: {save_path}")
 
 
 def plot_training_history(history):
@@ -311,7 +305,7 @@ def plot_training_history(history):
     # Save plot
     plot_path = os.path.join(config.MODEL_SAVE_DIR, 'training_history.png')
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-    print(f"📈 Training plot saved to: {plot_path}")
+    print(f" Training plot saved to: {plot_path}")
     
     plt.show()
 
@@ -346,14 +340,12 @@ def run_complete_training_pipeline():
     # Plot training history
     plot_training_history(history)
     
-    print("\n" + "=" * 70)
-    print("✅ TRAINING PIPELINE COMPLETED!")
-    print("=" * 70)
+    print(" TRAINING PIPELINE COMPLETED!")
     
     return model
 
 
 if __name__ == "__main__":
     # This would be run from the notebook, but can test here
-    print("Training Module Ready!")
+    print("Training Module Ready")
     print("Call run_complete_training_pipeline() to start training.")

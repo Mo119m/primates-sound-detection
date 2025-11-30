@@ -217,7 +217,7 @@ def visualize_spectrogram(spec: np.ndarray, title: str = "Mel-Spectrogram"):
 
 if __name__ == "__main__":
     # Test preprocessing
-    print("Testing Preprocessing Module...")
+    print("Testing Preprocessing Module")
     
     # Generate a test audio signal (sine wave)
     duration = 5.0
@@ -226,27 +226,27 @@ if __name__ == "__main__":
     frequency = 440  # A4 note
     test_audio = np.sin(2 * np.pi * frequency * t)
     
-    print(f"\n📊 Test Audio:")
+    print(f"\n Test Audio:")
     print(f"   Duration: {duration}s")
     print(f"   Sample Rate: {sr} Hz")
     print(f"   Shape: {test_audio.shape}")
     
     # Test mel-spectrogram conversion
     mel_spec = audio_to_melspectrogram(test_audio, sr)
-    print(f"\n📊 Mel-Spectrogram:")
+    print(f"\n Mel-Spectrogram:")
     print(f"   Shape: {mel_spec.shape}")
     print(f"   Range: [{mel_spec.min():.2f}, {mel_spec.max():.2f}] dB")
     
     # Test full preprocessing
     rgb_image = preprocess_audio(test_audio, sr)
-    print(f"\n📊 Preprocessed Image:")
+    print(f"\n Preprocessed Image:")
     print(f"   Shape: {rgb_image.shape}")
     print(f"   Range: [{rgb_image.min()}, {rgb_image.max()}]")
     
     # Test model input format
     model_input = preprocess_for_model(rgb_image)
-    print(f"\n📊 Model Input:")
+    print(f"\n Model Input:")
     print(f"   Shape: {model_input.shape}")
     print(f"   Range: [{model_input.min():.4f}, {model_input.max():.4f}]")
     
-    print("\n✅ Preprocessing module test completed!")
+    print("\n Preprocessing module test completed!")

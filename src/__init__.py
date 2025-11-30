@@ -14,7 +14,6 @@ This package provides modules for:
 - Visualization and analysis tools
 
 Author: Mo
-Year: 2024
 License: MIT
 """
 

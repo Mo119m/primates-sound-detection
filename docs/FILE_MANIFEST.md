@@ -1,14 +1,14 @@
-# 📦 Primate Vocalization Detection Pipeline - File Manifest
+# Primate Vocalization Detection Pipeline - File Manifest
 
-## 📄 Files Overview
+## Files Overview
 
 This package contains a complete, reproducible pipeline for detecting primate vocalizations in long audio recordings.
 
 ---
 
-## 🗂️ Core Modules (8 Python files)
+## Core Modules (8 Python files)
 
-### 1. `config.py` (7.2 KB)
+### 1. `config.py` 
 **Purpose**: Central configuration file  
 **Contains**:
 - All file paths (Google Drive structure)
@@ -26,7 +26,7 @@ This package contains a complete, reproducible pipeline for detecting primate vo
 
 ---
 
-### 2. `data_loader.py` (7.4 KB)
+### 2. `data_loader.py` 
 **Purpose**: Load and scan audio files  
 **Key functions**:
 - `load_species_data()` - Load all primate clips
@@ -38,7 +38,7 @@ This package contains a complete, reproducible pipeline for detecting primate vo
 
 ---
 
-### 3. `preprocessing.py` (6.8 KB)
+### 3. `preprocessing.py` 
 **Purpose**: Convert audio to mel-spectrograms  
 **Key functions**:
 - `audio_to_melspectrogram()` - Core conversion
@@ -50,7 +50,7 @@ This package contains a complete, reproducible pipeline for detecting primate vo
 
 ---
 
-### 4. `augmentation.py` (11 KB)
+### 4. `augmentation.py` 
 **Purpose**: Data augmentation strategies  
 **Key functions**:
 - `add_background_noise()` - Mix with background
@@ -63,7 +63,7 @@ This package contains a complete, reproducible pipeline for detecting primate vo
 
 ---
 
-### 5. `model.py` (7.7 KB)
+### 5. `model.py` 
 **Purpose**: VGG19-based model definition  
 **Key functions**:
 - `build_model()` - Create model architecture
@@ -75,7 +75,7 @@ This package contains a complete, reproducible pipeline for detecting primate vo
 
 ---
 
-### 6. `train.py` (11 KB)
+### 6. `train.py` 
 **Purpose**: Complete training pipeline  
 **Key functions**:
 - `prepare_dataset()` - Load and augment data
@@ -87,7 +87,7 @@ This package contains a complete, reproducible pipeline for detecting primate vo
 
 ---
 
-### 7. `detection.py` (8.6 KB)
+### 7. `detection.py` 
 **Purpose**: Detect in long audio files  
 **Key functions**:
 - `detect_in_long_audio()` - Detect in one file
@@ -99,7 +99,7 @@ This package contains a complete, reproducible pipeline for detecting primate vo
 
 ---
 
-### 8. `utils.py` (12 KB)
+### 8. `utils.py`
 **Purpose**: Visualization and analysis  
 **Key functions**:
 - `visualize_detection_results()` - Plot waveform + detections
@@ -111,9 +111,9 @@ This package contains a complete, reproducible pipeline for detecting primate vo
 
 ---
 
-## 📓 Main Notebook
+## Main Notebook
 
-### `main_pipeline.ipynb` (13 KB)
+### `main_pipeline.ipynb` 
 **Purpose**: Interactive pipeline execution  
 **Sections**:
 1. Setup & Installation
@@ -129,9 +129,9 @@ This package contains a complete, reproducible pipeline for detecting primate vo
 
 ---
 
-## 📚 Documentation (3 files)
+## Documentation 
 
-### `README.md` (8.4 KB)
+### `README.md` 
 Complete documentation covering:
 - Project overview
 - Setup instructions
@@ -140,7 +140,7 @@ Complete documentation covering:
 - Advanced usage
 - Troubleshooting
 
-### `QUICK_START.md` (3.5 KB)
+### `QUICK_START.md` 
 Fast-track guide with:
 - 3-step setup
 - Common issues
@@ -151,7 +151,7 @@ Description of all files
 
 ---
 
-## 🔄 Workflow Summary
+## Workflow Summary
 
 ```
 1. Edit config.py → Set paths and parameters
@@ -163,54 +163,31 @@ Description of all files
 
 ---
 
-## 📊 Expected File Sizes
-
-```
-config.py          7.2 KB
-data_loader.py     7.4 KB
-preprocessing.py   6.8 KB
-augmentation.py   11.0 KB
-model.py           7.7 KB
-train.py          11.0 KB
-detection.py       8.6 KB
-utils.py          12.0 KB
-main_pipeline.ipynb 13 KB
-README.md          8.4 KB
-QUICK_START.md     3.5 KB
-─────────────────────────
-Total:           ~96 KB
-```
-
----
-
-## 🎯 Which Files to Edit?
+## Which Files to Edit?
 
 ### Always Edit:
-- ✏️ `config.py` - Update paths and add new species
+-  `config.py` - Update paths and add new species
 
 ### Usually Don't Edit:
-- 🔒 All other `.py` files (unless customizing algorithms)
-- 🔒 `main_pipeline.ipynb` (unless adding custom analysis)
-
-### Documentation:
-- 📖 README files are for reference only
+- All other `.py` files (unless customizing algorithms)
+- `main_pipeline.ipynb` (unless adding custom analysis)
 
 ---
 
-## 🚀 Minimal Setup
+##  Minimal Setup
 
-To get started, you only need to:
+To get started, only need to:
 1. Edit `config.py` (lines 12-26)
 2. Upload all files to Colab
 3. Run `main_pipeline.ipynb`
 
-Everything else is automatic!
+Everything else is automatic
 
 ---
 
-## 💾 After Training
+## After Training
 
-Your model and results will be saved to:
+Model and results will be saved to:
 ```
 drive/MyDrive/chimp-audio/outputs/
 ├── models/           # Trained models
@@ -220,10 +197,10 @@ drive/MyDrive/chimp-audio/outputs/
 
 ---
 
-## 🔄 Version Control
+## Version Control
 
 To save different experimental configurations:
-1. Copy `config.py` → `config_experiment1.py`
+1. Copy `config.py` -> `config_experiment1.py`
 2. Modify parameters
 3. In notebook, import different config:
    ```python
@@ -232,15 +209,14 @@ To save different experimental configurations:
 
 ---
 
-## ✅ Checklist Before Running
+## Checklist Before Running
 
-- [ ] All `.py` files uploaded to Colab
-- [ ] `main_pipeline.ipynb` uploaded
-- [ ] Google Drive mounted in Colab
-- [ ] Paths in `config.py` match your Drive structure
-- [ ] Species folders contain `.wav` files
-- [ ] GPU enabled in Colab (Runtime → Change runtime type → GPU)
+- All `.py` files uploaded to Colab
+- `main_pipeline.ipynb` uploaded
+- Google Drive mounted in Colab
+- Paths in `config.py` match your Drive structure
+- Species folders contain `.wav` files
 
 ---
 
-**You're all set! 🎉 Open `QUICK_START.md` to begin!**
+**Open `QUICK_START.md` to begin!**
