@@ -1,19 +1,18 @@
 # Primate Vocalization Detection Pipeline
 
-A reproducible machine learning system for automated detection of primate vocalizations in long-term rainforest audio recordings. This pipeline addresses the challenge of efficiently identifying species-specific calls in hours of field recordings through transfer learning and targeted data augmentation.
+A reproducible pipeline for automated detection of primate vocalizations in rainforest audio recordings. This pipeline addresses the challenge of efficiently identifying species-specific calls in hours of field recordings through transfer learning and targeted data augmentation.
 
 ## Overview
 
-This project implements an end-to-end deep learning pipeline for detecting vocalizations of two primate species (Cercocebus torquatus and Colobus guereza) in 30-minute rainforest audio recordings from Makokou, Gabon. The system uses VGG19 transfer learning with mel-spectrogram preprocessing and addresses limited training data through strategic data augmentation and hard negative mining.
+This project implements an end-to-end deep learning pipeline for detecting vocalizations of two primate species(for now: Cercocebus torquatus and Colobus guereza) in around 10 to 30-minute rainforest audio recordings from Makokou, Gabon. The system uses VGG19 transfer learning with mel-spectrogram preprocessing and addresses limited training data through strategic data augmentation and hard negative mining.
 
 ### Key Features
 
 - Modular design enabling easy addition of new species
 - Reproducible workflow with fixed random seeds
 - Centralized configuration system
-- GPU-optimized for Google Colab environment
 - Comprehensive visualization and analysis tools
-- Hard negative mining to address domain gap issues
+- Hard negative mining to address domain gap issues (not sure)
 
 ### Research Context
 
@@ -153,7 +152,7 @@ AUGMENTATION_CONFIG = {
 }
 ```
 
-This configuration produces a 7x augmentation multiplier for each training sample.
+This configuration produces a 7 times augmentation multiplier for each training sample.
 
 ### Model hyperparameters
 
@@ -290,27 +289,9 @@ Note that validation accuracy on augmented clean data does not directly predict 
 3. **Temporal context**: 5-second windows may truncate longer vocalizations or miss relevant context
 4. **Generalization**: Model performance may degrade on recordings from different geographic locations or recording equipment
 
-Hard negative mining and confidence threshold tuning help mitigate these issues.
+Hard negative mining and confidence threshold tuning help mitigate these issues.(not sure)
 
 ## Troubleshooting
-
-### GPU out of memory
-
-Reduce batch size in `src/config.py`:
-
-```python
-BATCH_SIZE = 16  # or 8
-```
-
-### Excessive false positives
-
-Increase confidence threshold:
-
-```python
-DETECTION_CONFIDENCE_THRESHOLD = 0.8
-```
-
-Or implement hard negative mining workflow (see `scripts/run_hard_negative_mining.py`).
 
 ### Poor model convergence
 
@@ -340,37 +321,17 @@ This pipeline builds on established methods in bioacoustics and deep learning:
 - pandas: Data manipulation
 - matplotlib: Visualization
 
-## Citation
-
-If you use this pipeline in your research, please cite:
-
-```bibtex
-@software{primate_vocalization_detection_2024,
-  author = {Mo},
-  title = {Primate Vocalization Detection Pipeline: Automated Detection of Primate Calls in Rainforest Audio Recordings},
-  year = {2024},
-  url = {https://github.com/yourusername/primate-vocalization-detection},
-  note = {Collaboration with Santiago (data provider) and Professor Claudia (supervisor)}
-}
-```
-
-## Acknowledgments
-
-This project was developed in collaboration with Santiago (data provider) and under the supervision of Professor Claudia. Audio recordings were collected from Makokou, Gabon as part of long-term rainforest monitoring research.
 
 ## License
 
 This project is licensed under the MIT License. See LICENSE file for details.
 
-## Contact
-
-For questions, issues, or collaboration opportunities, please open an issue on GitHub or contact the author directly.
 
 ## Version History
 
 - v1.0.0 (2024-11): Initial release
   - Three-class detection (Cercocebus torquatus, Colobus guereza, Background)
-  - Conservative augmentation scheme (7x multiplier)
+  - Conservative augmentation scheme (7* multiplier)
   - VGG19 transfer learning
   - Hard negative mining workflow
   - Complete visualization and analysis pipeline
