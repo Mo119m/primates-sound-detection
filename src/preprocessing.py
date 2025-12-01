@@ -248,4 +248,4 @@ if __name__ == "__main__":
     print(f"   Shape: {model_input.shape}")
     print(f"   Range: [{model_input.min():.4f}, {model_input.max():.4f}]")
     
-    print("\n Preprocessing module test completed!")
+    print("\n Preprocessing module test completed")

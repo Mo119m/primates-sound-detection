@@ -265,23 +265,6 @@ outputs/
 
 Detection CSV files contain columns: start_time, end_time, species, confidence.
 
-## Expected Performance
-
-### Training data distribution (after augmentation)
-
-- Cercocebus torquatus: 182 clips → 1,274 samples
-- Colobus guereza: 172 clips → 1,204 samples
-- Background: 1,035 samples (no augmentation)
-- Total: approximately 3,500 samples
-
-### Model performance
-
-- Training time: 30-60 minutes (GPU-dependent)
-- Expected validation accuracy: 85-95% on clean data
-- Detection speed: 1-2 minutes per 30-minute audio file
-
-Note that validation accuracy on augmented clean data does not directly predict real-world detection performance due to domain gap. Hard negative mining addresses this limitation.
-
 ## Known Limitations
 
 1. **Domain gap**: Model trained on clean clips may overestimate primate calls in complex soundscapes containing bird vocalizations
@@ -321,17 +304,3 @@ This pipeline builds on established methods in bioacoustics and deep learning:
 - pandas: Data manipulation
 - matplotlib: Visualization
 
-
-## License
-
-This project is licensed under the MIT License. See LICENSE file for details.
-
-
-## Version History
-
-- v1.0.0 (2024-11): Initial release
-  - Three-class detection (Cercocebus torquatus, Colobus guereza, Background)
-  - Conservative augmentation scheme (7* multiplier)
-  - VGG19 transfer learning
-  - Hard negative mining workflow
-  - Complete visualization and analysis pipeline

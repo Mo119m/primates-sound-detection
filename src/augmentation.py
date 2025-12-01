@@ -266,7 +266,7 @@ def augment_dataset(species_specs: dict,
     
     # Augment each species
     for species_name, specs in species_specs.items():
-        print(f"\n🐵 Augmenting {species_name}...")
+        print(f"\n Augmenting {species_name}")
         species_label = label_map[species_name]
         
         for i, spec in enumerate(specs):
@@ -336,4 +336,4 @@ if __name__ == "__main__":
     print(f"   Generated {len(augmented)} augmented versions")
     print(f"   Expected: {config.AUGMENTATION_MULTIPLIER}")
     
-    print("\n Augmentation module test completed!")
+    print("\n Augmentation module test completed")
