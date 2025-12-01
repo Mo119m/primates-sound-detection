@@ -1,6 +1,5 @@
 """
 Detection Module
-================
 Detect primate vocalizations in long audio files using sliding window approach
 """
 
@@ -238,9 +237,7 @@ def process_all_long_audio_files(model,
     all_detections = {}
     
     for i, audio_path in enumerate(audio_files, 1):
-        print(f"\n{'=' * 70}")
         print(f"Processing file {i}/{len(audio_files)}")
-        print(f"{'=' * 70}")
         
         # Detect
         detections_df = detect_in_long_audio(model, audio_path, confidence_threshold)

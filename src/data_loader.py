@@ -118,8 +118,7 @@ def load_background_data() -> List[Tuple[np.ndarray, str]]:
     """
     background_data = []
     
-    print("\n Loading Background Data...")
-    print("=" * 70)
+    print("\n Loading Background Data")
     
     for folder_name in config.BACKGROUND_FOLDERS:
         print(f"\n Loading from {folder_name}...")
@@ -213,7 +212,7 @@ def print_data_summary(species_data: Dict, background_data: List):
     for species_name, audio_list in species_data.items():
         original_count = len(audio_list)
         augmented_count = original_count * config.AUGMENTATION_MULTIPLIER
-        print(f"   {species_name}: {original_count} → ~{augmented_count}")
+        print(f"   {species_name}: {original_count} -> ~{augmented_count}")
     
     print(f"   Background: {len(background_data)} (no augmentation)")
     

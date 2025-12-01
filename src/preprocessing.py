@@ -1,6 +1,5 @@
 """
 Preprocessing Module
-====================
 Convert audio waveforms to mel-spectrograms suitable for VGG19 input
 """
 
