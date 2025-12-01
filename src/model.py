@@ -1,6 +1,5 @@
 """
 Model Module
-============
 Define and build the VGG19-based model for primate vocalization classification
 """
 
@@ -27,8 +26,7 @@ def build_model(num_classes: int = config.N_CLASSES,
     Returns:
         Compiled Keras model
     """
-    print("\n🤖 Building Model...")
-    print("=" * 70)
+    print("\n Building Model")
     
     # Load VGG19 with pretrained ImageNet weights
     base_model = VGG19(
@@ -40,9 +38,9 @@ def build_model(num_classes: int = config.N_CLASSES,
     # Freeze base model layers if specified
     if freeze_base:
         base_model.trainable = False
-        print("   ❄️  Frozen VGG19 base layers")
+        print("   Frozen VGG19 base layers")
     else:
-        print("   🔥 VGG19 base layers trainable")
+        print("   VGG19 base layers trainable")
     
     # Build the model
     inputs = keras.Input(shape=input_shape)
@@ -66,7 +64,7 @@ def build_model(num_classes: int = config.N_CLASSES,
     # Create model
     model = keras.Model(inputs=inputs, outputs=outputs, name='primate_vocalization_model')
     
-    print(f"\n📊 Model Architecture:")
+    print(f"\n Model Architecture:")
     print(f"   Input Shape: {input_shape}")
     print(f"   Base Model: VGG19 ({len(base_model.layers)} layers)")
     print(f"   Output Classes: {num_classes}")
@@ -75,8 +73,6 @@ def build_model(num_classes: int = config.N_CLASSES,
     # Count trainable parameters
     trainable_params = sum([tf.size(w).numpy() for w in model.trainable_weights])
     print(f"   Trainable Parameters: {trainable_params:,}")
-    
-    print("=" * 70)
     
     return model
 
@@ -93,7 +89,7 @@ def compile_model(model: keras.Model,
     Returns:
         Compiled model
     """
-    print("\n⚙️  Compiling Model...")
+    print("\n Compiling Model")
     
     # Optimizer
     optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
@@ -113,7 +109,7 @@ def compile_model(model: keras.Model,
         metrics=metrics
     )
     
-    print("   ✅ Model compiled!")
+    print("   Model compiled!")
     print(f"   Optimizer: Adam (lr={learning_rate})")
     print(f"   Loss: Sparse Categorical Crossentropy")
     print(f"   Metrics: Accuracy, Top-2 Accuracy")
@@ -178,7 +174,7 @@ def unfreeze_base_model(model: keras.Model,
     Returns:
         Model with unfrozen layers
     """
-    print(f"\n🔥 Unfreezing last {num_blocks_to_unfreeze} block(s) of VGG19...")
+    print(f"\n Unfreezing last {num_blocks_to_unfreeze} block(s) of VGG19...")
     
     # Get the base model (VGG19)
     base_model = model.layers[1]  # Assuming VGG19 is the second layer
@@ -202,10 +198,10 @@ def unfreeze_base_model(model: keras.Model,
         
         # Count trainable parameters
         trainable_params = sum([tf.size(w).numpy() for w in model.trainable_weights])
-        print(f"   ✅ Unfrozen from layer: {unfreeze_from}")
+        print(f"   Unfrozen from layer: {unfreeze_from}")
         print(f"   Trainable Parameters: {trainable_params:,}")
     else:
-        print(f"   ⚠️  Invalid num_blocks_to_unfreeze: {num_blocks_to_unfreeze}")
+        print(f"   Invalid num_blocks_to_unfreeze: {num_blocks_to_unfreeze}")
     
     return model
 
@@ -232,13 +228,13 @@ def load_trained_model(model_path: str) -> keras.Model:
     Returns:
         Loaded Keras model
     """
-    print(f"\n📂 Loading model from: {model_path}")
+    print(f"\n Loading model from: {model_path}")
     
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model file not found: {model_path}")
     
     model = keras.models.load_model(model_path)
-    print("   ✅ Model loaded successfully!")
+    print("   Model loaded successfully!")
     
     return model
 
@@ -250,11 +246,11 @@ def print_model_summary(model: keras.Model):
     Args:
         model: Keras model
     """
-    print("\n" + "=" * 70)
+
     print("MODEL SUMMARY")
-    print("=" * 70)
+
     model.summary()
-    print("=" * 70)
+
 
 
 if __name__ == "__main__":
@@ -270,11 +266,11 @@ if __name__ == "__main__":
     model = compile_model(model)
     
     # Test model with random input
-    print("\n🧪 Testing model with random input...")
+    print("\n Testing model with random input")
     test_input = tf.random.normal((1, config.IMG_HEIGHT, config.IMG_WIDTH, config.IMG_CHANNELS))
     test_output = model(test_input, training=False)
     print(f"   Input shape: {test_input.shape}")
     print(f"   Output shape: {test_output.shape}")
     print(f"   Output probabilities: {test_output.numpy()}")
     
-    print("\n✅ Model module test completed!")
+    print("\n Model module test completed!")

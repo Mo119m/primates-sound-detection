@@ -1,6 +1,5 @@
 """
 Training Module
-===============
 Complete training pipeline for primate vocalization detection
 """
 
@@ -23,9 +22,7 @@ def prepare_dataset():
     Returns:
         Tuple of (X_train, X_val, y_train, y_val, class_names)
     """
-    print("\n" + "=" * 70)
     print("PREPARING DATASET")
-    print("=" * 70)
     
     # Step 1: Load raw audio data
     species_data = data_loader.load_species_data()
@@ -33,8 +30,7 @@ def prepare_dataset():
     data_loader.print_data_summary(species_data, background_data)
     
     # Step 2: Convert to mel-spectrograms
-    print("\n📊 Converting to Mel-Spectrograms...")
-    print("=" * 70)
+    print("\n Converting to Mel-Spectrograms...")
     
     species_specs = {}
     for species_name, audio_list in species_data.items():
@@ -51,7 +47,7 @@ def prepare_dataset():
         print(f"  Converted {len(specs)} spectrograms")
     
     # Convert background
-    print(f"\n   Processing Background...")
+    print(f"\n   Processing Background")
     background_specs = []
     for i, (audio, _) in enumerate(background_data):
         mel_spec = preprocessing.audio_to_melspectrogram(audio)
@@ -66,7 +62,7 @@ def prepare_dataset():
     X_aug, y_aug, sample_info = augmentation.augment_dataset(species_specs, background_specs)
     
     # Step 4: Convert spectrograms to RGB images
-    print("\n🎨 Converting to RGB Images...")
+    print("\n Converting to RGB Images")
     X_images = []
     for i, spec in enumerate(X_aug):
         # Normalize and resize
@@ -85,7 +81,7 @@ def prepare_dataset():
     X_images = preprocessing.preprocess_for_model(X_images)
     
     # Step 6: Train/validation split
-    print("\n Splitting into Train/Validation Sets...")
+    print("\n Splitting into Train/Validation Sets")
     X_train, X_val, y_train, y_val = train_test_split(
         X_images, y_aug,
         test_size=config.VALIDATION_SPLIT,
@@ -98,14 +94,12 @@ def prepare_dataset():
     
     # Print class distribution
     print("\n   Class Distribution:")
-    print("   " + "-" * 50)
     for i, class_name in enumerate(config.CLASS_NAMES):
         train_count = np.sum(y_train == i)
         val_count = np.sum(y_val == i)
         total = train_count + val_count
         print(f"   {class_name:30s}: {train_count:5d} train, {val_count:5d} val, {total:5d} total")
     
-    print("=" * 70)
     
     return X_train, X_val, y_train, y_val, config.CLASS_NAMES
 
@@ -124,7 +118,7 @@ def calculate_class_weights(y_train: np.ndarray) -> dict:
     weights = compute_class_weight('balanced', classes=classes, y=y_train)
     class_weights = dict(enumerate(weights))
     
-    print("\n⚖️  Class Weights:")
+    print("\n Class Weights:")
     for i, class_name in enumerate(config.CLASS_NAMES):
         print(f"   {class_name:30s}: {class_weights[i]:.4f}")
     
@@ -180,7 +174,7 @@ def train_model(X_train: np.ndarray,
         verbose=1
     )
     
-    print("\n Training completed!")
+    print("\n Training completed")
     
     return model, history
 
@@ -194,9 +188,7 @@ def evaluate_model(model, X_val: np.ndarray, y_val: np.ndarray):
         X_val: Validation images
         y_val: Validation labels
     """
-    print("\n" + "=" * 70)
     print("EVALUATING MODEL")
-    print("=" * 70)
     
     # Overall evaluation
     results = model.evaluate(X_val, y_val, verbose=0)
@@ -233,7 +225,6 @@ def evaluate_model(model, X_val: np.ndarray, y_val: np.ndarray):
     
     print("\n Confusion Matrix:")
     print("   (rows=true, cols=predicted)")
-    print("   " + "-" * 50)
     
     # Header
     header = "   " + " " * 15
@@ -317,9 +308,7 @@ def run_complete_training_pipeline():
     Returns:
         Trained model
     """
-    print("\n" + "=" * 70)
     print("PRIMATE VOCALIZATION DETECTION - TRAINING PIPELINE")
-    print("=" * 70)
     
     # Print configuration
     config.print_config_summary()
