@@ -197,26 +197,5 @@ drive/MyDrive/chimp-audio/outputs/
 
 ---
 
-## Version Control
-
-To save different experimental configurations:
-1. Copy `config.py` -> `config_experiment1.py`
-2. Modify parameters
-3. In notebook, import different config:
-   ```python
-   import config_experiment1 as config
-   ```
-
----
-
-## Checklist Before Running
-
-- All `.py` files uploaded to Colab
-- `main_pipeline.ipynb` uploaded
-- Google Drive mounted in Colab
-- Paths in `config.py` match your Drive structure
-- Species folders contain `.wav` files
-
----
 
 **Open `QUICK_START.md` to begin!**

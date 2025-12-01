@@ -10,20 +10,7 @@ This guide provides rapid setup instructions for the Primate Vocalization Detect
 
 ### Option 1: Google Colab (Recommended)
 
-1. Upload all Python files from `src/` directory to Colab workspace
-2. Upload `notebooks/main_pipeline.ipynb`
-3. Mount Google Drive:
-
-```python
-from google.colab import drive
-drive.mount('/content/drive')
-```
-
-4. Install dependencies:
-
-```python
-!pip install -q librosa soundfile tensorflow scikit-learn pandas matplotlib
-```
+- As shown in readme
 
 ### Option 2: Local Installation
 
@@ -38,7 +25,7 @@ cd primate-vocalization-detection
 
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  
 ```
 
 3. Install dependencies:
