@@ -12,9 +12,6 @@ This package provides modules for:
 - Training pipeline with class balancing
 - Sliding window detection in long audio files
 - Visualization and analysis tools
-
-Author: Mo
-License: MIT
 """
 
 __version__ = "1.0.0"

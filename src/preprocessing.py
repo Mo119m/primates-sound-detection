@@ -152,7 +152,7 @@ def batch_preprocess_audio(audio_list: list,
             img = preprocess_audio(audio, sr)
             preprocessed.append(img)
         except Exception as e:
-            print(f"⚠️  Warning: Failed to preprocess audio {i}: {e}")
+            print(f"Warning: Failed to preprocess audio {i}: {e}")
     
     return np.array(preprocessed)
 
