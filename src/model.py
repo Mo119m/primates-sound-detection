@@ -273,4 +273,4 @@ if __name__ == "__main__":
     print(f"   Output shape: {test_output.shape}")
     print(f"   Output probabilities: {test_output.numpy()}")
     
-    print("\n Model module test completed!")
+    print("\n Model module test completed")

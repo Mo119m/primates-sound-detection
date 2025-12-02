@@ -222,9 +222,7 @@ def evaluate_model(model, X_val: np.ndarray, y_val: np.ndarray):
     # Confusion matrix
     from sklearn.metrics import confusion_matrix
     cm = confusion_matrix(y_val, y_pred_classes)
-    
-    print("\n Confusion Matrix:")
-    print("   (rows=true, cols=predicted)")
+
     
     # Header
     header = "   " + " " * 15
