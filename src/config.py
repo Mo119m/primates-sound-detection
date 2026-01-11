@@ -17,7 +17,7 @@ SPECIES_FOLDERS = {
     'Cercocebus_torquatus': 'Cercocebus torquatus hack 5s',
     'Colobus_guereza': 'Colobus guereza Clips 5s',
     'Pan_troglodytes': 'Pan troglodytes Clips 5sec',
-    # 'Cercopithecus_nictitans': 'Cercopithecus nictitans hack 5s',  # Uncomment when sufficient data available
+    'Cercopithecus_nictitans': 'Cercopithecus nictitans hack 5s',
 }
 
 # Background noise folders (will be combined into single "Background" class)
