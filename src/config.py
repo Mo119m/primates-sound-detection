@@ -12,11 +12,12 @@ AUDIO_ROOT = os.path.join(DRIVE_ROOT, "audio")
 LONG_AUDIO_ROOT = os.path.join(DRIVE_ROOT, "long_audio")
 
 # SPECIES CONFIGURATION
-# Add or remove species here 
+# Add or remove species here
 SPECIES_FOLDERS = {
     'Cercocebus_torquatus': 'Cercocebus torquatus hack 5s',
     'Colobus_guereza': 'Colobus guereza Clips 5s',
-    # 'Cercopithecus_nictitans': 'Cercopithecus nictitans hack 5s',  # Uncomment when more data available
+    'Pan_troglodytes': 'Pan troglodytes Clips 5sec',
+    'Cercopithecus_nictitans': 'Cercopithecus nictitans hack 5s',
 }
 
 # Background noise folders (will be combined into single "Background" class)

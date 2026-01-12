@@ -52,6 +52,7 @@ def visualize_detection_results(audio_path: str,
         species_colors = {
             'Cercocebus_torquatus': 'red',
             'Colobus_guereza': 'green',
+            'Pan_troglodytes': 'blue',
             'Cercopithecus_nictitans': 'orange',
             'Background': 'gray'
         }
@@ -306,17 +307,20 @@ def extract_detected_audio_clips(audio_path: str,
 def print_detection_statistics(detections_dict: dict):
     """
     Print detailed statistics about detections
-    
+
     Args:
         detections_dict: Dictionary mapping filename to detection DataFrame
     """
     print("DETECTION STATISTICS")
-    
-    all_detections = pd.concat(detections_dict.values(), ignore_index=True)
-    
-    if len(all_detections) == 0:
+
+    # Filter out empty dataframes before concatenating
+    non_empty_dfs = [df for df in detections_dict.values() if len(df) > 0]
+
+    if len(non_empty_dfs) == 0:
         print("\nNo detections found.")
         return
+
+    all_detections = pd.concat(non_empty_dfs, ignore_index=True)
     
     print(f"\n Overall Statistics:")
     print(f"   Total Files: {len(detections_dict)}")
