@@ -13,17 +13,19 @@ LONG_AUDIO_ROOT = os.path.join(DRIVE_ROOT, "long_audio")
 
 # SPECIES CONFIGURATION
 # Add or remove species here
+# Note: Cercopithecus nictitans folder contains 3 call types (hacks/keks/pyows)
+# which are automatically merged into one species class via recursive scanning
 SPECIES_FOLDERS = {
-    'Cercocebus_torquatus': 'Cercocebus torquatus hack 5s',
-    'Colobus_guereza': 'Colobus guereza Clips 5s',
-    'Pan_troglodytes': 'Pan troglodytes Clips 5sec',
-    'Cercopithecus_nictitans': 'Cercopithecus nictitans hack 5s',
+    'Cercopithecus_nictitans': 'species folder/Cercopithecus nictitans hack 5s',
+    'Colobus_guereza': 'species folder/Colobus guereza Clips 5s',
+    'Pan_troglodytes': 'species folder/Pan troglodytes Clips 5sec',
 }
 
 # Background noise folders (will be combined into single "Background" class)
 BACKGROUND_FOLDERS = [
-    'background noise Clips 5sec',
-    'wrong classified'
+    'background folders/background noise Clips 5sec',
+    'background folders/Cercocebus torquatus Clips 5s',
+    'background folders/wrong classifed'
 ]
 
 # AUDIO PARAMETERS
