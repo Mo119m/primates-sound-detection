@@ -4,7 +4,16 @@ A reproducible pipeline for automated detection of primate vocalizations in rain
 
 ## Overview
 
-This project implements an end-to-end deep learning pipeline for detecting vocalizations of two primate species(for now: Cercocebus torquatus and Colobus guereza) in around 10 to 30-minute rainforest audio recordings from Makokou, Gabon. The system uses VGG19 transfer learning with mel-spectrogram preprocessing and addresses limited training data through strategic data augmentation and hard negative mining.
+This project implements an end-to-end deep learning pipeline for detecting vocalizations of four primate species in around 10 to 30-minute rainforest audio recordings from Makokou, Gabon. The system performs **species-level detection**, identifying the presence of target species without distinguishing between different call types within each species. It uses VGG19 transfer learning with mel-spectrogram preprocessing and addresses limited training data through strategic data augmentation and hard negative mining.
+
+### Target Species
+
+1. **Cercopithecus nictitans** (Putty-nosed monkey)
+2. **Pan troglodytes** (Chimpanzee)
+3. **Cercocebus torquatus** (Red-capped mangabey)
+4. **Colobus guereza** (Guereza colobus)
+
+**Note**: While training data may contain specific call types (e.g., putty-nosed monkey's pyow, kek, and hack calls), the model's objective is **species-level detection** rather than call-type classification. The goal is to identify which recordings contain vocalizations from each target species, regardless of the specific call type.
 
 ### Key Features
 
@@ -46,12 +55,14 @@ The pipeline expects audio data organized in Google Drive with the following str
 ```
 chimp-audio/
 ├── audio/
-│   ├── Cercocebus torquatus hack 5s/    # Species 1 training clips (5 seconds)
-│   ├── Colobus guereza Clips 5s/        # Species 2 training clips (5 seconds)
-│   ├── background noise Clips 5sec/     # Background/environmental sounds
-│   └── wrong classified/                # Additional negative examples
+│   ├── Cercopithecus nictitans hack 5s/  # Putty-nosed monkey clips (5 seconds)
+│   ├── Pan troglodytes Clips 5sec/       # Chimpanzee clips (5 seconds)
+│   ├── Cercocebus torquatus hack 5s/     # Red-capped mangabey clips (5 seconds)
+│   ├── Colobus guereza Clips 5s/         # Guereza colobus clips (5 seconds)
+│   ├── background noise Clips 5sec/      # Background/environmental sounds
+│   └── wrong classified/                 # Additional negative examples
 └── long_audio/
-    └── *.wav                            # Long recordings for detection (typically 30 minutes)
+    └── *.wav                             # Long recordings for detection (typically 30 minutes)
 ```
 
 ## Project Structure
@@ -175,6 +186,17 @@ WINDOW_STRIDE = 2.5
 
 ## Methodology
 
+### Species-level detection approach
+
+This pipeline focuses on **species-level detection** rather than call-type classification. The model learns to identify whether a given audio segment contains vocalizations from each target species, without distinguishing between different call types within a species.
+
+**Design rationale**:
+- **Research goal**: Determine which recordings contain specific primate species for biodiversity monitoring
+- **Practical benefit**: Simplifies annotation requirements and model architecture
+- **Training flexibility**: Can use mixed call types (e.g., putty-nosed monkey's pyow, kek, and hack calls) from the same species as a unified class
+
+The model outputs N+1 classes where N is the number of target species plus one background class for non-target sounds.
+
 ### Data augmentation
 
 The pipeline implements conservative data augmentation adapted from tropical-stethoscope methods:
@@ -233,9 +255,11 @@ The modular design allows straightforward addition of new species:
 
 ```python
 SPECIES_FOLDERS = {
+    'Cercopithecus_nictitans': 'Cercopithecus nictitans hack 5s',
+    'Pan_troglodytes': 'Pan troglodytes Clips 5sec',
     'Cercocebus_torquatus': 'Cercocebus torquatus hack 5s',
     'Colobus_guereza': 'Colobus guereza Clips 5s',
-    'New_Species': 'new_species_clips',
+    'New_Species': 'new_species_clips',  # Add new species here
 }
 ```
 
