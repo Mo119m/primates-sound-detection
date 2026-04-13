@@ -12,9 +12,11 @@ import os
 # run locally or in CI without editing this file.
 DRIVE_ROOT = os.environ.get(
     "PRIMATE_DATA_ROOT",
-    "/content/drive/MyDrive/chimp-audio",
+    "/content/drive/MyDrive/primates-data",
 )
-AUDIO_ROOT = os.environ.get("PRIMATE_AUDIO_ROOT", os.path.join(DRIVE_ROOT, "audio"))
+# In the current Drive layout the species/ and background/ folders live
+# directly under DRIVE_ROOT, so AUDIO_ROOT == DRIVE_ROOT by default.
+AUDIO_ROOT = os.environ.get("PRIMATE_AUDIO_ROOT", DRIVE_ROOT)
 LONG_AUDIO_ROOT = os.environ.get(
     "PRIMATE_LONG_AUDIO_ROOT", os.path.join(DRIVE_ROOT, "long_audio")
 )
@@ -24,16 +26,16 @@ LONG_AUDIO_ROOT = os.environ.get(
 # Note: Cercopithecus nictitans folder contains 3 call types (hacks/keks/pyows)
 # which are automatically merged into one species class via recursive scanning
 SPECIES_FOLDERS = {
-    'Cercopithecus_nictitans': 'species folder/Cercopithecus nictitans hack 5s',
-    'Colobus_guereza': 'species folder/Colobus guereza Clips 5s',
-    'Pan_troglodytes': 'species folder/Pan troglodytes Clips 5sec',
+    'Cercopithecus_nictitans': 'species/Cercopithecus nictitans hack 5s',
+    'Colobus_guereza': 'species/Colobus guereza Clips 5s',
+    'Pan_troglodytes': 'species/Pan troglodytes Clips 5sec',
 }
 
 # Background noise folders (will be combined into single "Background" class)
 BACKGROUND_FOLDERS = [
-    'background folders/background noise Clips 5sec',
-    'background folders/Cercocebus torquatus Clips 5s',
-    'background folders/wrong classifed'
+    'background/background noise Clips 5sec',
+    'background/Cercocebus torquatus Clips 5s',
+    'background/wrong classified',
 ]
 
 # AUDIO PARAMETERS
