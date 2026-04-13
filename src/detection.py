@@ -113,7 +113,138 @@ def detect_in_long_audio(model,
     return df
 
 
-def apply_nms(detections: List[Dict], 
+def run_raw_inference(model, audio_path: str) -> Tuple[List[Tuple[float, float]], np.ndarray]:
+    """
+    Run sliding-window inference on a long audio file without applying any
+    threshold or NMS. Useful when you want to compare several thresholds
+    without re-running the (expensive) forward pass.
+
+    Args:
+        model: Trained Keras model
+        audio_path: Path to long audio file
+
+    Returns:
+        Tuple of (times, probs)
+        - times: list of (start_time, end_time) per window
+        - probs: np.ndarray of shape (n_windows, n_classes) with softmax scores
+    """
+    print(f"RAW INFERENCE: {os.path.basename(audio_path)}")
+
+    audio, sr = data_loader.load_long_audio(audio_path)
+    if audio is None:
+        return [], np.zeros((0, len(config.CLASS_NAMES)), dtype=np.float32)
+
+    windows, times = preprocessing.extract_sliding_windows(audio, sr)
+    print(f"   windows: {len(windows)}")
+
+    X_windows = []
+    for window in windows:
+        img = preprocessing.preprocess_audio(window, sr)
+        img_norm = preprocessing.preprocess_for_model(img)
+        X_windows.append(img_norm)
+    X_windows = np.array(X_windows)
+
+    probs = model.predict(X_windows, batch_size=config.BATCH_SIZE, verbose=1)
+    return times, probs
+
+
+def predictions_to_detections(times: List[Tuple[float, float]],
+                              probs: np.ndarray,
+                              confidence_threshold: float,
+                              apply_nms_filter: bool = True) -> pd.DataFrame:
+    """
+    Convert raw sliding-window predictions into a detections DataFrame at a
+    given confidence threshold. Background class is always excluded.
+
+    Args:
+        times: list of (start_time, end_time) from run_raw_inference
+        probs: (n_windows, n_classes) softmax scores from run_raw_inference
+        confidence_threshold: minimum confidence to keep a window
+        apply_nms_filter: whether to run per-species NMS after thresholding
+
+    Returns:
+        DataFrame with columns start_time, end_time, species, confidence,
+        all_probs.
+    """
+    if len(times) == 0 or len(probs) == 0:
+        return pd.DataFrame(columns=['start_time', 'end_time', 'species',
+                                     'confidence', 'all_probs'])
+
+    bg_idx = len(config.CLASS_NAMES) - 1
+    detections = []
+    for pred, (start_time, end_time) in zip(probs, times):
+        predicted_class = int(np.argmax(pred))
+        confidence = float(pred[predicted_class])
+        if predicted_class == bg_idx:
+            continue
+        if confidence < confidence_threshold:
+            continue
+        detections.append({
+            'start_time': float(start_time),
+            'end_time': float(end_time),
+            'species': config.CLASS_NAMES[predicted_class],
+            'confidence': confidence,
+            'all_probs': pred.tolist(),
+        })
+
+    if apply_nms_filter and len(detections) > 0:
+        detections = apply_nms(detections)
+
+    return pd.DataFrame(detections)
+
+
+def run_raw_inference_all(model) -> Dict[str, Tuple[List[Tuple[float, float]], np.ndarray]]:
+    """
+    Run raw sliding-window inference on every long-audio file exactly once.
+    The returned dict can then be fed through predictions_to_detections at
+    several thresholds (threshold sweep) without re-running the model.
+
+    Returns:
+        Dict mapping filename -> (times, probs)
+    """
+    print("RAW INFERENCE ON ALL LONG AUDIO FILES")
+    audio_files = data_loader.get_long_audio_files()
+    print(f"\nFound {len(audio_files)} audio files to process")
+
+    raw = {}
+    for i, audio_path in enumerate(audio_files, 1):
+        print(f"\nFile {i}/{len(audio_files)}")
+        times, probs = run_raw_inference(model, audio_path)
+        raw[os.path.basename(audio_path)] = (times, probs)
+
+    total_windows = sum(len(t) for t, _ in raw.values())
+    print(f"\nDone. {total_windows} windows across {len(raw)} files.")
+    return raw
+
+
+def sweep_thresholds(raw_results: Dict[str, Tuple[List[Tuple[float, float]], np.ndarray]],
+                     thresholds: List[float],
+                     apply_nms_filter: bool = True) -> Dict[float, Dict[str, pd.DataFrame]]:
+    """
+    Apply several confidence thresholds to a set of pre-computed raw
+    predictions and return the per-threshold detection DataFrames.
+
+    Args:
+        raw_results: output of run_raw_inference_all
+        thresholds: list of confidence cutoffs to evaluate
+        apply_nms_filter: whether to run NMS at each threshold
+
+    Returns:
+        Dict mapping threshold -> {filename: detections DataFrame}
+    """
+    sweep: Dict[float, Dict[str, pd.DataFrame]] = {}
+    for thr in thresholds:
+        per_file = {}
+        for fname, (times, probs) in raw_results.items():
+            per_file[fname] = predictions_to_detections(
+                times, probs, confidence_threshold=thr,
+                apply_nms_filter=apply_nms_filter,
+            )
+        sweep[thr] = per_file
+    return sweep
+
+
+def apply_nms(detections: List[Dict],
               iou_threshold: float = config.NMS_IOU_THRESHOLD) -> List[Dict]:
     """
     Apply Non-Maximum Suppression to remove overlapping detections
