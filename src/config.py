@@ -6,10 +6,18 @@ When adding new species or updating data, only need to modify this file.
 
 import os
 
-# GOOGLE DRIVE PATHS (Modify these based on Drive structure)
-DRIVE_ROOT = "/content/drive/MyDrive/chimp-audio"
-AUDIO_ROOT = os.path.join(DRIVE_ROOT, "audio")
-LONG_AUDIO_ROOT = os.path.join(DRIVE_ROOT, "long_audio")
+# DATA ROOT PATH
+# Defaults to the Google Drive layout used in the Colab notebooks, but can be
+# overridden via the PRIMATE_DATA_ROOT environment variable so the pipeline can
+# run locally or in CI without editing this file.
+DRIVE_ROOT = os.environ.get(
+    "PRIMATE_DATA_ROOT",
+    "/content/drive/MyDrive/chimp-audio",
+)
+AUDIO_ROOT = os.environ.get("PRIMATE_AUDIO_ROOT", os.path.join(DRIVE_ROOT, "audio"))
+LONG_AUDIO_ROOT = os.environ.get(
+    "PRIMATE_LONG_AUDIO_ROOT", os.path.join(DRIVE_ROOT, "long_audio")
+)
 
 # SPECIES CONFIGURATION
 # Add or remove species here
@@ -87,16 +95,21 @@ DETECTION_CONFIDENCE_THRESHOLD = 0.7  # Only keep detections above this
 NMS_IOU_THRESHOLD = 0.5  # Non-maximum suppression overlap threshold
 
 # OUTPUT PATHS
-OUTPUT_ROOT = os.path.join(DRIVE_ROOT, "outputs")
+OUTPUT_ROOT = os.environ.get("PRIMATE_OUTPUT_ROOT", os.path.join(DRIVE_ROOT, "outputs"))
 PROCESSED_DATA_DIR = os.path.join(OUTPUT_ROOT, "processed_data")
 MODEL_SAVE_DIR = os.path.join(OUTPUT_ROOT, "models")
 DETECTION_OUTPUT_DIR = os.path.join(OUTPUT_ROOT, "detections")
 VISUALIZATION_DIR = os.path.join(OUTPUT_ROOT, "visualizations")
 
-# Create output directories if they don't exist
-for directory in [OUTPUT_ROOT, PROCESSED_DATA_DIR, MODEL_SAVE_DIR, 
+# Create output directories if they don't exist. Wrapped in try/except so that
+# importing this module never crashes on read-only filesystems (e.g. CI runners
+# inspecting the package without access to the data drive).
+for directory in [OUTPUT_ROOT, PROCESSED_DATA_DIR, MODEL_SAVE_DIR,
                   DETECTION_OUTPUT_DIR, VISUALIZATION_DIR]:
-    os.makedirs(directory, exist_ok=True)
+    try:
+        os.makedirs(directory, exist_ok=True)
+    except OSError as exc:
+        print(f" Warning: could not create output directory {directory}: {exc}")
 
 
 # DERIVED PARAMETERS

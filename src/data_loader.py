@@ -9,7 +9,11 @@ import numpy as np
 import librosa
 from pathlib import Path
 from typing import Dict, List, Tuple
-import config
+
+try:
+    from . import config
+except ImportError:  # Allow running as a standalone script (e.g. in Colab)
+    import config
 
 def scan_audio_files(root_dir: str, folder_name: str) -> List[str]:
     """
@@ -38,40 +42,42 @@ def scan_audio_files(root_dir: str, folder_name: str) -> List[str]:
     return sorted(audio_files)
 
 
-def load_audio_file(file_path: str, 
+def load_audio_file(file_path: str,
                     target_sr: int = config.SAMPLE_RATE,
-                    target_duration: float = config.CLIP_DURATION) -> np.ndarray:
+                    target_duration: float = config.CLIP_DURATION):
     """
     Load a single audio file and ensure consistent length
-    
+
     Args:
         file_path: Path to audio file
         target_sr: Target sample rate
         target_duration: Target duration in seconds
-    
+
     Returns:
-        Audio waveform as numpy array
+        Audio waveform as numpy array, or None if the file could not be loaded.
     """
     try:
-        # Load audio
+        # Load audio. librosa raises (FileNotFoundError, sf.SoundFileError, ...)
+        # but the exact set depends on the backend, so we catch the common
+        # subclasses explicitly and let truly unexpected errors propagate.
         audio, sr = librosa.load(file_path, sr=target_sr)
-        
-        # Calculate target length in samples
-        target_length = int(target_sr * target_duration)
-        
-        # Pad or trim to target length
-        if len(audio) < target_length:
-            # Pad with zeros if too short
-            audio = np.pad(audio, (0, target_length - len(audio)), mode='constant')
-        elif len(audio) > target_length:
-            # Trim if too long
-            audio = audio[:target_length]
-        
-        return audio
-    
-    except Exception as e:
-        print(f" Error loading {file_path}: {e}")
+    except (FileNotFoundError, PermissionError) as exc:
+        print(f" Error loading {file_path}: {exc}")
         return None
+    except Exception as exc:  # noqa: BLE001 - librosa backends raise many types
+        print(f" Error decoding {file_path}: {exc}")
+        return None
+
+    # Calculate target length in samples
+    target_length = int(target_sr * target_duration)
+
+    # Pad or trim to target length
+    if len(audio) < target_length:
+        audio = np.pad(audio, (0, target_length - len(audio)), mode='constant')
+    elif len(audio) > target_length:
+        audio = audio[:target_length]
+
+    return audio
 
 
 def load_species_data() -> Dict[str, List[Tuple[np.ndarray, str]]]:

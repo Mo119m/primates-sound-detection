@@ -7,9 +7,15 @@ import numpy as np
 import os
 from typing import List, Tuple, Dict
 import pandas as pd
-import config
-import preprocessing
-import data_loader
+
+try:
+    from . import config
+    from . import preprocessing
+    from . import data_loader
+except ImportError:  # Allow running as a standalone script (e.g. in Colab)
+    import config
+    import preprocessing
+    import data_loader
 
 
 def detect_in_long_audio(model, 

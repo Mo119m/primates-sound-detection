@@ -8,8 +8,12 @@ from tensorflow import keras
 from tensorflow.keras import layers, models
 from tensorflow.keras.applications import VGG19
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
-import config
 import os
+
+try:
+    from . import config
+except ImportError:  # Allow running as a standalone script (e.g. in Colab)
+    import config
 
 
 def build_model(num_classes: int = config.N_CLASSES,
