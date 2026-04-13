@@ -88,20 +88,23 @@ def random_crop_spectrogram(spec: np.ndarray, target_shape: Tuple[int, int]) -> 
 def time_chop(spec: np.ndarray, chop_fraction: float = None) -> np.ndarray:
     """
     Crop from left or right edge (time axis)
-    
+
     Args:
         spec: Input spectrogram (freq, time)
         chop_fraction: Fraction to crop (if None, random from config range)
-    
+
     Returns:
         Cropped spectrogram
     """
     if chop_fraction is None:
         chop_fraction = random.uniform(*config.CHOP_RANGE)
-    
+
     height, width = spec.shape
+    # Clamp to [1, width-1] so we never produce an empty array (``spec[:, :-0]``
+    # returns an empty slice) and never crop the entire signal away.
     chop_amount = int(width * chop_fraction)
-    
+    chop_amount = max(1, min(chop_amount, width - 1))
+
     # Randomly choose left or right
     if random.random() > 0.5:
         # Chop from left
@@ -114,20 +117,23 @@ def time_chop(spec: np.ndarray, chop_fraction: float = None) -> np.ndarray:
 def freq_chop(spec: np.ndarray, chop_fraction: float = None) -> np.ndarray:
     """
     Crop from top or bottom edge (frequency axis)
-    
+
     Args:
         spec: Input spectrogram (freq, time)
         chop_fraction: Fraction to crop (if None, random from config range)
-    
+
     Returns:
         Cropped spectrogram
     """
     if chop_fraction is None:
         chop_fraction = random.uniform(*config.CHOP_RANGE)
-    
+
     height, width = spec.shape
+    # Clamp to [1, height-1] so we never produce an empty array (``spec[:-0]``
+    # returns an empty slice) and never crop the entire signal away.
     chop_amount = int(height * chop_fraction)
-    
+    chop_amount = max(1, min(chop_amount, height - 1))
+
     # Randomly choose top or bottom
     if random.random() > 0.5:
         # Chop from top

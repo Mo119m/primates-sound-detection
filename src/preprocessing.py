@@ -181,20 +181,39 @@ def extract_sliding_windows(audio: np.ndarray,
     """
     window_samples = int(window_size * sr)
     stride_samples = int(stride * sr)
-    
+
     windows = []
     times = []
-    
+
+    if len(audio) < window_samples:
+        # Audio shorter than one full window: zero-pad and emit a single window
+        # so very short recordings still get a chance to be classified.
+        padded = np.pad(audio, (0, window_samples - len(audio)), mode='constant')
+        windows.append(padded)
+        times.append((0.0, window_samples / sr))
+        return windows, times
+
     for start in range(0, len(audio) - window_samples + 1, stride_samples):
         end = start + window_samples
-        
+
         window_audio = audio[start:end]
         start_time = start / sr
         end_time = end / sr
-        
+
         windows.append(window_audio)
         times.append((start_time, end_time))
-    
+
+    # If the regular sliding windows don't reach the end of the recording
+    # (i.e. the duration isn't a clean multiple of the stride), anchor one
+    # extra window at the very end so we don't silently drop trailing audio
+    # — this can hide vocalisations at the end of long field recordings.
+    last_covered_end = times[-1][1] * sr if times else 0
+    if last_covered_end < len(audio):
+        tail_start_sample = len(audio) - window_samples
+        tail_audio = audio[tail_start_sample:]
+        windows.append(tail_audio)
+        times.append((tail_start_sample / sr, len(audio) / sr))
+
     return windows, times
 
 
