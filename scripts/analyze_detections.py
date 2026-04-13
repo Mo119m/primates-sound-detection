@@ -3,10 +3,15 @@ Analyze detection results to identify false positives
 """
 import os
 import sys
-sys.path.append('../src')
+
+# Make ``src/`` importable regardless of the working directory the script is
+# launched from.
+_SRC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "src")
+if _SRC_DIR not in sys.path:
+    sys.path.insert(0, _SRC_DIR)
 
 import pandas as pd
-import config
+import config  # noqa: F401  (kept for downstream analysis helpers)
 
 def analyze_species_detections(all_detections, target_species='Cercopithecus_nictitans'):
     """

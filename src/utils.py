@@ -10,7 +10,11 @@ import librosa.display
 import pandas as pd
 import os
 from typing import List, Tuple
-import config
+
+try:
+    from . import config
+except ImportError:  # Allow running as a standalone script (e.g. in Colab)
+    import config
 
 
 def visualize_detection_results(audio_path: str,
@@ -48,15 +52,14 @@ def visualize_detection_results(audio_path: str,
     
     # Add detection boxes to waveform
     if len(detections_df) > 0:
-        # Color map for species
+        # Color map for species (kept in sync with config.SPECIES_FOLDERS)
         species_colors = {
-            'Cercocebus_torquatus': 'red',
+            'Cercopithecus_nictitans': 'orange',
             'Colobus_guereza': 'green',
             'Pan_troglodytes': 'blue',
-            'Cercopithecus_nictitans': 'orange',
-            'Background': 'gray'
+            'Background': 'gray',
         }
-        
+
         for _, det in detections_df.iterrows():
             color = species_colors.get(det['species'], 'purple')
             axes[0].axvspan(det['start_time'], det['end_time'], 

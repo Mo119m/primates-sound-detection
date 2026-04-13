@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
@@ -15,7 +15,8 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/yourusername/primate-vocalization-detection",
-    packages=find_packages(),
+    package_dir={"primate_detection": "src"},
+    packages=["primate_detection"],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Science/Research",
@@ -36,9 +37,6 @@ setup(
             "flake8>=4.0",
         ],
     },
-    entry_points={
-        "console_scripts": [
-            "primate-detect=src.detection:main",
-        ],
-    },
+    # No console script is exposed yet – ``detection.py`` does not define a
+    # ``main`` entry point, so adding one here would make ``pip install`` fail.
 )

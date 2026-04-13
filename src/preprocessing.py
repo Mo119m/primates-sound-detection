@@ -7,7 +7,11 @@ import numpy as np
 import librosa
 import cv2
 from typing import Tuple
-import config
+
+try:
+    from . import config
+except ImportError:  # Allow running as a standalone script (e.g. in Colab)
+    import config
 
 
 def audio_to_melspectrogram(audio: np.ndarray, 
