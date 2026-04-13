@@ -179,10 +179,21 @@ def unfreeze_base_model(model: keras.Model,
         Model with unfrozen layers
     """
     print(f"\n Unfreezing last {num_blocks_to_unfreeze} block(s) of VGG19...")
-    
-    # Get the base model (VGG19)
-    base_model = model.layers[1]  # Assuming VGG19 is the second layer
-    
+
+    # Find the VGG19 base model by name rather than positional index so the
+    # function keeps working if a preprocessing layer is added before it.
+    base_model = None
+    for layer in model.layers:
+        if isinstance(layer, keras.Model) and layer.name.lower().startswith('vgg'):
+            base_model = layer
+            break
+    if base_model is None:
+        # Fall back to the previous behaviour but emit a clear warning rather
+        # than silently grabbing the wrong layer.
+        print("   Warning: could not locate a nested VGG model by name; "
+              "falling back to model.layers[1]")
+        base_model = model.layers[1]
+
     # VGG19 has 5 blocks, each block ends with a MaxPooling layer
     block_layer_names = []
     for layer in base_model.layers:
