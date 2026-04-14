@@ -80,17 +80,31 @@ Every "**[cut]**" marker is a sentence you can drop if you are running long.
 
 ---
 
-## Slide 7 — Takeaways + next steps (target 0:15, cumulative 5:00)
+## Slide 7 — Takeaways + next steps (target 0:20, cumulative 5:05)
 
 > "Three things to take away:
 
 > 1. VGG19 transfer learning works well for primate vocal classification — 94% on clean clips.
 > 2. Deployed end-to-end on real 2022 field recordings, it recovers meaningful diurnal activity patterns.
-> 3. The biggest open challenge is *Pan troglodytes* recall — we got only 5 detections in 13 recordings, which is likely under-triggering.
+> 3. The whole pipeline is released as a **reusable Python package** — any researcher with their own primate recordings can run it by editing one config file.
 
-> Next steps: more field data, per-call-type classification instead of just species, and adding temporal context across adjacent windows.
+> Main open challenge: *Pan troglodytes* recall is lower than we'd like. Next steps are more field data, per-call-type classification, and temporal context across adjacent windows.
 
 > Thank you — happy to take questions."
+
+**Note on the package bullet:** the value framing ("any researcher can run it on their own data") is what sticks. Do **not** list module names aloud — that's what the backup slide is for. If a Q&A question pushes for detail, pull up `figures/package_structure.png` as your backup slide and talk through `config.py` + one or two others.
+
+---
+
+## Backup slide — package structure (not in main flow)
+
+There is an extra slide at the end of the deck using `figures/package_structure.png`. **Do not include it in the 7-slide flow** — keep it hidden at the end. Pull it up only if someone asks a code / reproducibility question.
+
+If you do use it, the 30-second script is:
+
+> "The whole pipeline lives in `src/` as 8 Python modules — one per pipeline stage. `config.py` is the entry point: all paths, hyper-parameters, and the list of species folders live there. To run this on a new dataset, the only file you edit is `config.py`. Everything else — loading, augmentation, training, detection — is dataset-agnostic."
+
+Do not read the table row by row — let the audience read it while you summarise.
 
 ---
 
