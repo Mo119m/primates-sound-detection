@@ -105,6 +105,11 @@ ax.text(50, 3.5,
         ha="center", va="center", fontsize=10,
         color="#7F8C8D", style="italic")
 
+ax.text(50, 0.8,
+        "Packaged as a reusable Python module — swap in your own data by editing one config file",
+        ha="center", va="center", fontsize=9,
+        color="#95A5A6", style="italic")
+
 
 plt.tight_layout()
 out_path = OUT / "pipeline_architecture.png"
