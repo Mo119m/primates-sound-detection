@@ -81,26 +81,25 @@ NOTES = {
         "which species it is."
     ),
     3: (
-        "(0:45) Our training set comes from pre-extracted 5-second clips "
-        "of each species plus a background class that contains forest "
-        "ambient noise and non-target primate species. Around 870 species "
-        "clips and 1,800 background clips in total. On the right you can "
-        "see one mel-spectrogram per species — this is what the model "
-        "actually sees."
+        "(1:10) Our training set is about 870 pre-extracted species clips "
+        "and 1,800 background clips of forest ambient noise and non-target "
+        "primates. A note on preprocessing: the alarm calls we target are "
+        "very short — pyow around 0.1 second, hack around 0.07 second, kek "
+        "around 0.04 second (Mehon & Stephan 2021). Rather than zero-pad "
+        "them to the 5-second input length, we either place each call at a "
+        "random position inside a 5-second window padded with real ambient "
+        "noise (different noise each time, so the model doesn't learn a "
+        "silence tell), or concatenate 2–3 calls of the same type with "
+        "1.5–3 second gaps, which also mirrors the natural alarm-call "
+        "sequences described in the literature. On top of that, "
+        "augmentation gives a ×7 multiplier: original, three background "
+        "mixes at random SNR between −5 and +10 dB, time chop, frequency "
+        "chop, frequency shift. That brings us to about 6,000 effective "
+        "species training samples. The left panel shows raw vs augmented "
+        "counts; the right panel shows what one clip looks like after each "
+        "augmentation op — that's what the model actually trains on."
     ),
     4: (
-        "(0:35) 870 clips is a small training set for a deep network, "
-        "so data augmentation does a lot of the heavy lifting. From each "
-        "input spectrogram we generate seven variants: the original, "
-        "three background-noise mixes at randomised SNR between −5 and "
-        "+10 dB (so the model learns to hear calls through forest noise), "
-        "one time-axis crop and one frequency-axis crop of 10–30 %, and "
-        "one frequency translation of up to ±20 mel bins. That pushes "
-        "the effective training set to around 6,000 samples and — just "
-        "as importantly — teaches the model to be invariant to "
-        "background, timing, and small pitch shifts."
-    ),
-    5: (
         "(0:50) The core idea is simple: treat audio classification as "
         "image classification. We take a 5-second sliding window, convert "
         "it to a mel-spectrogram, resize to 224x224, and feed it to a "
@@ -110,7 +109,7 @@ NOTES = {
         "the backbone and train only a small custom head: global average "
         "pooling, 512-unit dense, 256-unit dense, 4-way softmax."
     ),
-    6: (
+    5: (
         "(1:00) On a held-out validation set the model reaches 94.3% "
         "accuracy across the four classes. The confusion matrix tells a "
         "more nuanced story — look at the diagonal: Cercopithecus and "
@@ -119,7 +118,7 @@ NOTES = {
         "which makes sense because many background clips contain distantly "
         "calling monkeys."
     ),
-    7: (
+    6: (
         "(1:10) Validation accuracy on clean clips is not what matters — "
         "what matters is whether it works on real multi-hour field audio. "
         "We ran the model on 13 recordings from Makokou on June 9 2022, "
@@ -133,7 +132,7 @@ NOTES = {
         "of day, which recovers meaningful diurnal activity patterns. "
         "(Play a detected clip if the room has audio.)"
     ),
-    8: (
+    7: (
         "(0:20) Three takeaways: VGG19 transfer learning works well for "
         "primate vocal classification (94% on clean clips); deployed "
         "end-to-end on real 2022 field recordings it recovers meaningful "
@@ -144,7 +143,7 @@ NOTES = {
         "field data, per-call-type classification, temporal context. "
         "Thank you — happy to take questions."
     ),
-    9: (
+    8: (
         "(backup, only if asked) The whole pipeline lives in src/ as 8 "
         "Python modules — one per pipeline stage. config.py is the entry "
         "point: all paths, hyper-parameters, and the list of species "
@@ -289,48 +288,40 @@ def build():
     )
     set_notes(s, NOTES[2])
 
-    # --- Slide 3: the data ---
+    # --- Slide 3: the data (counts + augmentation, all-in-one) ---
     s = prs.slides.add_slide(blank)
-    title(s, "Training data: 3 species + background")
+    title(s, "Training data  +  augmentation")
     add_image_or_placeholder(
-        s, "01_clips_per_class.png",
-        Inches(0.5), Inches(1.5), Inches(6.3), Inches(5.6),
+        s, "06_counts_with_augmentation.png",
+        Inches(0.35), Inches(1.3), Inches(6.4), Inches(5.2),
+        caption="(raw vs ×7 augmented)",
     )
     add_image_or_placeholder(
-        s, "03_example_spectrograms.png",
-        Inches(7.0), Inches(1.5), Inches(5.8), Inches(5.6),
-        caption="(one mel-spectrogram per species)",
+        s, "07_augmentation_examples.png",
+        Inches(6.9), Inches(1.3), Inches(6.2), Inches(5.2),
+        caption="(one clip, every aug applied)",
     )
     add_text_box(
-        s, Inches(0.6), Inches(7.0), Inches(12.0), Inches(0.4),
-        "~870 species clips (augmented ×7)  +  ~1800 background clips  "
-        "=  ~6000 effective training samples",
-        size=14, color=COLOR_MUTED, align=PP_ALIGN.CENTER,
+        s, Inches(0.4), Inches(6.55), Inches(12.5), Inches(0.4),
+        "~870 species clips  ×  7-variant augmentation  +  ~1800 background clips  "
+        "=  ~6 000 effective training samples",
+        size=14, bold=True, color=COLOR_BODY, align=PP_ALIGN.CENTER,
+    )
+    add_text_box(
+        s, Inches(0.4), Inches(6.95), Inches(12.5), Inches(0.4),
+        "Short alarm calls (pyow ~0.1 s, hack ~0.07 s, kek ~0.04 s) are padded with "
+        "real ambient noise at a random position, or 2–3 calls are concatenated with "
+        "1.5–3 s gaps.",
+        size=11, color=COLOR_MUTED, align=PP_ALIGN.CENTER,
+    )
+    add_text_box(
+        s, Inches(0.4), Inches(7.32), Inches(12.5), Inches(0.3),
+        "Call-type durations: Mehon & Stephan (2021), R. Soc. Open Sci. 8(3).",
+        size=10, color=COLOR_MUTED, align=PP_ALIGN.CENTER,
     )
     set_notes(s, NOTES[3])
 
-    # --- Slide 4: data augmentation ---
-    s = prs.slides.add_slide(blank)
-    title(s, "Data augmentation: ×7 effective training set")
-    add_image_or_placeholder(
-        s, "augmentation_pipeline.png",
-        Inches(0.4), Inches(1.35), Inches(12.5), Inches(5.2),
-    )
-    add_text_box(
-        s, Inches(0.6), Inches(6.7), Inches(12.1), Inches(0.5),
-        "Each clip → 7 variants: original, 3× background mix (SNR −5..10 dB), "
-        "time crop, freq crop, freq translate (±20 bins)",
-        size=14, color=COLOR_BODY, align=PP_ALIGN.CENTER,
-    )
-    add_text_box(
-        s, Inches(0.6), Inches(7.15), Inches(12.1), Inches(0.35),
-        "~870 species clips  →  ~6 000 effective training samples  —  "
-        "invariance to background noise, timing, and small pitch shifts",
-        size=12, color=COLOR_MUTED, align=PP_ALIGN.CENTER,
-    )
-    set_notes(s, NOTES[4])
-
-    # --- Slide 5: the method (architecture diagram) ---
+    # --- Slide 4: the method (architecture diagram) ---
     s = prs.slides.add_slide(blank)
     title(s, "Audio-as-image classification via transfer learning")
     add_image_or_placeholder(
@@ -346,9 +337,9 @@ def build():
         ],
         size=15,
     )
-    set_notes(s, NOTES[5])
+    set_notes(s, NOTES[4])
 
-    # --- Slide 6: model results ---
+    # --- Slide 5: model results ---
     s = prs.slides.add_slide(blank)
     title(s, "94.3% validation accuracy")
     add_image_or_placeholder(
@@ -361,9 +352,9 @@ def build():
         "background ↔ Cercopithecus (distant calls).",
         size=14, color=COLOR_MUTED, align=PP_ALIGN.CENTER,
     )
-    set_notes(s, NOTES[6])
+    set_notes(s, NOTES[5])
 
-    # --- Slide 7: field deployment ---
+    # --- Slide 6: field deployment ---
     s = prs.slides.add_slide(blank)
     title(s, "Deployed on 13 real recordings from Makokou")
     add_image_or_placeholder(
@@ -386,9 +377,9 @@ def build():
         "(Play one of the extracted clips from outputs/detected_clips/ if the room has audio.)",
         size=12, color=COLOR_MUTED, align=PP_ALIGN.CENTER,
     )
-    set_notes(s, NOTES[7])
+    set_notes(s, NOTES[6])
 
-    # --- Slide 8: takeaways ---
+    # --- Slide 7: takeaways ---
     s = prs.slides.add_slide(blank)
     title(s, "Takeaways")
     add_bullets(
@@ -414,9 +405,9 @@ def build():
         "Thank you — questions welcome.",
         size=20, bold=True, color=COLOR_ACCENT,
     )
-    set_notes(s, NOTES[8])
+    set_notes(s, NOTES[7])
 
-    # --- Slide 9: BACKUP — package structure (hidden) ---
+    # --- Slide 8: BACKUP — package structure (hidden) ---
     s = prs.slides.add_slide(blank)
     title(s, "Backup — package structure", color=COLOR_MUTED)
     add_image_or_placeholder(
@@ -428,11 +419,11 @@ def build():
         "Hidden from normal flow. Pull up only if a question asks about code / reproducibility.",
         size=12, color=COLOR_MUTED, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE,
     )
-    # Mark slide 9 as hidden
+    # Mark slide 8 as hidden
     s_element = s._element
     show = s_element.get("show")
     s_element.set("show", "0")
-    set_notes(s, NOTES[9])
+    set_notes(s, NOTES[8])
 
     prs.save(OUT_PATH)
     print(f"Saved {OUT_PATH}")
@@ -440,9 +431,8 @@ def build():
     # Summary of which images were embedded vs placeholdered
     print("\nImage status:")
     wanted = [
-        "01_clips_per_class.png",
-        "03_example_spectrograms.png",
-        "augmentation_pipeline.png",
+        "06_counts_with_augmentation.png",
+        "07_augmentation_examples.png",
         "pipeline_architecture.png",
         "02_confusion_matrix.png",
         "05_detections_by_hour.png",
