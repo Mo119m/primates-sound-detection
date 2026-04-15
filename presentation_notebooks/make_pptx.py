@@ -89,17 +89,28 @@ NOTES = {
         "actually sees."
     ),
     4: (
-        "(1:00) The core idea is simple: treat audio classification as "
+        "(0:35) 870 clips is a small training set for a deep network, "
+        "so data augmentation does a lot of the heavy lifting. From each "
+        "input spectrogram we generate seven variants: the original, "
+        "three background-noise mixes at randomised SNR between −5 and "
+        "+10 dB (so the model learns to hear calls through forest noise), "
+        "one time-axis crop and one frequency-axis crop of 10–30 %, and "
+        "one frequency translation of up to ±20 mel bins. That pushes "
+        "the effective training set to around 6,000 samples and — just "
+        "as importantly — teaches the model to be invariant to "
+        "background, timing, and small pitch shifts."
+    ),
+    5: (
+        "(0:50) The core idea is simple: treat audio classification as "
         "image classification. We take a 5-second sliding window, convert "
         "it to a mel-spectrogram, resize to 224x224, and feed it to a "
         "VGG19 network pre-trained on ImageNet. The low-level features "
         "VGG19 learned on natural images — edges, textures — are exactly "
         "what distinguishes spectrograms of different calls. We freeze "
-        "the backbone and train only a small custom head. Augmentation "
-        "(background mixing at varying SNR, time / frequency cropping) "
-        "pushes the 870 clips to ~6,000 effective training samples."
+        "the backbone and train only a small custom head: global average "
+        "pooling, 512-unit dense, 256-unit dense, 4-way softmax."
     ),
-    5: (
+    6: (
         "(1:00) On a held-out validation set the model reaches 94.3% "
         "accuracy across the four classes. The confusion matrix tells a "
         "more nuanced story — look at the diagonal: Cercopithecus and "
@@ -108,7 +119,7 @@ NOTES = {
         "which makes sense because many background clips contain distantly "
         "calling monkeys."
     ),
-    6: (
+    7: (
         "(1:10) Validation accuracy on clean clips is not what matters — "
         "what matters is whether it works on real multi-hour field audio. "
         "We ran the model on 13 recordings from Makokou on June 9 2022, "
@@ -122,7 +133,7 @@ NOTES = {
         "of day, which recovers meaningful diurnal activity patterns. "
         "(Play a detected clip if the room has audio.)"
     ),
-    7: (
+    8: (
         "(0:20) Three takeaways: VGG19 transfer learning works well for "
         "primate vocal classification (94% on clean clips); deployed "
         "end-to-end on real 2022 field recordings it recovers meaningful "
@@ -133,7 +144,7 @@ NOTES = {
         "field data, per-call-type classification, temporal context. "
         "Thank you — happy to take questions."
     ),
-    8: (
+    9: (
         "(backup, only if asked) The whole pipeline lives in src/ as 8 "
         "Python modules — one per pipeline stage. config.py is the entry "
         "point: all paths, hyper-parameters, and the list of species "
@@ -298,7 +309,28 @@ def build():
     )
     set_notes(s, NOTES[3])
 
-    # --- Slide 4: the method (architecture diagram) ---
+    # --- Slide 4: data augmentation ---
+    s = prs.slides.add_slide(blank)
+    title(s, "Data augmentation: ×7 effective training set")
+    add_image_or_placeholder(
+        s, "augmentation_pipeline.png",
+        Inches(0.4), Inches(1.35), Inches(12.5), Inches(5.2),
+    )
+    add_text_box(
+        s, Inches(0.6), Inches(6.7), Inches(12.1), Inches(0.5),
+        "Each clip → 7 variants: original, 3× background mix (SNR −5..10 dB), "
+        "time crop, freq crop, freq translate (±20 bins)",
+        size=14, color=COLOR_BODY, align=PP_ALIGN.CENTER,
+    )
+    add_text_box(
+        s, Inches(0.6), Inches(7.15), Inches(12.1), Inches(0.35),
+        "~870 species clips  →  ~6 000 effective training samples  —  "
+        "invariance to background noise, timing, and small pitch shifts",
+        size=12, color=COLOR_MUTED, align=PP_ALIGN.CENTER,
+    )
+    set_notes(s, NOTES[4])
+
+    # --- Slide 5: the method (architecture diagram) ---
     s = prs.slides.add_slide(blank)
     title(s, "Audio-as-image classification via transfer learning")
     add_image_or_placeholder(
@@ -310,14 +342,13 @@ def build():
         [
             "5 s sliding window → 128-bin mel-spectrogram → 224×224 RGB",
             "VGG19 ImageNet backbone (frozen) + custom classifier head",
-            "Augmentation: background mixing (SNR -5..10 dB), time/freq crop, "
-            "freq translation — ×7 effective training-set multiplier",
+            "Custom head: GAP → Dense 512 → Dense 256 → 4-way softmax",
         ],
         size=15,
     )
-    set_notes(s, NOTES[4])
+    set_notes(s, NOTES[5])
 
-    # --- Slide 5: model results ---
+    # --- Slide 6: model results ---
     s = prs.slides.add_slide(blank)
     title(s, "94.3% validation accuracy")
     add_image_or_placeholder(
@@ -330,9 +361,9 @@ def build():
         "background ↔ Cercopithecus (distant calls).",
         size=14, color=COLOR_MUTED, align=PP_ALIGN.CENTER,
     )
-    set_notes(s, NOTES[5])
+    set_notes(s, NOTES[6])
 
-    # --- Slide 6: field deployment ---
+    # --- Slide 7: field deployment ---
     s = prs.slides.add_slide(blank)
     title(s, "Deployed on 13 real recordings from Makokou")
     add_image_or_placeholder(
@@ -355,9 +386,9 @@ def build():
         "(Play one of the extracted clips from outputs/detected_clips/ if the room has audio.)",
         size=12, color=COLOR_MUTED, align=PP_ALIGN.CENTER,
     )
-    set_notes(s, NOTES[6])
+    set_notes(s, NOTES[7])
 
-    # --- Slide 7: takeaways ---
+    # --- Slide 8: takeaways ---
     s = prs.slides.add_slide(blank)
     title(s, "Takeaways")
     add_bullets(
@@ -383,9 +414,9 @@ def build():
         "Thank you — questions welcome.",
         size=20, bold=True, color=COLOR_ACCENT,
     )
-    set_notes(s, NOTES[7])
+    set_notes(s, NOTES[8])
 
-    # --- Slide 8: BACKUP — package structure (hidden) ---
+    # --- Slide 9: BACKUP — package structure (hidden) ---
     s = prs.slides.add_slide(blank)
     title(s, "Backup — package structure", color=COLOR_MUTED)
     add_image_or_placeholder(
@@ -397,11 +428,11 @@ def build():
         "Hidden from normal flow. Pull up only if a question asks about code / reproducibility.",
         size=12, color=COLOR_MUTED, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE,
     )
-    # Mark slide 8 as hidden
+    # Mark slide 9 as hidden
     s_element = s._element
     show = s_element.get("show")
     s_element.set("show", "0")
-    set_notes(s, NOTES[8])
+    set_notes(s, NOTES[9])
 
     prs.save(OUT_PATH)
     print(f"Saved {OUT_PATH}")
@@ -411,6 +442,7 @@ def build():
     wanted = [
         "01_clips_per_class.png",
         "03_example_spectrograms.png",
+        "augmentation_pipeline.png",
         "pipeline_architecture.png",
         "02_confusion_matrix.png",
         "05_detections_by_hour.png",
