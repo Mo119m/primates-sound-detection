@@ -1,6 +1,6 @@
 # Speaker notes — 5-minute presentation
 
-**Total budget: 5:00** across 8 main slides (+1 hidden backup). Practice with a stopwatch 3 times before the real thing. The first run will overshoot — aim for 4:50 in rehearsal so the real run lands on 5:00.
+**Total budget: 5:00** across 7 main slides (+1 hidden backup). Practice with a stopwatch 3 times before the real thing. The first run will overshoot — aim for 4:50 in rehearsal so the real run lands on 5:00.
 
 Every "**[cut]**" marker is a sentence you can drop if you are running long.
 
@@ -26,33 +26,19 @@ Every "**[cut]**" marker is a sentence you can drop if you are running long.
 
 ---
 
-## Slide 3 — The data (target 0:45, cumulative 1:35)
+## Slide 3 — Training data + augmentation (target 1:10, cumulative 2:00)
 
-> "Our training set comes from pre-extracted 5-second clips of each species, plus a background class that contains forest ambient noise, other primate species we aren't targeting, and previously misclassified samples.
+> "Our training set is about **870 species clips** and **1,800 background clips**. The left panel shows raw versus augmented counts per species; the right panel shows what the augmentation actually does to a single clip.
 
-> In total that's around 870 species clips and about 1,800 background clips — roughly **[X] minutes of labelled audio**." *(Read real number from 01_clips_per_class.png / 02_minutes_per_class.png.)*
+> A short note on preprocessing, because it's important for what the model is actually learning. The alarm calls we target are very short — *pyow* is around 0.1 second, *hack* is around 0.07 second, *kek* is around 0.04 second (that's Mehon & Stephan, *Royal Society Open Science* 2021). Rather than zero-pad them to the 5-second input length, we do one of two things: either place each call at a random position inside a 5-second window padded with **real ambient noise** — different noise each time, so the model can't learn a silence tell — or **concatenate 2–3 calls** of the same type with 1.5–3 second gaps, which also mirrors the natural alarm-call sequences described in that paper.
 
-> "On the right you can see one mel-spectrogram per species — this is what the model actually sees. Each species has a visually distinct call signature: *Cercopithecus* has these short sharp hacks here, *Colobus* has the long roar-like pattern, and *Pan* has the pant-hoot climb."
-
-**[cut if tight]** *"Background clips deliberately include other primate species like* Cercocebus torquatus *so the model learns to reject them rather than over-trigger."*
+> **[cut if tight]** On top of that, augmentation gives us a ×7 multiplier per clip: original, three background-noise mixes at randomised SNR between −5 and +10 dB, one time-axis crop, one frequency-axis crop, and one ±20 mel-bin frequency shift. That brings us to roughly **6,000 effective training samples**, and teaches the model to be invariant to background, timing, and small pitch shifts."
 
 *(Click.)*
 
 ---
 
-## Slide 4 — Data augmentation (target 0:35, cumulative 2:10)
-
-> "870 clips is a small training set for a deep network, so data augmentation does a lot of the heavy lifting.
-
-> From each input spectrogram we generate **seven variants**: the original, **three background-noise mixes** at randomised signal-to-noise ratio between −5 and +10 dB — so the model learns to hear calls through forest noise — one time-axis crop, one frequency-axis crop of 10–30 %, and one frequency translation of up to ±20 mel bins.
-
-> That pushes the effective training set from ~870 clips to about **6,000 samples**, and more importantly it teaches the model to be invariant to background noise, timing, and small pitch shifts. **[cut]** The three-to-one ratio on background mixing is deliberate — noise robustness is the hardest property to get right for field deployment."
-
-*(Click.)*
-
----
-
-## Slide 5 — The method (target 0:50, cumulative 3:00)
+## Slide 4 — The method (target 0:50, cumulative 2:50)
 
 > "The core idea is simple: treat audio classification as **image classification**. We take a 5-second sliding window over the audio, convert it to a mel-spectrogram, resize it to 224 by 224, and feed it to a VGG19 network that was pre-trained on ImageNet.
 
@@ -62,7 +48,7 @@ Every "**[cut]**" marker is a sentence you can drop if you are running long.
 
 ---
 
-## Slide 6 — Model results (target 1:00, cumulative 4:00)
+## Slide 5 — Model results (target 1:00, cumulative 3:50)
 
 > "On a held-out validation set, the model reaches **94.3% accuracy** across the four classes — that's the big number on the left.
 
@@ -74,7 +60,7 @@ Every "**[cut]**" marker is a sentence you can drop if you are running long.
 
 ---
 
-## Slide 7 — Field deployment (target 0:50, cumulative 4:50)
+## Slide 6 — Field deployment (target 0:50, cumulative 4:40)
 
 > "But validation accuracy on clean 5-second clips is not the metric that matters. What matters is: does it work on a real, messy, multi-hour field recording?
 
@@ -90,7 +76,7 @@ Every "**[cut]**" marker is a sentence you can drop if you are running long.
 
 ---
 
-## Slide 8 — Takeaways + next steps (target 0:20, cumulative 5:10)
+## Slide 7 — Takeaways + next steps (target 0:20, cumulative 5:00)
 
 > "Three things to take away:
 
@@ -108,7 +94,7 @@ Every "**[cut]**" marker is a sentence you can drop if you are running long.
 
 ## Backup slide — package structure (not in main flow)
 
-There is an extra slide at the end of the deck using `figures/package_structure.png`. **Do not include it in the 8-slide flow** — keep it hidden at the end. Pull it up only if someone asks a code / reproducibility question.
+There is an extra slide at the end of the deck using `figures/package_structure.png`. **Do not include it in the 7-slide flow** — keep it hidden at the end. Pull it up only if someone asks a code / reproducibility question.
 
 If you do use it, the 30-second script is:
 
@@ -140,9 +126,9 @@ Do not read the table row by row — let the audience read it while you summaris
 ## Rehearsal checklist
 
 - [ ] First run, time yourself. You will be over 5:30. Don't panic.
-- [ ] Second run, cut Slide 3 by 10 seconds and Slide 6 by 10 seconds. Aim for 5:10.
+- [ ] Second run, cut Slide 3 by 20 seconds (drop the augmentation paragraph — the figure on the right speaks for itself) and Slide 6 by 10 seconds. Aim for 5:10.
 - [ ] Third run, on your feet, aim for 4:50.
 - [ ] Verify the demo audio clip works on the presentation laptop **before** the talk.
 - [ ] Have the PNG files downloaded locally — don't rely on live Colab during the talk.
-- [ ] Know which 3 sentences you'll cut if Slide 7 runs long (the backup is: skip the threshold sweep story entirely and jump straight to the diurnal pattern figure).
-- [ ] Slide 4 (augmentation) is the easiest slide to trim — the figure speaks for itself, so if you're in a time hole, drop the second paragraph entirely and just say "×7 effective training set, the key piece is background mixing".
+- [ ] Know which 3 sentences you'll cut if Slide 6 runs long (the backup is: skip the threshold sweep story entirely and jump straight to the diurnal pattern figure).
+- [ ] Slide 3 is the most content-dense slide in the deck — if you're short on time, the preprocessing story (ambient noise padding + concatenation) can become one sentence: "short calls get embedded in real ambient noise at a random position, or concatenated into natural sequences".
