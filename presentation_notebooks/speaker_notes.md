@@ -1,6 +1,6 @@
 # Speaker notes — 5-minute presentation
 
-**Total budget: 5:00**. Practice with a stopwatch 3 times before the real thing. The first run will overshoot — aim for 4:50 in rehearsal so the real run lands on 5:00.
+**Total budget: 5:00** across 8 main slides (+1 hidden backup). Practice with a stopwatch 3 times before the real thing. The first run will overshoot — aim for 4:50 in rehearsal so the real run lands on 5:00.
 
 Every "**[cut]**" marker is a sentence you can drop if you are running long.
 
@@ -40,19 +40,29 @@ Every "**[cut]**" marker is a sentence you can drop if you are running long.
 
 ---
 
-## Slide 4 — The method (target 1:00, cumulative 2:35)
+## Slide 4 — Data augmentation (target 0:35, cumulative 2:10)
 
-> "The core idea is simple: treat audio classification as **image classification**. We take a 5-second sliding window over the audio, convert it to a mel-spectrogram, resize it to 224 by 224, and feed it to a VGG19 network that was pre-trained on ImageNet.
+> "870 clips is a small training set for a deep network, so data augmentation does a lot of the heavy lifting.
 
-> This works because the low-level features VGG19 learned on natural images — edges, textures, repeating patterns — are exactly the features that distinguish spectrograms of different vocalizations. **[cut]** We freeze the ImageNet backbone and only train a small custom head on top: global average pooling, a 512-unit dense layer, a 256-unit dense layer, and a 4-way softmax.
+> From each input spectrogram we generate **seven variants**: the original, **three background-noise mixes** at randomised signal-to-noise ratio between −5 and +10 dB — so the model learns to hear calls through forest noise — one time-axis crop, one frequency-axis crop of 10–30 %, and one frequency translation of up to ±20 mel bins.
 
-> Training uses heavy augmentation — we mix each species clip with 3 different backgrounds at varying signal-to-noise ratios, plus time cropping and frequency shifting — which pushes the effective training set from 870 clips to about 6,000."
+> That pushes the effective training set from ~870 clips to about **6,000 samples**, and more importantly it teaches the model to be invariant to background noise, timing, and small pitch shifts. **[cut]** The three-to-one ratio on background mixing is deliberate — noise robustness is the hardest property to get right for field deployment."
 
 *(Click.)*
 
 ---
 
-## Slide 5 — Model results (target 1:00, cumulative 3:35)
+## Slide 5 — The method (target 0:50, cumulative 3:00)
+
+> "The core idea is simple: treat audio classification as **image classification**. We take a 5-second sliding window over the audio, convert it to a mel-spectrogram, resize it to 224 by 224, and feed it to a VGG19 network that was pre-trained on ImageNet.
+
+> This works because the low-level features VGG19 learned on natural images — edges, textures, repeating patterns — are exactly the features that distinguish spectrograms of different vocalizations. **[cut]** We freeze the ImageNet backbone and only train a small custom head on top: global average pooling, a 512-unit dense layer, a 256-unit dense layer, and a 4-way softmax."
+
+*(Click.)*
+
+---
+
+## Slide 6 — Model results (target 1:00, cumulative 4:00)
 
 > "On a held-out validation set, the model reaches **94.3% accuracy** across the four classes — that's the big number on the left.
 
@@ -64,7 +74,7 @@ Every "**[cut]**" marker is a sentence you can drop if you are running long.
 
 ---
 
-## Slide 6 — Field deployment (target 1:10, cumulative 4:45)
+## Slide 7 — Field deployment (target 0:50, cumulative 4:50)
 
 > "But validation accuracy on clean 5-second clips is not the metric that matters. What matters is: does it work on a real, messy, multi-hour field recording?
 
@@ -80,7 +90,7 @@ Every "**[cut]**" marker is a sentence you can drop if you are running long.
 
 ---
 
-## Slide 7 — Takeaways + next steps (target 0:20, cumulative 5:05)
+## Slide 8 — Takeaways + next steps (target 0:20, cumulative 5:10)
 
 > "Three things to take away:
 
@@ -98,7 +108,7 @@ Every "**[cut]**" marker is a sentence you can drop if you are running long.
 
 ## Backup slide — package structure (not in main flow)
 
-There is an extra slide at the end of the deck using `figures/package_structure.png`. **Do not include it in the 7-slide flow** — keep it hidden at the end. Pull it up only if someone asks a code / reproducibility question.
+There is an extra slide at the end of the deck using `figures/package_structure.png`. **Do not include it in the 8-slide flow** — keep it hidden at the end. Pull it up only if someone asks a code / reproducibility question.
 
 If you do use it, the 30-second script is:
 
@@ -130,8 +140,9 @@ Do not read the table row by row — let the audience read it while you summaris
 ## Rehearsal checklist
 
 - [ ] First run, time yourself. You will be over 5:30. Don't panic.
-- [ ] Second run, cut Slide 3 by 10 seconds and Slide 5 by 10 seconds. Aim for 5:10.
+- [ ] Second run, cut Slide 3 by 10 seconds and Slide 6 by 10 seconds. Aim for 5:10.
 - [ ] Third run, on your feet, aim for 4:50.
 - [ ] Verify the demo audio clip works on the presentation laptop **before** the talk.
 - [ ] Have the PNG files downloaded locally — don't rely on live Colab during the talk.
-- [ ] Know which 3 sentences you'll cut if Slide 6 runs long (the backup is: skip the threshold sweep story entirely and jump straight to the diurnal pattern figure).
+- [ ] Know which 3 sentences you'll cut if Slide 7 runs long (the backup is: skip the threshold sweep story entirely and jump straight to the diurnal pattern figure).
+- [ ] Slide 4 (augmentation) is the easiest slide to trim — the figure speaks for itself, so if you're in a time hole, drop the second paragraph entirely and just say "×7 effective training set, the key piece is background mixing".
