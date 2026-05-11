@@ -10,7 +10,11 @@ import librosa.display
 import pandas as pd
 import os
 from typing import List, Tuple
-import config
+
+try:
+    from . import config
+except ImportError:  # Allow running as a standalone script (e.g. in Colab)
+    import config
 
 
 def visualize_detection_results(audio_path: str,
@@ -48,15 +52,14 @@ def visualize_detection_results(audio_path: str,
     
     # Add detection boxes to waveform
     if len(detections_df) > 0:
-        # Color map for species
+        # Color map for species (kept in sync with config.SPECIES_FOLDERS)
         species_colors = {
-            'Cercocebus_torquatus': 'red',
+            'Cercopithecus_nictitans': 'orange',
             'Colobus_guereza': 'green',
             'Pan_troglodytes': 'blue',
-            'Cercopithecus_nictitans': 'orange',
-            'Background': 'gray'
+            'Background': 'gray',
         }
-        
+
         for _, det in detections_df.iterrows():
             color = species_colors.get(det['species'], 'purple')
             axes[0].axvspan(det['start_time'], det['end_time'], 
@@ -265,8 +268,8 @@ def extract_detected_audio_clips(audio_path: str,
                                 output_dir: str,
                                 padding: float = 0.5):
     """
-    Extract audio clips for each detection
-    
+    Extract audio clips for each detection in a single long audio file.
+
     Args:
         audio_path: Path to original audio file
         detections_df: DataFrame with detections
@@ -274,34 +277,147 @@ def extract_detected_audio_clips(audio_path: str,
         padding: Padding to add around detection (seconds)
     """
     import soundfile as sf
-    
+
     os.makedirs(output_dir, exist_ok=True)
-    
+
     # Load audio
     audio, sr = librosa.load(audio_path, sr=config.SAMPLE_RATE)
-    
+
     base_name = os.path.splitext(os.path.basename(audio_path))[0]
-    
-    print(f"\n🎵 Extracting {len(detections_df)} detected clips...")
-    
-    for i, det in detections_df.iterrows():
+
+    print(f"\n Extracting {len(detections_df)} detected clips...")
+
+    for _, det in detections_df.iterrows():
         # Calculate clip boundaries with padding
         start_sample = int(max(0, det['start_time'] - padding) * sr)
         end_sample = int(min(len(audio), det['end_time'] + padding) * sr)
-        
+
         # Extract clip
         clip = audio[start_sample:end_sample]
-        
+
         # Create filename
         species = det['species']
-        confidence = det['confidence']
+        confidence = float(det['confidence'])
         clip_filename = f"{base_name}_{species}_{det['start_time']:.1f}s_conf{confidence:.3f}.wav"
         clip_path = os.path.join(output_dir, clip_filename)
-        
+
         # Save
         sf.write(clip_path, clip, sr)
-    
+
     print(f"Saved {len(detections_df)} clips to: {output_dir}")
+
+
+def extract_all_detected_clips(all_detections: dict,
+                               output_dir: str = None,
+                               padding: float = 0.5,
+                               organize_by_species: bool = True,
+                               long_audio_root: str = None) -> str:
+    """
+    Extract WAV clips for every detection across every long-audio file so they
+    can be manually reviewed by listening.
+
+    The clip filenames encode the predicted species, source recording, start
+    time (seconds into the source), and the model confidence so a human
+    reviewer can sort / filter without consulting any side metadata.
+
+    Args:
+        all_detections: Dict mapping long-audio filename -> detections DataFrame
+            (the structure returned by ``detection.process_all_long_audio_files``).
+        output_dir: Where to save clips. Defaults to ``OUTPUT_ROOT/detected_clips``.
+        padding: Extra seconds of audio kept on each side of the detection
+            window so the reviewer hears a little context.
+        organize_by_species: If True (default), clips are grouped into
+            ``output_dir/<species>/`` subfolders so a reviewer can listen to
+            all detections of one species back-to-back.
+        long_audio_root: Folder to look up source recordings in. Defaults to
+            ``config.LONG_AUDIO_ROOT``.
+
+    Returns:
+        The output directory path.
+    """
+    import soundfile as sf
+
+    if output_dir is None:
+        output_dir = os.path.join(config.OUTPUT_ROOT, 'detected_clips')
+    if long_audio_root is None:
+        long_audio_root = config.LONG_AUDIO_ROOT
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    total_clips = 0
+    per_species_count = {}
+    skipped_files = []
+
+    print("Extracting detection clips for manual review")
+    print(f"  output dir: {output_dir}")
+    print(f"  padding:    {padding}s on each side")
+    print(f"  layout:     {'one folder per species' if organize_by_species else 'flat'}\n")
+
+    for filename, detections_df in all_detections.items():
+        if detections_df is None or len(detections_df) == 0:
+            continue
+
+        audio_path = os.path.join(long_audio_root, filename)
+        if not os.path.exists(audio_path):
+            print(f"  Skip {filename}: source recording not found at {audio_path}")
+            skipped_files.append(filename)
+            continue
+
+        try:
+            audio, sr = librosa.load(audio_path, sr=config.SAMPLE_RATE)
+        except (FileNotFoundError, PermissionError) as exc:
+            print(f"  Skip {filename}: {exc}")
+            skipped_files.append(filename)
+            continue
+        except Exception as exc:  # noqa: BLE001 - librosa backends raise many types
+            print(f"  Skip {filename}: decode error ({exc})")
+            skipped_files.append(filename)
+            continue
+
+        base_name = os.path.splitext(filename)[0]
+        n_in_file = 0
+
+        for _, det in detections_df.iterrows():
+            species = str(det['species'])
+            conf = float(det['confidence'])
+            start_t = float(det['start_time'])
+            end_t = float(det['end_time'])
+
+            start_sample = int(max(0, start_t - padding) * sr)
+            end_sample = int(min(len(audio), end_t + padding) * sr)
+            clip = audio[start_sample:end_sample]
+
+            if organize_by_species:
+                species_dir = os.path.join(output_dir, species)
+                os.makedirs(species_dir, exist_ok=True)
+                save_dir = species_dir
+            else:
+                save_dir = output_dir
+
+            # Filename layout: species first so it sorts naturally; integer
+            # second offset so files sort chronologically inside a species
+            # folder; confidence last so the reviewer can eyeball quality.
+            clip_name = (
+                f"{species}__{base_name}__{int(start_t):05d}s"
+                f"__conf{conf:.3f}.wav"
+            )
+            sf.write(os.path.join(save_dir, clip_name), clip, sr)
+
+            n_in_file += 1
+            total_clips += 1
+            per_species_count[species] = per_species_count.get(species, 0) + 1
+
+        print(f"  {filename}: extracted {n_in_file} clips")
+
+    print(f"\nDone. {total_clips} clips total:")
+    for species, count in sorted(per_species_count.items(), key=lambda x: -x[1]):
+        print(f"  {species:30s}: {count}")
+    if skipped_files:
+        print(f"\nSkipped {len(skipped_files)} source files (see warnings above).")
+
+    print(f"\nClips saved under: {output_dir}")
+    print("Open this folder in your Drive and listen to verify each detection.")
+    return output_dir
 
 
 def print_detection_statistics(detections_dict: dict):

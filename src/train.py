@@ -8,11 +8,19 @@ import os
 from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_class_weight
 import tensorflow as tf
-import config
-import data_loader
-import preprocessing
-import augmentation
-import model as model_module
+
+try:
+    from . import config
+    from . import data_loader
+    from . import preprocessing
+    from . import augmentation
+    from . import model as model_module
+except ImportError:  # Allow running as a standalone script (e.g. in Colab)
+    import config
+    import data_loader
+    import preprocessing
+    import augmentation
+    import model as model_module
 
 
 def prepare_dataset():

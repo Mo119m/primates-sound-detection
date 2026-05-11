@@ -1,8 +1,16 @@
 import os
+import sys
+
+# Make ``src/`` importable when running this file directly (``python scripts/run_hard_negative_mining.py``)
+_SRC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "src")
+if _SRC_DIR not in sys.path:
+    sys.path.insert(0, _SRC_DIR)
+
 import numpy as np
 import pandas as pd
 import librosa
 import soundfile as sf
+
 import config
 import preprocessing
 import data_loader
