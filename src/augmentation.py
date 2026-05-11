@@ -7,7 +7,11 @@ Based on tropical-stethoscope methods adapted for primate vocalizations
 import numpy as np
 import random
 from typing import List, Tuple
-import config
+
+try:
+    from . import config
+except ImportError:  # Allow running as a standalone script (e.g. in Colab)
+    import config
 
 
 def add_background_noise(spec: np.ndarray, 
@@ -84,20 +88,23 @@ def random_crop_spectrogram(spec: np.ndarray, target_shape: Tuple[int, int]) -> 
 def time_chop(spec: np.ndarray, chop_fraction: float = None) -> np.ndarray:
     """
     Crop from left or right edge (time axis)
-    
+
     Args:
         spec: Input spectrogram (freq, time)
         chop_fraction: Fraction to crop (if None, random from config range)
-    
+
     Returns:
         Cropped spectrogram
     """
     if chop_fraction is None:
         chop_fraction = random.uniform(*config.CHOP_RANGE)
-    
+
     height, width = spec.shape
+    # Clamp to [1, width-1] so we never produce an empty array (``spec[:, :-0]``
+    # returns an empty slice) and never crop the entire signal away.
     chop_amount = int(width * chop_fraction)
-    
+    chop_amount = max(1, min(chop_amount, width - 1))
+
     # Randomly choose left or right
     if random.random() > 0.5:
         # Chop from left
@@ -110,20 +117,23 @@ def time_chop(spec: np.ndarray, chop_fraction: float = None) -> np.ndarray:
 def freq_chop(spec: np.ndarray, chop_fraction: float = None) -> np.ndarray:
     """
     Crop from top or bottom edge (frequency axis)
-    
+
     Args:
         spec: Input spectrogram (freq, time)
         chop_fraction: Fraction to crop (if None, random from config range)
-    
+
     Returns:
         Cropped spectrogram
     """
     if chop_fraction is None:
         chop_fraction = random.uniform(*config.CHOP_RANGE)
-    
+
     height, width = spec.shape
+    # Clamp to [1, height-1] so we never produce an empty array (``spec[:-0]``
+    # returns an empty slice) and never crop the entire signal away.
     chop_amount = int(height * chop_fraction)
-    
+    chop_amount = max(1, min(chop_amount, height - 1))
+
     # Randomly choose top or bottom
     if random.random() > 0.5:
         # Chop from top
@@ -131,27 +141,6 @@ def freq_chop(spec: np.ndarray, chop_fraction: float = None) -> np.ndarray:
     else:
         # Chop from bottom
         return spec[:-chop_amount, :]
-
-
-def four_chop(spec: np.ndarray, chop_fraction: float = None) -> np.ndarray:
-    """
-    Crop from all four edges
-    
-    Args:
-        spec: Input spectrogram (freq, time)
-        chop_fraction: Fraction to crop from each edge
-    
-    Returns:
-        Cropped spectrogram
-    """
-    if chop_fraction is None:
-        chop_fraction = random.uniform(*config.CHOP_RANGE) / 2  # Divide by 2 since cropping from both sides
-    
-    height, width = spec.shape
-    chop_h = int(height * chop_fraction)
-    chop_w = int(width * chop_fraction)
-    
-    return spec[chop_h:-chop_h, chop_w:-chop_w]
 
 
 def translate(spec: np.ndarray, shift_amount: int = None) -> np.ndarray:
@@ -268,19 +257,21 @@ def augment_dataset(species_specs: dict,
     for species_name, specs in species_specs.items():
         print(f"\n Augmenting {species_name}")
         species_label = label_map[species_name]
-        
+
+        species_aug_count = 0
         for i, spec in enumerate(specs):
             augmented_specs = augment_spectrogram(spec, background_specs)
-            
+
             for j, aug_spec in enumerate(augmented_specs):
                 X_all.append(aug_spec)
                 y_all.append(species_label)
                 sample_info.append(f"{species_name}_sample{i}_aug{j}")
-            
+            species_aug_count += len(augmented_specs)
+
             if (i + 1) % 50 == 0:
                 print(f"   Processed {i + 1}/{len(specs)} samples...")
-        
-        print(f"{len(specs)} → {len(specs) * len(augmented_specs)} samples")
+
+        print(f"{len(specs)} → {species_aug_count} samples")
     
     # Add background (no augmentation)
     print(f"\n Adding Background samples")
@@ -323,10 +314,7 @@ if __name__ == "__main__":
     
     chopped_freq = freq_chop(test_spec)
     print(f"   Freq Chop: {chopped_freq.shape}")
-    
-    chopped_four = four_chop(test_spec)
-    print(f"   Four Chop: {chopped_four.shape}")
-    
+
     shifted = translate(test_spec)
     print(f"   Translate: {shifted.shape}")
     
