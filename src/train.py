@@ -124,12 +124,15 @@ def calculate_class_weights(y_train: np.ndarray) -> dict:
     """
     classes = np.unique(y_train)
     weights = compute_class_weight('balanced', classes=classes, y=y_train)
-    class_weights = dict(enumerate(weights))
-    
+    class_weights = dict(zip(classes.tolist(), weights))
+
     print("\n Class Weights:")
     for i, class_name in enumerate(config.CLASS_NAMES):
-        print(f"   {class_name:30s}: {class_weights[i]:.4f}")
-    
+        if i in class_weights:
+            print(f"   {class_name:30s}: {class_weights[i]:.4f}")
+        else:
+            print(f"   {class_name:30s}: MISSING — 0 training samples!")
+
     return class_weights
 
 
