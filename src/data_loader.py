@@ -175,23 +175,100 @@ def load_long_audio(file_path: str) -> Tuple[np.ndarray, int]:
         return None, None
 
 
-def get_long_audio_files() -> List[str]:
+def get_long_audio_files(root: str = None) -> List[str]:
     """
-    Get list of all long audio files to process
-    
+    Get list of all long audio files to process.
+    Searches recursively so nested layouts (station/date/files) are supported.
+
+    Args:
+        root: Directory to scan. Defaults to config.LONG_AUDIO_ROOT.
+
     Returns:
         List of file paths
     """
-    if not os.path.exists(config.LONG_AUDIO_ROOT):
-        print(f" Warning: Long audio folder not found: {config.LONG_AUDIO_ROOT}")
+    root = root or config.LONG_AUDIO_ROOT
+    if not os.path.exists(root):
+        print(f" Warning: Long audio folder not found: {root}")
         return []
-    
+
     audio_files = []
-    for file in os.listdir(config.LONG_AUDIO_ROOT):
-        if file.lower().endswith('.wav'):
-            audio_files.append(os.path.join(config.LONG_AUDIO_ROOT, file))
-    
+    for dirpath, _, filenames in os.walk(root):
+        for f in filenames:
+            if f.lower().endswith('.wav'):
+                audio_files.append(os.path.join(dirpath, f))
+
     return sorted(audio_files)
+
+
+def parse_recording_time(filename: str):
+    """
+    Extract the start hour and minute from an IPA recording filename.
+    Expected format: YYYYMMDDTHHMMSS+ZZZZ_....wav
+
+    Returns:
+        (hour, minute) as ints, or None if parsing fails.
+    """
+    import re
+    base = os.path.basename(filename)
+    m = re.match(r'\d{8}T(\d{2})(\d{2})\d{2}', base)
+    if m:
+        return int(m.group(1)), int(m.group(2))
+    return None
+
+
+def filter_files_by_time(file_list: List[str],
+                         start: str = None,
+                         end: str = None) -> List[str]:
+    """
+    Keep only recordings whose start time falls within [start, end).
+
+    Args:
+        file_list: list of WAV file paths
+        start: "HH:MM" string (inclusive). Defaults to config.TIME_FILTER_START.
+        end:   "HH:MM" string (inclusive). Defaults to config.TIME_FILTER_END.
+
+    Returns:
+        Filtered list of file paths.
+    """
+    start = start or config.TIME_FILTER_START
+    end = end or config.TIME_FILTER_END
+    if start is None or end is None:
+        return file_list
+
+    sh, sm = map(int, start.split(':'))
+    eh, em = map(int, end.split(':'))
+    start_min = sh * 60 + sm
+    end_min = eh * 60 + em
+
+    filtered = []
+    for f in file_list:
+        t = parse_recording_time(f)
+        if t is None:
+            continue
+        fmin = t[0] * 60 + t[1]
+        if start_min <= fmin <= end_min:
+            filtered.append(f)
+    return sorted(filtered)
+
+
+def get_ipa_station_files(station: str, time_filter: bool = True) -> List[str]:
+    """
+    Get all WAV files for a specific IPA station, optionally filtered by time.
+
+    Args:
+        station: station folder name, e.g. "IPA1ST"
+        time_filter: if True, apply the time window from config
+
+    Returns:
+        Sorted list of file paths
+    """
+    station_dir = os.path.join(config.IPA_ROOT, station)
+    files = get_long_audio_files(root=station_dir)
+    print(f"  {station}: {len(files)} total WAV files")
+    if time_filter:
+        files = filter_files_by_time(files)
+        print(f"  After time filter ({config.TIME_FILTER_START}–{config.TIME_FILTER_END}): {len(files)} files")
+    return files
 
 
 def print_data_summary(species_data: Dict, background_data: List):
