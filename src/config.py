@@ -35,7 +35,7 @@ BACKGROUND_FOLDERS = [
     'background/background noise Clips 5sec',
     'background/Cercocebus torquatus Clips 5s',
     'background/wrong classified',
-    'species/Pan troglodytes Clips 5sec',
+    'background/Pan troglodytes Clips 5sec',
 ]
 
 # AUDIO PARAMETERS
