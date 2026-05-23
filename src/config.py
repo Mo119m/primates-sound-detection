@@ -35,6 +35,7 @@ BACKGROUND_FOLDERS = [
     'background/background noise Clips 5sec',
     'background/Cercocebus torquatus Clips 5s',
     'background/wrong classified',
+    'species/Pan troglodytes Clips 5sec',
 ]
 
 # AUDIO PARAMETERS
@@ -105,7 +106,7 @@ TIME_FILTER_END = "10:30"
 # Path to the root containing IPA station folders (IPA1ST, IPA2ST, ...)
 IPA_ROOT = os.environ.get(
     "PRIMATE_IPA_ROOT",
-    os.path.join(DRIVE_ROOT, "Gabon raw acoustic data National Park"),
+    os.path.join(DRIVE_ROOT, "field_recordings"),
 )
 
 # OUTPUT PATHS
