@@ -44,14 +44,21 @@ def scan_audio_files(root_dir: str, folder_name: str) -> List[str]:
 
 def load_audio_file(file_path: str,
                     target_sr: int = config.SAMPLE_RATE,
-                    target_duration: float = config.CLIP_DURATION):
+                    target_duration: float = config.CLIP_DURATION,
+                    random_crop: bool = True):
     """
-    Load a single audio file and ensure consistent length
+    Load a single audio file and ensure consistent length.
+
+    Files shorter than the target are zero-padded at the end (e.g. 1 s Cernic
+    calls padded to the clip length). Files longer than the target are cropped:
+    a random window when random_crop=True (acts as light augmentation for
+    sustained calls like Colobus), otherwise the leading segment.
 
     Args:
         file_path: Path to audio file
         target_sr: Target sample rate
         target_duration: Target duration in seconds
+        random_crop: Take a random window from longer files instead of the start
 
     Returns:
         Audio waveform as numpy array, or None if the file could not be loaded.
@@ -71,11 +78,15 @@ def load_audio_file(file_path: str,
     # Calculate target length in samples
     target_length = int(target_sr * target_duration)
 
-    # Pad or trim to target length
+    # Pad (short) or crop (long) to the target length
     if len(audio) < target_length:
         audio = np.pad(audio, (0, target_length - len(audio)), mode='constant')
     elif len(audio) > target_length:
-        audio = audio[:target_length]
+        if random_crop:
+            start = np.random.randint(0, len(audio) - target_length + 1)
+            audio = audio[start:start + target_length]
+        else:
+            audio = audio[:target_length]
 
     return audio
 

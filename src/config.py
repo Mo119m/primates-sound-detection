@@ -40,9 +40,9 @@ BACKGROUND_FOLDERS = [
 
 # AUDIO PARAMETERS
 SAMPLE_RATE = 44100  # Hz
-CLIP_DURATION = 5.0  # seconds
-WINDOW_SIZE = 5.0  # seconds (for detection sliding window)
-WINDOW_STRIDE = 2.5  # seconds (50% overlap)
+CLIP_DURATION = 2.0  # seconds
+WINDOW_SIZE = 2.0  # seconds (for detection sliding window)
+WINDOW_STRIDE = 1.0  # seconds (50% overlap)
 
 # MEL-SPECTROGRAM PARAMETERS
 N_FFT = 2048
