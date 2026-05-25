@@ -18,7 +18,52 @@ except ImportError:  # Allow running as a standalone script (e.g. in Colab)
     import data_loader
 
 
-def detect_in_long_audio(model, 
+def get_detection_groups() -> Tuple[List[str], Dict[str, List[int]]]:
+    """
+    Build the ordered detection labels (Background last) and, for each, the list
+    of CLASS_NAMES indices whose softmax scores feed it.
+
+    Returns:
+        Tuple of (labels, indices) where labels is the ordered group names and
+        indices maps each group to the CLASS_NAMES positions it aggregates.
+    """
+    labels: List[str] = []
+    for name in config.CLASS_NAMES:
+        group = config.DETECTION_GROUPS.get(name, name)
+        if group not in labels:
+            labels.append(group)
+    if 'Background' in labels:
+        labels.remove('Background')
+        labels.append('Background')
+
+    indices = {
+        group: [i for i, name in enumerate(config.CLASS_NAMES)
+                if config.DETECTION_GROUPS.get(name, name) == group]
+        for group in labels
+    }
+    return labels, indices
+
+
+def group_probabilities(pred: np.ndarray,
+                        labels: List[str],
+                        indices: Dict[str, List[int]]) -> np.ndarray:
+    """
+    Collapse a CLASS_NAMES-ordered softmax vector onto detection groups by
+    summing the probabilities of member classes.
+
+    Args:
+        pred: softmax scores for one window, in CLASS_NAMES order
+        labels: ordered group names from get_detection_groups
+        indices: group -> member class indices from get_detection_groups
+
+    Returns:
+        Array of grouped probabilities aligned with labels.
+    """
+    pred = np.asarray(pred)
+    return np.array([pred[indices[g]].sum() for g in labels])
+
+
+def detect_in_long_audio(model,
                          audio_path: str,
                          confidence_threshold: float = config.DETECTION_CONFIDENCE_THRESHOLD) -> pd.DataFrame:
     """
@@ -69,22 +114,26 @@ def detect_in_long_audio(model,
     # Process predictions
     print(f"\n Processing detections")
     detections = []
-    
+
+    # Collapse the fine-grained classes onto detection groups so the three
+    # Cernic call types vote together for a single "Cernic" detection.
+    labels, group_indices = get_detection_groups()
+
     for i, (pred, (start_time, end_time)) in enumerate(zip(predictions, times)):
-        # Get predicted class and confidence
-        predicted_class = np.argmax(pred)
-        confidence = pred[predicted_class]
-        
+        grouped = group_probabilities(pred, labels, group_indices)
+        top = int(np.argmax(grouped))
+        label = labels[top]
+        confidence = float(grouped[top])
+
         # Only keep non-background detections above threshold
-        if predicted_class != len(config.CLASS_NAMES) - 1:  # Not background
-            if confidence >= confidence_threshold:
-                detections.append({
-                    'start_time': start_time,
-                    'end_time': end_time,
-                    'species': config.CLASS_NAMES[predicted_class],
-                    'confidence': confidence,
-                    'all_probs': pred.tolist()
-                })
+        if label != 'Background' and confidence >= confidence_threshold:
+            detections.append({
+                'start_time': start_time,
+                'end_time': end_time,
+                'species': label,
+                'confidence': confidence,
+                'all_probs': pred.tolist()
+            })
     
     print(f"   Found {len(detections)} detections above threshold")
     
@@ -170,19 +219,21 @@ def predictions_to_detections(times: List[Tuple[float, float]],
         return pd.DataFrame(columns=['start_time', 'end_time', 'species',
                                      'confidence', 'all_probs'])
 
-    bg_idx = len(config.CLASS_NAMES) - 1
+    labels, group_indices = get_detection_groups()
     detections = []
     for pred, (start_time, end_time) in zip(probs, times):
-        predicted_class = int(np.argmax(pred))
-        confidence = float(pred[predicted_class])
-        if predicted_class == bg_idx:
+        grouped = group_probabilities(pred, labels, group_indices)
+        top = int(np.argmax(grouped))
+        label = labels[top]
+        confidence = float(grouped[top])
+        if label == 'Background':
             continue
         if confidence < confidence_threshold:
             continue
         detections.append({
             'start_time': float(start_time),
             'end_time': float(end_time),
-            'species': config.CLASS_NAMES[predicted_class],
+            'species': label,
             'confidence': confidence,
             'all_probs': pred.tolist(),
         })

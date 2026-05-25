@@ -22,13 +22,12 @@ LONG_AUDIO_ROOT = os.environ.get(
 )
 
 # SPECIES CONFIGURATION
-# Add or remove species here
-# Note: Cercopithecus nictitans folder contains 3 call types (hacks/keks/pyows)
-# which are automatically merged into one species class via recursive scanning
+# Each Cercopithecus nictitans call type is treated as its own class.
 SPECIES_FOLDERS = {
-    'Cercopithecus_nictitans': 'species/Cercopithecus nictitans hack 5s',
+    'Cernic_hack': 'species/CERNIC hacks',
+    'Cernic_kek': 'species/CERNIC keks',
+    'Cernic_pyow': 'species/CERNIC pyows',
     'Colobus_guereza': 'species/Colobus guereza Clips 5s',
-    'Pan_troglodytes': 'species/Pan troglodytes Clips 5sec',
 }
 
 # Background noise folders (will be combined into single "Background" class)
@@ -36,13 +35,14 @@ BACKGROUND_FOLDERS = [
     'background/background noise Clips 5sec',
     'background/Cercocebus torquatus Clips 5s',
     'background/wrong classified',
+    'background/Pan troglodytes Clips 5sec',
 ]
 
 # AUDIO PARAMETERS
 SAMPLE_RATE = 44100  # Hz
-CLIP_DURATION = 5.0  # seconds
-WINDOW_SIZE = 5.0  # seconds (for detection sliding window)
-WINDOW_STRIDE = 2.5  # seconds (50% overlap)
+CLIP_DURATION = 2.0  # seconds
+WINDOW_SIZE = 2.0  # seconds (for detection sliding window)
+WINDOW_STRIDE = 1.0  # seconds (50% overlap)
 
 # MEL-SPECTROGRAM PARAMETERS
 N_FFT = 2048
@@ -93,8 +93,21 @@ PATIENCE = 10  # Stop if validation loss doesn't improve for N epochs
 MIN_DELTA = 0.001  # Minimum change to qualify as improvement
 
 # DETECTION PARAMETERS
-DETECTION_CONFIDENCE_THRESHOLD = 0.7  # Only keep detections above this
+DETECTION_CONFIDENCE_THRESHOLD = 0.4  # Only keep detections above this
 NMS_IOU_THRESHOLD = 0.5  # Non-maximum suppression overlap threshold
+
+# TIME FILTER FOR FIELD RECORDINGS
+# Only process recordings whose start time falls within this window (HH:MM).
+# Set to None to disable filtering.
+TIME_FILTER_START = "05:30"
+TIME_FILTER_END = "10:30"
+
+# IPA STATION CONFIGURATION
+# Path to the root containing IPA station folders (IPA1ST, IPA2ST, ...)
+IPA_ROOT = os.environ.get(
+    "PRIMATE_IPA_ROOT",
+    os.path.join(DRIVE_ROOT, "field_recordings"),
+)
 
 # OUTPUT PATHS
 OUTPUT_ROOT = os.environ.get("PRIMATE_OUTPUT_ROOT", os.path.join(DRIVE_ROOT, "outputs"))
@@ -117,6 +130,21 @@ for directory in [OUTPUT_ROOT, PROCESSED_DATA_DIR, MODEL_SAVE_DIR,
 # DERIVED PARAMETERS
 N_CLASSES = len(SPECIES_FOLDERS) + 1  # +1 for Background class
 CLASS_NAMES = list(SPECIES_FOLDERS.keys()) + ['Background']
+
+# DETECTION GROUPING
+# The model is trained on fine-grained classes (each Cercopithecus nictitans
+# call type is its own class), but field detection only needs to know whether a
+# putty-nosed (Cernic) or Colobus call is present — not which Cernic subtype.
+# At detection time the softmax scores of classes sharing a group are summed, so
+# a window the model is confident is "some Cernic call" is not lost to the
+# threshold when its confidence is split across hack/kek/pyow.
+DETECTION_GROUPS = {
+    'Cernic_hack': 'Cernic',
+    'Cernic_kek': 'Cernic',
+    'Cernic_pyow': 'Cernic',
+    'Colobus_guereza': 'Colobus_guereza',
+    'Background': 'Background',
+}
 
 # Calculate expected number of samples per species after augmentation
 AUGMENTATION_MULTIPLIER = sum(AUGMENTATION_CONFIG.values())
