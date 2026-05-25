@@ -41,15 +41,19 @@ except ImportError:  # Allow running as a standalone script (e.g. in Colab)
 
 
 # AudioSet classes that indicate the window is NOT one of our primates.
+# "Animal" and "Wild animals" are kept as plausible primate labels.
 DEFAULT_SUSPICIOUS_YAMNET = {
     'Bird', 'Bird vocalization, bird call, bird song', 'Chirp, tweet',
     'Squawk', 'Pigeon, dove', 'Crow', 'Owl', 'Gull, seagull',
     'Insect', 'Cricket', 'Cicada', 'Mosquito', 'Fly, housefly', 'Bee, wasp, etc.',
+    'Frog', 'Snake', 'Rattle',
     'Wind', 'Wind noise (microphone)', 'Rustling leaves', 'Rain', 'Rain on surface',
     'Thunder', 'Thunderstorm', 'Stream', 'Waterfall',
     'Silence', 'Speech', 'Male speech, man speaking', 'Female speech, woman speaking',
     'Conversation', 'Narration, monologue', 'Static', 'White noise', 'Pink noise',
     'Hum', 'Buzz', 'Mains hum',
+    'Music', 'Fireworks', 'Explosion', 'Glass', 'Noise',
+    'Bell', 'Bicycle bell', 'Bicycle', 'Buzzer', 'Ratchet, pawl',
 }
 
 
@@ -210,8 +214,16 @@ def extract_clips(det_df: pd.DataFrame):
 # THE THREE FILTERS
 
 def filter_mahalanobis(det_df, clips, feature_extractor, class_means, inv_cov,
-                       class_thresholds, verbose: bool = True) -> pd.DataFrame:
-    """Flag detections whose feature vector is OOD for every candidate class."""
+                       class_thresholds, percentile: int = 95,
+                       calibrate_on: str = 'detections',
+                       verbose: bool = True) -> pd.DataFrame:
+    """Flag detections whose feature vector is OOD.
+
+    calibrate_on='detections' (default) computes per-species thresholds from
+    the detection distances themselves, avoiding domain-shift false alarms
+    when noisy field recordings differ from clean training clips.
+    calibrate_on='training' uses the training-data thresholds (class_thresholds).
+    """
     X = np.stack([_audio_to_model_input(c, config.SAMPLE_RATE) for c in clips]).astype(np.float32)
     feats = feature_extractor.predict(X, batch_size=config.BATCH_SIZE,
                                       verbose=1 if verbose else 0)
@@ -223,15 +235,31 @@ def filter_mahalanobis(det_df, clips, feature_extractor, class_means, inv_cov,
         return [config.CLASS_NAMES.index(label)]
 
     scores = np.zeros(len(det_df), dtype=np.float32)
-    flags = np.zeros(len(det_df), dtype=bool)
     species = det_df['species'].to_numpy()
-    for i in range(len(det_df)):
-        members = members_for(species[i])
-        d2s = [float(_mahalanobis(feats[i:i + 1], c, class_means, inv_cov)[0])
-               for c in members]
-        scores[i] = min(d2s)  # distance to the nearest candidate cluster
-        flags[i] = all(d2s[k] > class_thresholds[members[k]]
-                       for k in range(len(members)))
+
+    if calibrate_on == 'detections':
+        for i in range(len(det_df)):
+            members = members_for(species[i])
+            d2s = [float(_mahalanobis(feats[i:i + 1], c, class_means, inv_cov)[0])
+                   for c in members]
+            scores[i] = min(d2s)
+        flags = np.zeros(len(det_df), dtype=bool)
+        for sp in np.unique(species):
+            mask = species == sp
+            thresh = float(np.percentile(scores[mask], percentile))
+            flags[mask] = scores[mask] > thresh
+            if verbose:
+                print(f'  Mahalanobis {sp}: threshold={thresh:.1f}, '
+                      f'flagged {int(flags[mask].sum())}/{int(mask.sum())}')
+    else:
+        flags = np.zeros(len(det_df), dtype=bool)
+        for i in range(len(det_df)):
+            members = members_for(species[i])
+            d2s = [float(_mahalanobis(feats[i:i + 1], c, class_means, inv_cov)[0])
+                   for c in members]
+            scores[i] = min(d2s)
+            flags[i] = all(d2s[k] > class_thresholds[members[k]]
+                           for k in range(len(members)))
 
     det_df = det_df.copy()
     det_df['mahalanobis_d2'] = scores
@@ -359,7 +387,9 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
                      output_dir=None, species_data=None, background_data=None,
                      percentile: int = 95, isolation_window_s: float = 30.0,
                      suspicious_yamnet=None, save_clips: bool = True,
-                     use_cached_stats: bool = True, verbose: bool = True) -> dict:
+                     use_cached_stats: bool = True,
+                     mahal_calibration: str = 'detections',
+                     verbose: bool = True) -> dict:
     """
     Run the full three-filter cleanup over saved detection CSVs.
 
@@ -372,11 +402,15 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
             config.OUTPUT_ROOT/auto_cleanup).
         species_data, background_data: pre-loaded training data; loaded via
             data_loader if omitted.
-        percentile: in-distribution percentile for the Mahalanobis cutoff.
+        percentile: percentile for the Mahalanobis cutoff (applied to either
+            training or detection distances depending on mahal_calibration).
         isolation_window_s: temporal-isolation neighbour window in seconds.
         suspicious_yamnet: set of AudioSet class names to treat as non-primate.
         save_clips: write >=2-flag clips as hard negatives.
         use_cached_stats: reuse a cached class_stats.npz if present.
+        mahal_calibration: 'detections' (default) calibrates Mahalanobis
+            thresholds on field-detection distances to avoid domain-shift
+            false alarms; 'training' uses clean training-data thresholds.
 
     Returns:
         dict with keys: det_df, clean_df, suspicious_df, strong_fp_df, summary,
@@ -412,7 +446,8 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
     clips = extract_clips(det_df)
 
     det_df = filter_mahalanobis(det_df, clips, feature_extractor, class_means,
-                                inv_cov, class_thresholds, verbose=verbose)
+                                inv_cov, class_thresholds, percentile=percentile,
+                                calibrate_on=mahal_calibration, verbose=verbose)
     det_df = filter_yamnet(det_df, clips, suspicious=suspicious_yamnet, verbose=verbose)
     det_df = filter_temporal_isolation(det_df, window_s=isolation_window_s, verbose=verbose)
     det_df = merge_flags(det_df)
