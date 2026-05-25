@@ -32,7 +32,6 @@ Automated detection of primate calls in long rainforest field recordings from Ma
 src/                           Core library modules
 scripts/                       Command-line entry points
 main_pipeline_notebooks/       Colab notebooks for training, detection, and cleanup
-other notebooks/               Exploratory analysis notebooks
 presentation_notebooks/        Figures and slides generation
 ```
 
