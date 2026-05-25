@@ -4,27 +4,87 @@ Automated detection of primate calls in long rainforest field recordings from Ma
 
 ## Main Workflow
 
+The pipeline has 5 stages. Each one below shows **exactly which function to call**.
+Easiest path: open `main_pipeline_notebooks/run_in_colab.ipynb` and run the cells,
+which call these same functions for you.
+
 ```
-1. Organize data          Set paths and species folders in src/config.py
-        |
-2. Train model            Run the training pipeline (Colab notebook or src/train.py)
-        |                  Audio clips -> mel-spectrograms -> augmentation -> VGG19 fine-tuning
-        |
-3. Detect in recordings   Slide a 2 s window over field recordings and classify each window
-        |                  scripts/run_detection_ipa.py  or  src/detection.py
-        |
-4. Auto-cleanup           Flag false positives with 3 filters (Mahalanobis OOD, YAMNet, temporal isolation)
-        |                  scripts/run_auto_cleanup.py  or  src/auto_cleanup.py
-        |
-5. Hard-negative mining   Fold flagged clips into Background class and retrain (iterate 3-5)
+Step 1  Configure   ->  Step 2  Train  ->  Step 3  Detect  ->  Step 4  Clean up  ->  Step 5  Retrain
+edit config.py          train.run_       detection.        auto_cleanup.          fold FPs into
+                        complete_        process_all_      run_auto_cleanup()     Background, go to
+                        training_        long_audio_                              Step 2 (iterate)
+                        pipeline()       files()
 ```
 
-### Quick Start (Colab)
+```python
+import sys; sys.path.insert(0, 'src')
+import config, train, detection, auto_cleanup, model, data_loader
+```
 
-1. Mount Google Drive and clone this repo.
-2. Open `main_pipeline_notebooks/run_in_colab.ipynb` and run all cells.
-3. Run detection: `python scripts/run_detection_ipa.py --station IPA1ST`
-4. Run cleanup: `python scripts/run_auto_cleanup.py --detection-dir outputs/detections/IPA1ST`
+### Step 1 — Configure
+
+Edit `src/config.py`: set `SPECIES_FOLDERS`, `BACKGROUND_FOLDERS`, and the data
+paths (or set the `PRIMATE_*` environment variables). Check it loaded correctly:
+
+```python
+config.print_config_summary()
+```
+
+### Step 2 — Train the model
+
+One call runs the whole training pipeline (load audio -> spectrograms ->
+augmentation -> train -> evaluate). It saves `best_model.h5` to `outputs/models/`.
+
+```python
+trained_model = train.run_complete_training_pipeline()
+```
+
+> Want the individual steps instead? `train.prepare_dataset()` ->
+> `train.train_model(...)` -> `train.evaluate_model(...)`.
+
+### Step 3 — Detect in field recordings
+
+Load the trained model, then run detection. Two options:
+
+```python
+model_obj = model.load_trained_model('outputs/models/best_model.h5')
+
+# (a) one file -> DataFrame of detections
+detections = detection.detect_in_long_audio(model_obj, '/path/to/recording.wav')
+
+# (b) every file under LONG_AUDIO_ROOT -> {filename: DataFrame}, writes CSVs
+all_detections = detection.process_all_long_audio_files(model_obj)
+```
+
+Or detect a whole IPA station from the command line (applies the time-of-day filter):
+
+```bash
+python scripts/run_detection_ipa.py --station IPA1ST
+```
+
+### Step 4 — Auto-cleanup false positives
+
+Run the three filters (Mahalanobis OOD + YAMNet + temporal isolation) over the
+detection CSVs. Returns clean vs. suspicious detections and saves hard-negative
+clips to `outputs/auto_cleanup/auto_flagged_fp/`.
+
+```python
+result = auto_cleanup.run_auto_cleanup(detection_dir='outputs/detections/IPA1ST')
+result['clean_df']       # detections that passed all filters
+result['suspicious_df']  # flagged, with a flag_reason column
+```
+
+Or from the command line:
+
+```bash
+python scripts/run_auto_cleanup.py --detection-dir outputs/detections/IPA1ST
+```
+
+### Step 5 — Retrain with hard negatives (iterate)
+
+Move the flagged clips from `auto_cleanup/auto_flagged_fp/` into a background
+folder, add it to `BACKGROUND_FOLDERS` in `config.py`, then go back to **Step 2**.
+Repeat 3-5 times until false positives drop off.
 
 ## Repository Structure
 
