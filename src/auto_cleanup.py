@@ -6,8 +6,7 @@ detections into "clean" (trustworthy without listening) and "suspicious":
 
 1. Mahalanobis OOD   - feature distance to the predicted class's training
    cluster. A real call lives close to its training cluster; a bird call does
-   not. The coarse "Cernic" detection label is scored against the nearest of
-   its three call-type clusters.
+   not.
 2. YAMNet cross-check - Google's 521-class audio tagger flags windows whose top
    class is Bird/Insect/Wind/Rain/Speech/etc.
 3. Temporal isolation - primates call in bouts, so a detection with no
