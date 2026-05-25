@@ -131,6 +131,21 @@ for directory in [OUTPUT_ROOT, PROCESSED_DATA_DIR, MODEL_SAVE_DIR,
 N_CLASSES = len(SPECIES_FOLDERS) + 1  # +1 for Background class
 CLASS_NAMES = list(SPECIES_FOLDERS.keys()) + ['Background']
 
+# DETECTION GROUPING
+# The model is trained on fine-grained classes (each Cercopithecus nictitans
+# call type is its own class), but field detection only needs to know whether a
+# putty-nosed (Cernic) or Colobus call is present — not which Cernic subtype.
+# At detection time the softmax scores of classes sharing a group are summed, so
+# a window the model is confident is "some Cernic call" is not lost to the
+# threshold when its confidence is split across hack/kek/pyow.
+DETECTION_GROUPS = {
+    'Cernic_hack': 'Cernic',
+    'Cernic_kek': 'Cernic',
+    'Cernic_pyow': 'Cernic',
+    'Colobus_guereza': 'Colobus_guereza',
+    'Background': 'Background',
+}
+
 # Calculate expected number of samples per species after augmentation
 AUGMENTATION_MULTIPLIER = sum(AUGMENTATION_CONFIG.values())
 
