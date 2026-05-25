@@ -102,24 +102,28 @@ def load_species_data() -> Dict[str, List[Tuple[np.ndarray, str]]]:
     
     print("\n Loading Species Data")
     
-    for species_name, folder_name in config.SPECIES_FOLDERS.items():
+    for species_name, folder_names in config.SPECIES_FOLDERS.items():
         print(f"\n loading {species_name}...")
-        
-        # Scan for audio files
-        audio_files = scan_audio_files(config.AUDIO_ROOT, folder_name)
-        print(f"   Found {len(audio_files)} files")
-        
-        # Load audio data
+
+        if isinstance(folder_names, str):
+            folder_names = [folder_names]
+
+        audio_files = []
+        for folder_name in folder_names:
+            found = scan_audio_files(config.AUDIO_ROOT, folder_name)
+            print(f"   {folder_name}: {len(found)} files")
+            audio_files.extend(found)
+        print(f"   Total: {len(audio_files)} files")
+
         audio_data = []
         for i, file_path in enumerate(audio_files):
             audio = load_audio_file(file_path)
             if audio is not None:
                 audio_data.append((audio, file_path))
-            
-            # Progress indicator
+
             if (i + 1) % 50 == 0:
                 print(f"   Loaded {i + 1}/{len(audio_files)}...")
-        
+
         species_data[species_name] = audio_data
         print(f" Successfully loaded {len(audio_data)} clips")
     
