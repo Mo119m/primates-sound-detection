@@ -218,7 +218,9 @@ def filter_mahalanobis(det_df, clips, feature_extractor, class_means, inv_cov,
     members_map = _group_members()
 
     def members_for(label):
-        return members_map.get(label, [config.CLASS_NAMES.index(label)])
+        if label in members_map:
+            return members_map[label]
+        return [config.CLASS_NAMES.index(label)]
 
     scores = np.zeros(len(det_df), dtype=np.float32)
     flags = np.zeros(len(det_df), dtype=bool)
