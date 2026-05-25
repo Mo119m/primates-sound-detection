@@ -1,0 +1,182 @@
+# MethodsX manuscript draft
+
+> Draft of every section **except Method validation** (results not yet available).
+> Placeholders in **[brackets]** need your input. Delete this note before submitting.
+
+---
+
+## Article information
+
+**Article title**
+A transfer-learning and automatic false-positive cleanup pipeline for detecting primate vocalizations in long tropical-forest recordings
+
+**Authors**
+[First Last]ᵃ\*, [co-author names and superscript affiliation letters]
+
+**Affiliations**
+ᵃ [Department, University of Wisconsin–Madison, Madison, WI, USA]
+ᵇ [Add further affiliations as needed]
+
+**Corresponding author's email address and Twitter handle**
+[Your Name], mfu39@wisc.edu
+X: [@handle — optional, delete if none]
+
+**Keywords**
+Bioacoustics; Passive acoustic monitoring; Transfer learning; Convolutional neural network; Mel-spectrogram; False-positive filtering; Out-of-distribution detection; *Cercopithecus nictitans*; *Colobus guereza*
+
+**Related research article**
+None.
+*(If this method supports a research article of your own, cite that single article here.)*
+
+---
+
+## Abstract
+
+Passive acoustic monitoring (PAM) produces thousands of hours of tropical-forest audio that are infeasible to annotate by hand, yet automatic call detectors trained on clean reference clips generate large numbers of false positives when deployed on noisy field soundscapes. We describe an end-to-end pipeline that detects primate vocalizations — the putty-nosed monkey (*Cercopithecus nictitans*) and *Colobus guereza* — in long field recordings from Makokou, Gabon. Two-second audio windows are converted to mel-spectrogram images and classified with a VGG19 convolutional network pretrained on ImageNet and adapted by transfer learning. Detection combines sliding windows, summation of softmax scores across call types, non-maximum suppression, and a time-of-day filter. To suppress false positives without manual listening, three independent filters — a Mahalanobis out-of-distribution score, a YAMNet/AudioSet cross-check, and a temporal-isolation rule — flag suspicious detections; strongly flagged clips are exported as hard negatives and folded back into the background class for iterative retraining.
+
+- A reusable transfer-learning workflow for detecting primate calls in long, noisy field recordings.
+- An automatic three-filter false-positive cleanup that needs no manual listening.
+- An iterative hard-negative mining loop that progressively reduces false positives.
+
+---
+
+## Specifications table
+
+| | |
+|---|---|
+| **Subject area** | Agricultural and Biological Sciences |
+| **More specific subject area** | Bioacoustics; passive acoustic monitoring; conservation biology |
+| **Name of your method** | VGG19 transfer-learning detection with three-filter automatic false-positive cleanup for primate vocalizations |
+| **Name and reference of original method** | Transfer learning with the VGG19 architecture [Simonyan & Zisserman, 2015]; out-of-distribution detection via the Mahalanobis distance [Lee et al., 2018]; audio event tagging with YAMNet trained on AudioSet [Gemmeke et al., 2017; Hershey et al., 2017] |
+| **Resource availability** | Code: https://github.com/mo119m/primates-sound-detection — Python 3, TensorFlow 2, librosa, scikit-learn, OpenCV, soundfile; the YAMNet filter additionally needs tensorflow-hub and resampy. [Add a data DOI/repository here if you deposit the reference clips.] |
+
+---
+
+## Background
+
+Passive acoustic monitoring is now a standard tool for surveying vocal animals across large areas and long time spans, but it generates volumes of audio that cannot realistically be reviewed by ear [Stowell, 2022]. Deep convolutional networks applied to spectrogram "images" have become the dominant approach for automatically detecting species-specific calls, and transfer learning from large image or audio corpora lets such detectors be trained from comparatively few annotated examples [Dufourq et al., 2022; Kahl et al., 2021]. These approaches work well on clean, isolated reference clips.
+
+The difficulty in practice is precision rather than recall. A model trained on curated clips of a target call will reliably fire on those calls, but when it is run over continuous field recordings it also fires on the many non-target sounds that dominate a rainforest soundscape — insects, birds, wind, rain, and the calls of non-target animals — none of which are well represented in the original training set. The result is a detector with a high false-positive rate, and verifying every detection by hand reintroduces exactly the manual-listening bottleneck that automation was meant to remove.
+
+This method addresses that problem for two primate species recorded at Makokou, Gabon: the putty-nosed monkey (*Cercopithecus nictitans*), whose repertoire includes acoustically distinct "hack", "kek", and "pyow" call types [Arnold & Zuberbühler, 2006], and *Colobus guereza*. Rather than only training a classifier, we wrap it in (i) a detection stage that aggregates the three putty-nosed call types into a single decision and applies domain-appropriate post-processing, (ii) an automatic three-filter cleanup that flags likely false positives using signals independent of the detector itself, and (iii) an iterative hard-negative mining loop that recycles confirmed false positives into the background class and retrains. The motivation is to obtain trustworthy detections from long recordings while keeping the amount of manual listening close to zero, and to do so with a workflow that other researchers can re-run on their own species by supplying new reference clips and editing a single configuration file.
+
+---
+
+## Method details
+
+The pipeline has five stages — preprocessing, training, detection, automatic cleanup, and iterative retraining. All paths, species definitions, and hyperparameters live in a single `config.py` so the workflow can be re-targeted to new species or sites without touching the code.
+
+### 1. Study area, recordings, and reference clips
+
+Field recordings are continuous WAV files collected at fixed acoustic stations (denoted IPA1ST, IPA2ST, …; one subfolder per recording date) in rainforest near Makokou, Gabon. Because the target species are diurnal and most vocally active in the morning, only recordings whose start time falls within a configurable window (default 05:30–10:30 local time, parsed from the timestamp in each filename) are processed; this removes large stretches of audio in which the species are unlikely to call and reduces both compute and false positives.
+
+The model is trained on short reference clips organized into five classes:
+
+- **Cernic_hack, Cernic_kek, Cernic_pyow** — the three putty-nosed monkey call types, each treated as its own class so the network can learn their distinct spectral structure;
+- **Colobus_guereza** — *Colobus guereza* calls;
+- **Background** — a pooled negative class assembled from ambient forest noise plus calls of non-target animals present at the site (e.g. *Cercocebus torquatus*, *Pan troglodytes*) and previously misclassified clips.
+
+### 2. Audio preprocessing and mel-spectrogram representation
+
+All audio is resampled to 44.1 kHz and standardized to a fixed 2.0 s duration: clips shorter than the target are zero-padded, and longer clips are randomly cropped (acting as light augmentation for sustained calls). Each 2 s waveform is converted to a mel-spectrogram with librosa [McFee et al., 2015] using a 2048-sample FFT, 512-sample hop, 128 mel bands, and a 20–8000 Hz analysis range, and is expressed in decibels relative to its per-clip maximum. The spectrogram is min–max normalized to [0, 255], resized to 224 × 224 with bilinear interpolation, replicated across three channels to form an RGB image, and finally scaled to [0, 1] for input to the network. Using the same conversion at training and detection time keeps the two feature distributions comparable.
+
+### 3. Data augmentation
+
+To expand the reference set and make the classifier robust to field conditions, each target-class spectrogram is expanded into seven training examples (a 7× multiplier): one unaltered copy; three copies mixed with randomly chosen background spectrograms at a signal-to-noise ratio drawn uniformly from −5 to 10 dB; one time-axis crop and one frequency-axis crop (each removing 10–30 % from a randomly chosen edge, then resized back to the original shape); and one frequency translation of ±20 mel bins. Background-class clips are not augmented, so that the negative class reflects the true diversity of ambient sound rather than synthetic variants. The augmentation operations are spectrogram-domain analogues of standard SpecAugment-style masking and mixing [Park et al., 2019].
+
+### 4. Model architecture
+
+The classifier is a VGG19 network [Simonyan & Zisserman, 2015] pretrained on ImageNet [Deng et al., 2009] with its convolutional base frozen and used as a fixed feature extractor. On top of the base we add global average pooling, a 512-unit ReLU dense layer, dropout (0.5), a 256-unit ReLU dense layer (used later as the feature tap for out-of-distribution scoring), a second dropout (0.5), and a five-way softmax output. The model is compiled with the Adam optimizer (learning rate 1 × 10⁻⁴) and sparse categorical cross-entropy, tracking top-1 and top-2 accuracy. An optional fine-tuning step can unfreeze the last *N* VGG19 blocks for further adaptation.
+
+### 5. Model training
+
+The augmented dataset is split 80/20 into training and validation sets with stratification by class and a fixed random seed for reproducibility. Because the background class greatly outnumbers individual call types, balanced class weights (inversely proportional to class frequency) are applied during training. The model is trained for up to 50 epochs with a batch size of 32 under three callbacks: early stopping on validation loss (patience 10, best weights restored), model checkpointing on best validation accuracy, and learning-rate reduction on plateau (factor 0.5, patience 5, floor 1 × 10⁻⁷). The best checkpoint is saved as `best_model.h5`. Training concludes with a per-class accuracy report and a confusion matrix on the validation set.
+
+### 6. Sliding-window detection
+
+A trained model is applied to each long recording with a 2.0 s window advanced in 1.0 s steps (50 % overlap); a final window is anchored at the end of the file so trailing audio is not dropped. Every window is converted to a mel-spectrogram image and classified. Because the three putty-nosed call types are separate classes but field detection only needs to know that *some* putty-nosed call is present, the softmax scores of the three Cernic classes are **summed into a single "Cernic" group** before the decision is made; this prevents a confident "some putty-nosed call" window from being lost when its probability is split across hack/kek/pyow. The window is assigned to the highest-scoring group, and is kept as a detection if that group is not Background and its summed score meets a confidence threshold (default 0.4). Overlapping detections of the same group are then reduced by per-class non-maximum suppression at an intersection-over-union threshold of 0.5. Per-file detections (start time, end time, species, confidence) are written to CSV.
+
+### 7. Automatic false-positive cleanup
+
+The detector's raw output contains many false positives from sounds absent from the training set. Three independent filters, each exploiting a different signal, are run over the saved detections; their agreement determines how a detection is treated. For each detection a 2 s clip is extracted from the source recording.
+
+**(a) Mahalanobis out-of-distribution filter.** Using the 256-unit dense layer as a feature extractor, per-class feature means and a pooled, ridge-regularized inverse covariance are estimated from the original (non-augmented) training clips [Lee et al., 2018]. For each detection the Mahalanobis distance to its candidate class cluster(s) is computed; for the coarse "Cernic" label this is the distance to the nearest of the hack/kek/pyow clusters. A real call lies close to its training cluster, whereas an unfamiliar sound does not. Because field clips are systematically noisier than clean training clips, thresholds calibrated on training data flag almost everything; we therefore calibrate the cutoff on the **detection distances themselves**, flagging, per species, the detections beyond the 95th percentile of the observed distance distribution (a configurable percentile). This makes the filter a relative-outlier detector that is robust to the train-to-field domain shift.
+
+**(b) YAMNet cross-check.** Each clip is resampled to 16 kHz and passed to YAMNet, a network trained on Google's AudioSet ontology of 521 everyday sound classes [Gemmeke et al., 2017; Hershey et al., 2017]. A detection is flagged when YAMNet's top class is one of a curated set of non-primate sounds (birds, insects, frogs, wind, rain, water, mechanical and human sounds, etc.); generic classes consistent with a primate call (e.g. "Animal", "Wild animals") are deliberately left unflagged. Because AudioSet has no monkey-specific class, this filter is used only to *reject* clips that are confidently something else, not to confirm primates.
+
+**(c) Temporal-isolation filter.** Primates tend to call in bouts, so a genuine call usually has same-species neighbours nearby in time. A detection with no other detection of the same species within ±30 s (configurable) is flagged as temporally isolated.
+
+A detection is considered **clean** only when no filter flags it, **suspicious** when at least one filter flags it, and a **strong false positive** when at least two filters agree. Clean and suspicious detections are written to separate CSVs (the suspicious file carries a human-readable `flag_reason` column), and strong false positives are exported as labelled WAV clips for the next stage.
+
+### 8. Iterative hard-negative mining
+
+The exported strong false positives are the sounds the detector most needs to learn to ignore. They are added to the Background class and the model is retrained from Stage 2, so that on the next pass the network is far less likely to fire on those sounds. Repeating the detect → clean → fold-in → retrain loop a few times (typically three to five iterations) progressively drives down the false-positive rate without ever requiring exhaustive manual annotation of the field recordings.
+
+---
+
+## Method validation
+
+*[To be completed once results are available. Planned validation: (i) per-class accuracy and confusion matrix on the held-out validation split; (ii) precision/recall of field detections against a manually verified subset of recordings; (iii) the change in clean-vs-suspicious detection counts across hard-negative mining iterations, demonstrating the reduction in false positives.]*
+
+---
+
+## Limitations
+
+- The pipeline currently targets two species (and three putty-nosed call types). Re-targeting to new species requires curated reference clips and edits to the configuration; performance on rare or quiet calls with few reference examples is not guaranteed.
+- The YAMNet cross-check has no primate-specific class and only rejects clips it can confidently attribute to a non-primate sound; tropical-forest sounds outside AudioSet's training distribution may be mislabelled, so the filter is conservative by design.
+- The Mahalanobis filter assumes that the majority of detections for a species are genuine, so that outliers are informative; if a species' detections are overwhelmingly false positives, the relative-outlier calibration is less effective.
+- The temporal-isolation filter assumes bout-calling; genuinely isolated or rare calls can be flagged, and very dense calling can mask true isolation.
+- A fixed 2 s analysis window may truncate or split long vocalizations (e.g. *Colobus* roars), and the time-of-day filter (05:30–10:30) is site- and species-specific and must be adjusted elsewhere.
+- The method yields detections, not calibrated abundance or density estimates; converting counts to ecological metrics requires additional assumptions.
+
+---
+
+## Ethics statements
+
+This work used only passively recorded environmental audio and analysis of pre-existing sound recordings; it involved no capture, handling, or experimental manipulation of animals, and no human subjects or social-media data. [If applicable, add: Recordings were collected under permit [number] issued by [authority], and the study adhered to the relevant institutional and national guidelines for non-invasive field research.] *(Delete the human-subjects and social-media statements from the template, which are not applicable.)*
+
+---
+
+## CRediT author statement
+
+**[Author 1]:** Conceptualization, Methodology, Software, Validation, Formal analysis, Data curation, Writing – original draft, Visualization. **[Author 2]:** [Supervision, Resources, Writing – review & editing, Funding acquisition]. **[Author 3]:** [Investigation, Data curation]. *(Assign roles from the CRediT taxonomy to each author.)*
+
+---
+
+## Acknowledgments
+
+[Acknowledge field teams, station maintainers, and anyone who contributed reference annotations but does not meet authorship criteria. List funding sources in the standard form, e.g. "This work was supported by [funder] [grant number]." If none: "This research did not receive any specific grant from funding agencies in the public, commercial, or not-for-profit sectors."]
+
+---
+
+## Declaration of interests
+
+The authors declare that they have no known competing financial interests or personal relationships that could have appeared to influence the work reported in this paper.
+
+---
+
+## References
+
+*(Verify every entry against the publisher version before submission; add site- and species-specific references for the study area and survey design.)*
+
+[1] D. Stowell, Computational bioacoustics with deep learning: a review and roadmap, PeerJ 10 (2022) e13152. https://doi.org/10.7717/peerj.13152
+
+[2] K. Simonyan, A. Zisserman, Very deep convolutional networks for large-scale image recognition, in: International Conference on Learning Representations (ICLR), 2015. https://doi.org/10.48550/arXiv.1409.1556
+
+[3] J. Deng, W. Dong, R. Socher, L.-J. Li, K. Li, L. Fei-Fei, ImageNet: a large-scale hierarchical image database, in: IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2009, pp. 248–255. https://doi.org/10.1109/CVPR.2009.5206848
+
+[4] J.F. Gemmeke, D.P.W. Ellis, D. Freedman, A. Jansen, W. Lawrence, R.C. Moore, M. Plakal, M. Ritter, Audio Set: an ontology and human-labeled dataset for audio events, in: IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), 2017, pp. 776–780. https://doi.org/10.1109/ICASSP.2017.7952261
+
+[5] S. Hershey, S. Chaudhuri, D.P.W. Ellis, J.F. Gemmeke, A. Jansen, R.C. Moore, M. Plakal, D. Platt, R.A. Saurous, B. Seybold, M. Slaney, R.J. Weiss, K. Wilson, CNN architectures for large-scale audio classification, in: IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), 2017, pp. 131–135. https://doi.org/10.1109/ICASSP.2017.7952132
+
+[6] K. Lee, K. Lee, H. Lee, J. Shin, A simple unified framework for detecting out-of-distribution samples and adversarial attacks, in: Advances in Neural Information Processing Systems (NeurIPS) 31, 2018, pp. 7167–7177. https://doi.org/10.48550/arXiv.1807.03888
+
+[7] B. McFee, C. Raffel, D. Liang, D.P.W. Ellis, M. McVicar, E. Battenberg, O. Nieto, librosa: audio and music signal analysis in Python, in: Proceedings of the 14th Python in Science Conference (SciPy), 2015, pp. 18–25. https://doi.org/10.25080/Majora-7b98e3ed-003
+
+[8] D.S. Park, W. Chan, Y. Zhang, C.-C. Chiu, B. Zoph, E.D. Cubuk, Q.V. Le, SpecAugment: a simple data augmentation method for automatic speech recognition, in: Interspeech, 2019, pp. 2613–2617. https://doi.org/10.21437/Interspeech.2019-2680
+
+[9] S. Kahl, C.M. Wood, M. Eibl, H. Klinck, BirdNET: a deep learning solution for avian diversity monitoring, Ecol. Inform. 61 (2021) 101236. https://doi.org/10.1016/j.ecoinf.2021.101236
+
+[10] E. Dufourq, C. Batist, R. Foquet, I. Durbach, Passive acoustic monitoring of animal populations with transfer learning, Ecol. Inform. 70 (2022) 101688. https://doi.org/10.1016/j.ecoinf.2022.101688
+
+[11] K. Arnold, K. Zuberbühler, Semantic combinations in primate calls, Nature 441 (2006) 303. https://doi.org/10.1038/441303a
