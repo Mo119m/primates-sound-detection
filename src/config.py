@@ -31,11 +31,14 @@ SPECIES_FOLDERS = {
 }
 
 # Background noise folders (will be combined into single "Background" class)
+# The last entry accumulates hard negatives from the auto-cleanup loop;
+# it starts empty and grows each iteration.
 BACKGROUND_FOLDERS = [
     'background/background noise Clips 5sec',
     'background/Cercocebus torquatus Clips 5s',
     'background/wrong classified',
     'background/Pan troglodytes Clips 5sec',
+    'outputs/auto_cleanup/auto_flagged_fp',
 ]
 
 # AUDIO PARAMETERS
