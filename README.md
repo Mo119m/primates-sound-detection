@@ -1,330 +1,267 @@
-# Primate Vocalization Detection Pipeline
+# Primate Vocalization Detection
 
-A reproducible pipeline for automated detection of primate vocalizations in rainforest audio recordings. This pipeline addresses the challenge of efficiently identifying species-specific calls in hours of field recordings through transfer learning and targeted data augmentation.
+Automated detection of primate calls in long rainforest field recordings from Makokou, Gabon. Uses VGG19 transfer learning on mel-spectrograms with a three-filter false-positive cleanup pipeline. Currently targets **Cercopithecus nictitans** (putty-nosed monkey) and **Colobus guereza**.
 
-## Overview
+## Main Workflow
 
-This project implements an end-to-end deep learning pipeline for detecting vocalizations of four primate species in around 10 to 30-minute rainforest audio recordings from Makokou, Gabon. The system performs **species-level detection**, identifying the presence of target species without distinguishing between different call types within each species. It uses VGG19 transfer learning with mel-spectrogram preprocessing and addresses limited training data through strategic data augmentation and hard negative mining.
+The pipeline has 5 stages. Each one below shows **exactly which function to call**.
+Easiest path: open `main_pipeline_notebooks/run_in_colab.ipynb` and run the cells,
+which call these same functions for you.
 
-### Target Species
-
-1. **Cercopithecus nictitans** (Putty-nosed monkey)
-2. **Pan troglodytes** (Chimpanzee)
-3. **Cercocebus torquatus** (Red-capped mangabey)
-4. **Colobus guereza** (Guereza colobus)
-
-**Note**: While training data may contain specific call types (e.g., putty-nosed monkey's pyow, kek, and hack calls), the model's objective is **species-level detection** rather than call-type classification. The goal is to identify which recordings contain vocalizations from each target species, regardless of the specific call type.
-
-### Key Features
-
-- Modular design enabling easy addition of new species
-- Reproducible workflow with fixed random seeds
-- Centralized configuration system
-- Comprehensive visualization and analysis tools
-- Hard negative mining to address domain gap issues (not sure)
-
-### Research Context
-
-Field recordings from tropical rainforests contain complex acoustic environments with overlapping vocalizations from multiple species, environmental sounds, and varying signal-to-noise ratios. Manual review of such recordings is time-intensive, creating a bottleneck for ecological research. This pipeline was developed to assist researchers in efficiently identifying primate calls, enabling faster analysis of long-term acoustic monitoring data.
-
-## Installation
-
-### Clone the repository
-
-```bash
-git clone https://github.com/yourusername/primate-vocalization-detection.git
-cd primate-vocalization-detection
 ```
-
-### Install dependencies
-
-```bash
-pip install -r requirements.txt
+Step 1  Configure   ->  Step 2  Train  ->  Step 3  Detect  ->  Step 4  Clean up  ->  Step 5  Retrain
+edit config.py          train.run_       detection.        auto_cleanup.          fold FPs into
+                        complete_        process_all_      run_auto_cleanup()     Background, go to
+                        training_        long_audio_                              Step 2 (iterate)
+                        pipeline()       files()
 ```
-
-For Google Colab environment:
 
 ```python
-!pip install -q librosa soundfile tensorflow scikit-learn pandas matplotlib
+import sys; sys.path.insert(0, 'src')
+import config, train, detection, auto_cleanup, model, data_loader
 ```
 
-### Data structure
+### Step 1 — Configure
 
-The pipeline expects audio data organized in Google Drive with the following structure:
-
-```
-chimp-audio/
-├── audio/
-│   ├── Cercopithecus nictitans hack 5s/  # Putty-nosed monkey clips (5 seconds)
-│   ├── Pan troglodytes Clips 5sec/       # Chimpanzee clips (5 seconds)
-│   ├── Cercocebus torquatus hack 5s/     # Red-capped mangabey clips (5 seconds)
-│   ├── Colobus guereza Clips 5s/         # Guereza colobus clips (5 seconds)
-│   ├── background noise Clips 5sec/      # Background/environmental sounds
-│   └── wrong classified/                 # Additional negative examples
-└── long_audio/
-    └── *.wav                             # Long recordings for detection (typically 30 minutes)
-```
-
-## Project Structure
-
-```
-primate-vocalization-detection/
-├── src/                          # Source code modules
-│   ├── config.py                # Configuration parameters
-│   ├── data_loader.py           # Audio file loading
-│   ├── preprocessing.py         # Mel-spectrogram conversion
-│   ├── augmentation.py          # Data augmentation strategies
-│   ├── model.py                 # VGG19-based model definition
-│   ├── train.py                 # Training pipeline
-│   ├── detection.py             # Detection in long audio files
-│   └── utils.py                 # Visualization and analysis
-├── scripts/                     # Utility scripts
-│   └── run_hard_negative_mining.py
-├── notebooks/                   # Jupyter notebooks
-│   └── main_pipeline.ipynb     # Main workflow
-├── docs/                        # Documentation
-└── requirements.txt            # Python dependencies
-```
-
-## Quick Start
-
-### Basic usage in Jupyter notebook
+Edit `src/config.py`: set `SPECIES_FOLDERS`, `BACKGROUND_FOLDERS`, and the data
+paths (or set the `PRIMATE_*` environment variables). Check it loaded correctly:
 
 ```python
-import sys
-sys.path.append('src')
-
-from src import config
-from src import train
-from src import detection
-
-# Configure paths in config.py first
 config.print_config_summary()
-
-# Train model
-trained_model = train.run_complete_training_pipeline()
-
-# Detect in long audio
-from src import data_loader
-long_audio_files = data_loader.get_long_audio_files()
-detections = detection.detect_in_long_audio(trained_model, long_audio_files[0])
 ```
 
-### Google Colab workflow
+### Step 2 — Train the model
 
-1. Mount Google Drive and navigate to project directory
-2. Open `notebooks/main_pipeline.ipynb`
-3. Run cells sequentially
-4. Results will be saved to `outputs/` directory in Google Drive
+One call runs the whole training pipeline (load audio -> spectrograms ->
+augmentation -> train -> evaluate). It saves `best_model.h5` to `outputs/models/`.
 
-For detailed instructions, see `docs/SETUP_TUTORIAL.md`.
+```python
+trained_model = train.run_complete_training_pipeline()
+```
+
+> Want the individual steps instead? `train.prepare_dataset()` ->
+> `train.train_model(...)` -> `train.evaluate_model(...)`.
+
+### Step 3 — Detect in field recordings
+
+Load the trained model, then run detection. Two options:
+
+```python
+model_obj = model.load_trained_model('outputs/models/best_model.h5')
+
+# (a) one file -> DataFrame of detections
+detections = detection.detect_in_long_audio(model_obj, '/path/to/recording.wav')
+
+# (b) every file under LONG_AUDIO_ROOT -> {filename: DataFrame}, writes CSVs
+all_detections = detection.process_all_long_audio_files(model_obj)
+```
+
+Or detect a whole IPA station from the command line (applies the time-of-day filter):
+
+```bash
+python scripts/run_detection_ipa.py --station IPA1ST
+```
+
+### Step 4 — Auto-cleanup false positives
+
+Run the three filters (Mahalanobis OOD + YAMNet + temporal isolation) over the
+detection CSVs. Returns clean vs. suspicious detections and saves hard-negative
+clips to `outputs/auto_cleanup/auto_flagged_fp/`.
+
+```python
+result = auto_cleanup.run_auto_cleanup(detection_dir='outputs/detections/IPA1ST')
+result['clean_df']       # detections that passed all filters
+result['suspicious_df']  # flagged, with a flag_reason column
+```
+
+Or from the command line:
+
+```bash
+python scripts/run_auto_cleanup.py --detection-dir outputs/detections/IPA1ST
+```
+
+### Step 5 — Retrain with hard negatives (iterate)
+
+Move the flagged clips from `auto_cleanup/auto_flagged_fp/` into a background
+folder, add it to `BACKGROUND_FOLDERS` in `config.py`, then go back to **Step 2**.
+Repeat 3-5 times until false positives drop off.
+
+## Repository Structure
+
+```
+src/                           Core library modules
+scripts/                       Command-line entry points
+main_pipeline_notebooks/       Colab notebooks for training, detection, and cleanup
+presentation_notebooks/        Figures and slides generation
+```
+
+## Source Modules (`src/`)
+
+### config.py
+All paths, parameters, and species definitions in one place. Edit this file to change species, audio settings, model hyperparameters, or output directories.
+
+### data_loader.py
+Load and manage audio files.
+
+| Function | Description |
+|---|---|
+| `load_species_data()` | Load all species audio clips into a dictionary |
+| `load_background_data()` | Load background noise clips from multiple folders |
+| `load_audio_file()` | Load a single WAV file with padding/cropping to fixed length |
+| `get_ipa_station_files()` | Get WAV files for an IPA station with optional time-of-day filtering |
+| `get_long_audio_files()` | List all long audio files recursively |
+| `filter_files_by_time()` | Keep only recordings within a time window |
+
+### preprocessing.py
+Convert audio waveforms to mel-spectrogram images for model input.
+
+| Function | Description |
+|---|---|
+| `preprocess_audio()` | Full pipeline: audio waveform -> mel-spectrogram -> 224x224 RGB image |
+| `extract_sliding_windows()` | Extract overlapping windows from long audio with timestamps |
+| `batch_preprocess_audio()` | Preprocess multiple audio samples |
+| `audio_to_melspectrogram()` | Convert waveform to mel-spectrogram in dB scale |
+
+### augmentation.py
+Data augmentation on mel-spectrograms to expand training data (7x multiplier).
+
+| Function | Description |
+|---|---|
+| `augment_dataset()` | Augment entire dataset, producing X, y arrays and metadata |
+| `add_background_noise()` | Mix spectrogram with background noise at random SNR |
+| `time_chop()` | Randomly crop along time axis |
+| `freq_chop()` | Randomly crop along frequency axis |
+| `translate()` | Shift spectrogram in frequency |
+
+### model.py
+VGG19-based transfer learning model.
+
+| Function | Description |
+|---|---|
+| `create_and_compile_model()` | Build VGG19 + custom head and compile |
+| `load_trained_model()` | Load a saved `.h5` model |
+| `unfreeze_base_model()` | Unfreeze last N VGG19 blocks for fine-tuning |
+| `get_callbacks()` | EarlyStopping, ModelCheckpoint, ReduceLROnPlateau |
+
+### train.py
+End-to-end training pipeline.
+
+| Function | Description |
+|---|---|
+| `run_complete_training_pipeline()` | Orchestrate the full workflow: load data -> augment -> train -> evaluate |
+| `prepare_dataset()` | Load audio, convert to spectrograms, augment, split train/val |
+| `calculate_class_weights()` | Compute balanced class weights for imbalanced data |
+| `train_model()` | Train with class weights and callbacks |
+| `evaluate_model()` | Per-class metrics and confusion matrix |
+
+### detection.py
+Sliding-window detection in long field recordings with probability grouping.
+
+| Function | Description |
+|---|---|
+| `detect_in_long_audio()` | Run full detection on a single file (windows -> predict -> NMS -> CSV) |
+| `process_all_long_audio_files()` | Detect across all files and aggregate results |
+| `group_probabilities()` | Sum softmax scores across Cernic subtypes before thresholding |
+| `sweep_thresholds()` | Apply multiple confidence thresholds to pre-computed predictions |
+| `apply_nms()` | Non-Maximum Suppression to remove overlapping detections |
+| `save_detections()` | Save detection results to CSV |
+
+### auto_cleanup.py
+Three-filter automatic false-positive cleanup.
+
+| Function | Description |
+|---|---|
+| `run_auto_cleanup()` | Orchestrate all three filters and save results |
+| `filter_mahalanobis()` | Flag detections whose features are out-of-distribution |
+| `filter_yamnet()` | Flag detections whose YAMNet top class is non-primate |
+| `filter_temporal_isolation()` | Flag isolated detections with no same-species neighbor nearby |
+| `save_hard_negatives()` | Export strong false positives as WAV clips for retraining |
+
+### utils.py
+Visualization and analysis utilities.
+
+| Function | Description |
+|---|---|
+| `visualize_detection_results()` | Plot waveform and spectrogram with detection overlays |
+| `plot_confusion_matrix()` | Display confusion matrix |
+| `extract_detected_audio_clips()` | Extract WAV clips for detected events |
+| `create_detection_summary_report()` | Per-file per-species detection statistics |
+
+## Scripts (`scripts/`)
+
+| Script | Description |
+|---|---|
+| `run_detection_ipa.py` | Run detection on an IPA field recording station. Args: `--station`, `--model`, `--threshold`, `--no-time-filter` |
+| `run_auto_cleanup.py` | Run the three-filter false-positive cleanup. Args: `--detection-dir`, `--model`, `--percentile`, `--isolation-window` |
+| `run_hard_negative_mining.py` | Extract medium-confidence predictions as candidate false positives for retraining |
+| `filter_recordings_by_time.py` | Copy only recordings within a time-of-day window (pre-upload filter) |
+| `analyze_detections.py` | Per-species detection analysis and threshold suggestion helpers |
+
+## Notebooks (`main_pipeline_notebooks/`)
+
+| Notebook | Description |
+|---|---|
+| `run_in_colab.ipynb` | Full pipeline: setup, train, detect (start here) |
+| `main_pipeline_updated.ipynb` | Detailed step-by-step training and evaluation |
+| `auto_cleanup_false_positives.ipynb` | Run auto-cleanup interactively with visualization |
 
 ## Configuration
 
-All parameters are centralized in `src/config.py`. Key configuration sections include:
+All parameters live in `src/config.py`. Key settings:
 
-### Data paths
+| Parameter | Default | Description |
+|---|---|---|
+| `SAMPLE_RATE` | 44100 Hz | Audio sample rate |
+| `CLIP_DURATION` | 2.0 s | Training clip length |
+| `WINDOW_SIZE` / `WINDOW_STRIDE` | 2.0 / 1.0 s | Detection sliding window |
+| `N_MELS` | 128 | Mel-spectrogram frequency bins |
+| `FMIN` / `FMAX` | 20 / 8000 Hz | Frequency range |
+| `BATCH_SIZE` | 32 | Training batch size |
+| `EPOCHS` | 50 | Max training epochs |
+| `DETECTION_CONFIDENCE_THRESHOLD` | 0.4 | Minimum confidence for detections |
+| `TIME_FILTER_START` / `END` | 05:30 / 10:30 | Field recording time window |
 
-```python
-DRIVE_ROOT = "/content/drive/MyDrive/chimp-audio"
-AUDIO_ROOT = os.path.join(DRIVE_ROOT, "audio")
-LONG_AUDIO_ROOT = os.path.join(DRIVE_ROOT, "long_audio")
-```
+Override data paths via environment variables: `PRIMATE_DATA_ROOT`, `PRIMATE_AUDIO_ROOT`, `PRIMATE_LONG_AUDIO_ROOT`, `PRIMATE_IPA_ROOT`, `PRIMATE_OUTPUT_ROOT`.
 
-### Species configuration
-
-```python
-SPECIES_FOLDERS = {
-    'Cercocebus_torquatus': 'Cercocebus torquatus hack 5s',
-    'Colobus_guereza': 'Colobus guereza Clips 5s',
-}
-```
-
-### Audio processing parameters
-
-```python
-SAMPLE_RATE = 44100
-N_FFT = 2048
-HOP_LENGTH = 512
-N_MELS = 128
-FMIN = 20
-FMAX = 8000
-```
-
-### Data augmentation scheme
-
-```python
-AUGMENTATION_CONFIG = {
-    'original': 1,
-    'background_noise_mix': 3,
-    'time_chop': 1,
-    'freq_chop': 1,
-    'translate': 1,
-}
-```
-
-This configuration produces a 7 times augmentation multiplier for each training sample.
-
-### Model hyperparameters
-
-```python
-MODEL_NAME = 'VGG19'
-BATCH_SIZE = 32
-EPOCHS = 50
-LEARNING_RATE = 0.0001
-DROPOUT_RATE = 0.5
-```
-
-### Detection parameters
-
-```python
-DETECTION_CONFIDENCE_THRESHOLD = 0.7
-NMS_IOU_THRESHOLD = 0.5
-WINDOW_SIZE = 5.0
-WINDOW_STRIDE = 2.5
-```
-
-## Methodology
-
-### Species-level detection approach
-
-This pipeline focuses on **species-level detection** rather than call-type classification. The model learns to identify whether a given audio segment contains vocalizations from each target species, without distinguishing between different call types within a species.
-
-**Design rationale**:
-- **Research goal**: Determine which recordings contain specific primate species for biodiversity monitoring
-- **Practical benefit**: Simplifies annotation requirements and model architecture
-- **Training flexibility**: Can use mixed call types (e.g., putty-nosed monkey's pyow, kek, and hack calls) from the same species as a unified class
-
-The model outputs N+1 classes where N is the number of target species plus one background class for non-target sounds.
-
-### Data augmentation
-
-The pipeline implements conservative data augmentation adapted from tropical-stethoscope methods:
-
-1. Background noise mixing with random SNR
-2. Time-domain cropping (10-30% from edges)
-3. Frequency-domain cropping (10-30% from edges)
-4. Frequency translation (±20 mel bins)
-
-Each primate vocalization sample generates 7 augmented versions, while background samples remain unaugmented to preserve class balance.
-
-### Model architecture
-
-The model uses transfer learning from VGG19 pre-trained on ImageNet:
+## Data Layout
 
 ```
-Input (224×224×3 mel-spectrogram)
-    ↓
-VGG19 base (frozen, ImageNet weights)
-    ↓
-GlobalAveragePooling2D
-    ↓
-Dense(512, relu) + Dropout(0.5)
-    ↓
-Dense(256, relu) + Dropout(0.5)
-    ↓
-Dense(N_CLASSES, softmax)
+primates-data/                        (PRIMATE_DATA_ROOT)
+  species/
+    CERNIC hacks/                     Putty-nosed monkey hack calls
+    CERNIC keks/                      Putty-nosed monkey kek calls
+    CERNIC pyows/                     Putty-nosed monkey pyow calls
+    Colobus guereza Clips 5s/         Colobus guereza calls
+  background/
+    background noise Clips 5sec/      Environmental noise
+    Cercocebus torquatus Clips 5s/    Non-target species
+    wrong classified/                 Misclassified examples
+    Pan troglodytes Clips 5sec/       Non-target species
+  field_recordings/
+    IPA1ST/YYYYMMDD/*.wav             IPA station field recordings
+  outputs/
+    models/best_model.h5              Trained model
+    detections/                       Detection CSVs
+    auto_cleanup/                     Cleanup results and hard negatives
 ```
 
-### Detection process
+## Installation
 
-Long audio files are processed using a sliding window approach:
-
-1. Extract 5-second windows with 2.5-second stride (50% overlap)
-2. Convert each window to mel-spectrogram
-3. Apply model prediction
-4. Filter detections by confidence threshold
-5. Apply Non-Maximum Suppression (NMS) to remove overlapping detections
-6. Export results to CSV with timestamps
-
-### Hard negative mining
-
-To address the domain gap between clean training data and complex field recordings, the pipeline includes a hard negative mining workflow:
-
-1. Extract samples where the model predicts primate calls with medium confidence (0.5-0.85)
-2. Manual verification to identify false positives (typically bird calls)
-3. Incorporation of verified false positives as hard negatives in retraining
-4. Iterative improvement of model discrimination
-
-## Adding New Species
-
-The modular design allows straightforward addition of new species:
-
-1. Add training clips to Google Drive: `audio/new_species_clips/`
-2. Edit `src/config.py`:
-
-```python
-SPECIES_FOLDERS = {
-    'Cercopithecus_nictitans': 'Cercopithecus nictitans hack 5s',
-    'Pan_troglodytes': 'Pan troglodytes Clips 5sec',
-    'Cercocebus_torquatus': 'Cercocebus torquatus hack 5s',
-    'Colobus_guereza': 'Colobus guereza Clips 5s',
-    'New_Species': 'new_species_clips',  # Add new species here
-}
+```bash
+git clone https://github.com/mo119m/primates-sound-detection.git
+cd primates-sound-detection
+pip install -r requirements.txt
 ```
 
-3. Re-run training pipeline
-
-The system automatically adjusts the model architecture, data loading, and visualization components.
-
-## Output Files
-
-After running the pipeline, results are organized in the `outputs/` directory:
-
-```
-outputs/
-├── models/
-│   ├── best_model.h5              # Trained model weights
-│   ├── training_history.json      # Training metrics
-│   └── training_history.png       # Training curves
-├── detections/
-│   ├── [filename]_detections.csv  # Detection results per file
-│   └── detection_summary.csv      # Summary across all files
-├── visualizations/
-│   └── [filename]_visualization.png
-└── detected_clips/
-    ├── Cercocebus_torquatus/
-    └── Colobus_guereza/
+YAMNet filter (auto-cleanup) additionally requires:
+```bash
+pip install tensorflow-hub resampy
 ```
 
-Detection CSV files contain columns: start_time, end_time, species, confidence.
+## Dependencies
 
-## Known Limitations
-
-1. **Domain gap**: Model trained on clean clips may overestimate primate calls in complex soundscapes containing bird vocalizations
-2. **Class imbalance**: Detection results may show bias toward more frequently augmented classes
-3. **Temporal context**: 5-second windows may truncate longer vocalizations or miss relevant context
-4. **Generalization**: Model performance may degrade on recordings from different geographic locations or recording equipment
-
-Hard negative mining and confidence threshold tuning help mitigate these issues.(not sure)
-
-## Troubleshooting
-
-### Poor model convergence
-
-Increase data augmentation multiplier or add more training data. Consider unfreezing VGG19 layers for fine-tuning:
-
-```python
-FREEZE_BASE_LAYERS = False
-UNFREEZE_LAST_N_BLOCKS = 1
-LEARNING_RATE = 0.00001  # Lower learning rate for fine-tuning
-```
-
-## References
-
-### Methods
-
-This pipeline builds on established methods in bioacoustics and deep learning:
-
-- Transfer learning approach based on VGG19 (Simonyan & Zisserman, 2014)
-- Data augmentation strategies adapted from tropical-stethoscope project
-- Mel-spectrogram preprocessing using librosa (McFee et al., 2015)
-
-### Dependencies
-
-- TensorFlow 2.x: Deep learning framework
-- librosa 0.10+: Audio processing
-- scikit-learn: Machine learning utilities
-- pandas: Data manipulation
-- matplotlib: Visualization
-
+- TensorFlow 2.x
+- librosa
+- scikit-learn
+- pandas, numpy, matplotlib
+- soundfile
