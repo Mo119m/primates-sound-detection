@@ -2,10 +2,14 @@
 %% Compile with pdfLaTeX (run latex -> latex to resolve references).
 %% Overleaf: set compiler to pdfLaTeX. No external .bib needed.
 %%
+%% LAYOUT: 'final,3p' = journal single-column look (for reading/advisor review).
+%%   When you are ready to SUBMIT, change 'final' to 'review' below to get the
+%%   double-spaced single-column manuscript format Elsevier expects for review.
+%%
 %% NOTE: placeholders in [brackets] still need your input.
 %% Delete this header block before submission.
 
-\documentclass[review,3p,times]{elsarticle}
+\documentclass[final,3p,times]{elsarticle}
 
 \usepackage{lineno,hyperref}
 \usepackage{tabularx}
@@ -65,8 +69,6 @@ False-positive filtering \sep Out-of-distribution detection \sep
 \end{keyword}
 
 \end{frontmatter}
-
-\linenumbers
 
 %% ======================================================================
 \section*{Highlights}
