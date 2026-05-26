@@ -36,16 +36,15 @@ SPECIES_FOLDERS = {
 }
 
 # Background noise folders (will be combined into single "Background" class)
-# The last two entries grow each iteration: auto_flagged_fp accumulates hard
-# negatives from the cleanup loop; impulsive_noise holds gunshots, branch-snaps,
-# and similar broadband transients that the model previously confused with
-# Cernic calls.
+# The last entry accumulates hard negatives from the auto-cleanup loop.
+# To add impulsive-noise negatives (gunshots, branch-snaps) in a later round,
+# create a 'background/impulsive_noise' folder and uncomment the line below.
 BACKGROUND_FOLDERS = [
     'background/background noise Clips 5sec',
     'background/Cercocebus torquatus Clips 5s',
     'background/wrong classified',
     'background/Pan troglodytes Clips 5sec',
-    'background/impulsive_noise',
+    # 'background/impulsive_noise',
     'outputs/auto_cleanup/auto_flagged_fp',
 ]
 
