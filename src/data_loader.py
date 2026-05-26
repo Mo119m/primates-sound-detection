@@ -42,23 +42,52 @@ def scan_audio_files(root_dir: str, folder_name: str) -> List[str]:
     return sorted(audio_files)
 
 
+def find_loudest_window(audio: np.ndarray, target_length: int) -> int:
+    """
+    Return the start sample of the highest-energy window of target_length.
+
+    The training clips (e.g. 5 s putty-nose) do not call for their whole
+    duration, so a random 2 s crop can land on silence and mislabel it as a
+    call. Picking the window with maximum short-time energy keeps the crop on
+    the actual vocalisation.
+
+    Args:
+        audio: 1-D waveform
+        target_length: window length in samples
+
+    Returns:
+        Start index of the loudest window (0 if audio is not longer than the
+        window).
+    """
+    if len(audio) <= target_length:
+        return 0
+    power = audio.astype(np.float64) ** 2
+    cumulative = np.concatenate(([0.0], np.cumsum(power)))
+    # Energy of the window starting at s is cumulative[s+L] - cumulative[s].
+    window_energy = cumulative[target_length:] - cumulative[:-target_length]
+    return int(np.argmax(window_energy))
+
+
 def load_audio_file(file_path: str,
                     target_sr: int = config.SAMPLE_RATE,
                     target_duration: float = config.CLIP_DURATION,
-                    random_crop: bool = True):
+                    crop: str = 'loudest'):
     """
     Load a single audio file and ensure consistent length.
 
     Files shorter than the target are zero-padded at the end (e.g. 1 s Cernic
-    calls padded to the clip length). Files longer than the target are cropped:
-    a random window when random_crop=True (acts as light augmentation for
-    sustained calls like Colobus), otherwise the leading segment.
+    calls padded to the clip length). Files longer than the target are cropped
+    to target_duration according to ``crop``:
+      - 'loudest' (default): the highest-energy window, so the crop lands on
+        the call even when the source clip has silent stretches.
+      - 'random': a random window (light augmentation; may land on silence).
+      - 'start': the leading segment.
 
     Args:
         file_path: Path to audio file
         target_sr: Target sample rate
         target_duration: Target duration in seconds
-        random_crop: Take a random window from longer files instead of the start
+        crop: Cropping strategy for files longer than the target
 
     Returns:
         Audio waveform as numpy array, or None if the file could not be loaded.
@@ -82,11 +111,13 @@ def load_audio_file(file_path: str,
     if len(audio) < target_length:
         audio = np.pad(audio, (0, target_length - len(audio)), mode='constant')
     elif len(audio) > target_length:
-        if random_crop:
+        if crop == 'loudest':
+            start = find_loudest_window(audio, target_length)
+        elif crop == 'random':
             start = np.random.randint(0, len(audio) - target_length + 1)
-            audio = audio[start:start + target_length]
-        else:
-            audio = audio[:target_length]
+        else:  # 'start'
+            start = 0
+        audio = audio[start:start + target_length]
 
     return audio
 
