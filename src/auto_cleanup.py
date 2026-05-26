@@ -380,6 +380,23 @@ def save_hard_negatives(strong_fp_df, clips, fp_dir):
     return n_saved
 
 
+def save_clips_by_species(det_df, clips, out_dir):
+    """Save each detection's 2 s clip under ``out_dir/<species>/`` so they can
+    be reviewed after the original long recording has been deleted."""
+    out_dir = Path(out_dir)
+    n_saved = 0
+    for row in det_df.itertuples():
+        clip = clips[row.det_id]
+        sub = out_dir / row.species
+        sub.mkdir(parents=True, exist_ok=True)
+        stem = os.path.splitext(row.source_file)[0]
+        fname = (f'{stem}__t{int(row.start_time):05d}s'
+                 f'__conf{row.confidence:.2f}.wav')
+        sf.write(sub / fname, clip, config.SAMPLE_RATE)
+        n_saved += 1
+    return n_saved
+
+
 # ORCHESTRATOR
 
 def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
@@ -387,6 +404,7 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
                      species_data=None, background_data=None,
                      percentile: int = 95, isolation_window_s: float = 30.0,
                      suspicious_yamnet=None, save_clips: bool = True,
+                     save_all_clips: bool = False,
                      use_cached_stats: bool = True,
                      mahal_calibration: str = 'detections',
                      verbose: bool = True) -> dict:
@@ -413,6 +431,10 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
         isolation_window_s: temporal-isolation neighbour window in seconds.
         suspicious_yamnet: set of AudioSet class names to treat as non-primate.
         save_clips: write >=2-flag clips as hard negatives.
+        save_all_clips: also write every clean and suspicious clip under
+            output_dir/clean_clips/<species>/ and suspicious_clips/<species>/
+            so they can be reviewed after the long recording is deleted.
+            Recommended for the per-station upload-process-delete workflow.
         use_cached_stats: reuse a cached class_stats.npz if present.
         mahal_calibration: 'detections' (default) calibrates Mahalanobis
             thresholds on field-detection distances to avoid domain-shift
@@ -472,10 +494,21 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
     if save_clips and len(strong_fp_df) > 0:
         n_saved = save_hard_negatives(strong_fp_df, clips, fp_dir)
 
+    n_clean_saved = n_susp_saved = 0
+    if save_all_clips:
+        if len(clean_df) > 0:
+            n_clean_saved = save_clips_by_species(
+                clean_df, clips, output_dir / 'clean_clips')
+        if len(suspicious_df) > 0:
+            n_susp_saved = save_clips_by_species(
+                suspicious_df, clips, output_dir / 'suspicious_clips')
+
     summary = summarize(det_df)
     if verbose:
-        print(f'\nClean:      {len(clean_df)}')
-        print(f'Suspicious: {len(suspicious_df)}')
+        print(f'\nClean:      {len(clean_df)}'
+              + (f' (saved {n_clean_saved} clips)' if save_all_clips else ''))
+        print(f'Suspicious: {len(suspicious_df)}'
+              + (f' (saved {n_susp_saved} clips)' if save_all_clips else ''))
         print(f'Strong FPs: {len(strong_fp_df)} (saved {n_saved} clips)')
         print(f'\n{summary.to_string()}')
         print(f'\nResults written to {output_dir}')
