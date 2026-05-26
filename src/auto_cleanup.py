@@ -383,7 +383,8 @@ def save_hard_negatives(strong_fp_df, clips, fp_dir):
 # ORCHESTRATOR
 
 def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
-                     output_dir=None, species_data=None, background_data=None,
+                     output_dir=None, fp_dir=None,
+                     species_data=None, background_data=None,
                      percentile: int = 95, isolation_window_s: float = 30.0,
                      suspicious_yamnet=None, save_clips: bool = True,
                      use_cached_stats: bool = True,
@@ -397,8 +398,14 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
         model_path: path to best_model.h5 (default: config.MODEL_SAVE_DIR).
         detection_dir: dir holding *_detections.csv (default:
             config.DETECTION_OUTPUT_DIR; searched recursively).
-        output_dir: where to write results (default:
-            config.OUTPUT_ROOT/auto_cleanup).
+        output_dir: where to write per-run results (clean/suspicious CSVs).
+            Default: config.OUTPUT_ROOT/auto_cleanup. Pass a per-station path
+            when processing one IPA station at a time.
+        fp_dir: where strong-FP clips are saved as hard negatives. Defaults to
+            the *global* config.OUTPUT_ROOT/auto_cleanup/auto_flagged_fp so
+            negatives accumulate in a single pool across stations — this is
+            the folder referenced by BACKGROUND_FOLDERS, so all per-station
+            FPs feed the next training round.
         species_data, background_data: pre-loaded training data; loaded via
             data_loader if omitted.
         percentile: percentile for the Mahalanobis cutoff (applied to either
@@ -417,7 +424,7 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
     """
     output_dir = Path(output_dir or (Path(config.OUTPUT_ROOT) / 'auto_cleanup'))
     output_dir.mkdir(parents=True, exist_ok=True)
-    fp_dir = output_dir / 'auto_flagged_fp'
+    fp_dir = Path(fp_dir or (Path(config.OUTPUT_ROOT) / 'auto_cleanup' / 'auto_flagged_fp'))
 
     if model is None:
         model_path = model_path or os.path.join(config.MODEL_SAVE_DIR, 'best_model.h5')
