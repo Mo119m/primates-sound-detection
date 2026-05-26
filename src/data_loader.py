@@ -68,26 +68,80 @@ def find_loudest_window(audio: np.ndarray, target_length: int) -> int:
     return int(np.argmax(window_energy))
 
 
+def embed_in_background(call: np.ndarray,
+                        target_length: int,
+                        background_pool: List[np.ndarray],
+                        snr_db_range: Tuple[float, float] = (3.0, 15.0)) -> np.ndarray:
+    """
+    Place a short call at a random position inside a real background bed.
+
+    Zero-padding a short call to the clip length leaves a digital-silence
+    region that never occurs in field recordings and gives the model a
+    high-contrast "impulse against black" shortcut (shared by gunshots and
+    branch-snaps). Embedding the call in genuine forest ambient instead makes
+    the training clip look like an actual detection window that contains a call.
+
+    Args:
+        call: short call waveform (shorter than target_length)
+        target_length: output length in samples
+        background_pool: list of real background waveforms to draw the bed from
+        snr_db_range: call-to-background SNR drawn uniformly so the call stays
+            the dominant sound while ambient fills the rest of the window
+
+    Returns:
+        target_length waveform: background bed with the call added on top.
+    """
+    bg = background_pool[np.random.randint(len(background_pool))].astype(np.float32)
+
+    # Make the bed exactly target_length (tile if short, random-crop if long).
+    if len(bg) < target_length:
+        reps = int(np.ceil(target_length / max(len(bg), 1)))
+        bg = np.tile(bg, reps)[:target_length]
+    elif len(bg) > target_length:
+        start = np.random.randint(0, len(bg) - target_length + 1)
+        bg = bg[start:start + target_length]
+    bg = bg.copy()
+
+    # Scale the bed to sit a realistic SNR below the call.
+    call_rms = float(np.sqrt(np.mean(call.astype(np.float64) ** 2))) + 1e-8
+    bg_rms = float(np.sqrt(np.mean(bg.astype(np.float64) ** 2))) + 1e-8
+    snr_db = np.random.uniform(*snr_db_range)
+    target_bg_rms = call_rms / (10 ** (snr_db / 20))
+    bg *= target_bg_rms / bg_rms
+
+    # Drop the call at a random offset (a call can fall anywhere in a window).
+    max_offset = target_length - len(call)
+    offset = np.random.randint(0, max_offset + 1) if max_offset > 0 else 0
+    bg[offset:offset + len(call)] += call.astype(np.float32)
+    return bg
+
+
 def load_audio_file(file_path: str,
                     target_sr: int = config.SAMPLE_RATE,
                     target_duration: float = config.CLIP_DURATION,
-                    crop: str = 'loudest'):
+                    crop: str = 'loudest',
+                    background_pool: List[np.ndarray] = None):
     """
     Load a single audio file and ensure consistent length.
 
-    Files shorter than the target are zero-padded at the end (e.g. 1 s Cernic
-    calls padded to the clip length). Files longer than the target are cropped
-    to target_duration according to ``crop``:
+    Files longer than the target are cropped to target_duration according to
+    ``crop``:
       - 'loudest' (default): the highest-energy window, so the crop lands on
         the call even when the source clip has silent stretches.
       - 'random': a random window (light augmentation; may land on silence).
       - 'start': the leading segment.
+
+    Files shorter than the target are extended to the clip length. When
+    ``background_pool`` is given the short call is embedded in a real background
+    bed (see :func:`embed_in_background`); otherwise it is zero-padded.
 
     Args:
         file_path: Path to audio file
         target_sr: Target sample rate
         target_duration: Target duration in seconds
         crop: Cropping strategy for files longer than the target
+        background_pool: optional real background waveforms; when provided,
+            short clips are embedded in ambient instead of zero-padded
 
     Returns:
         Audio waveform as numpy array, or None if the file could not be loaded.
@@ -107,9 +161,12 @@ def load_audio_file(file_path: str,
     # Calculate target length in samples
     target_length = int(target_sr * target_duration)
 
-    # Pad (short) or crop (long) to the target length
+    # Extend (short) or crop (long) to the target length
     if len(audio) < target_length:
-        audio = np.pad(audio, (0, target_length - len(audio)), mode='constant')
+        if background_pool:
+            audio = embed_in_background(audio, target_length, background_pool)
+        else:
+            audio = np.pad(audio, (0, target_length - len(audio)), mode='constant')
     elif len(audio) > target_length:
         if crop == 'loudest':
             start = find_loudest_window(audio, target_length)
@@ -122,17 +179,23 @@ def load_audio_file(file_path: str,
     return audio
 
 
-def load_species_data() -> Dict[str, List[Tuple[np.ndarray, str]]]:
+def load_species_data(background_pool: List[np.ndarray] = None) -> Dict[str, List[Tuple[np.ndarray, str]]]:
     """
     Load all species audio data
-    
+
+    Args:
+        background_pool: optional real background waveforms. When given, short
+            clips (e.g. hack/kek/pyow) are embedded in ambient instead of
+            zero-padded, removing the silence shortcut. Load background first
+            and pass its waveforms here.
+
     Returns:
         Dictionary mapping species name to list of (audio, file_path) tuples
     """
     species_data = {}
-    
+
     print("\n Loading Species Data")
-    
+
     for species_name, folder_names in config.SPECIES_FOLDERS.items():
         print(f"\n loading {species_name}...")
 
@@ -148,7 +211,7 @@ def load_species_data() -> Dict[str, List[Tuple[np.ndarray, str]]]:
 
         audio_data = []
         for i, file_path in enumerate(audio_files):
-            audio = load_audio_file(file_path)
+            audio = load_audio_file(file_path, background_pool=background_pool)
             if audio is not None:
                 audio_data.append((audio, file_path))
 
