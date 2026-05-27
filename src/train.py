@@ -32,9 +32,12 @@ def prepare_dataset():
     """
     print("PREPARING DATASET")
     
-    # Step 1: Load raw audio data
-    species_data = data_loader.load_species_data()
+    # Step 1: Load raw audio data. Background is loaded first so its waveforms
+    # can serve as the ambient bed for embedding short species clips (removes
+    # the zero-padding silence shortcut).
     background_data = data_loader.load_background_data()
+    background_pool = [audio for audio, _ in background_data]
+    species_data = data_loader.load_species_data(background_pool=background_pool)
     data_loader.print_data_summary(species_data, background_data)
     
     # Step 2: Convert to mel-spectrograms

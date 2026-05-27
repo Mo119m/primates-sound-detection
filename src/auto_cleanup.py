@@ -6,8 +6,7 @@ detections into "clean" (trustworthy without listening) and "suspicious":
 
 1. Mahalanobis OOD   - feature distance to the predicted class's training
    cluster. A real call lives close to its training cluster; a bird call does
-   not. The coarse "Cernic" detection label is scored against the nearest of
-   its three call-type clusters.
+   not.
 2. YAMNet cross-check - Google's 521-class audio tagger flags windows whose top
    class is Bird/Insect/Wind/Rain/Speech/etc.
 3. Temporal isolation - primates call in bouts, so a detection with no
@@ -41,15 +40,19 @@ except ImportError:  # Allow running as a standalone script (e.g. in Colab)
 
 
 # AudioSet classes that indicate the window is NOT one of our primates.
+# "Animal" and "Wild animals" are kept as plausible primate labels.
 DEFAULT_SUSPICIOUS_YAMNET = {
     'Bird', 'Bird vocalization, bird call, bird song', 'Chirp, tweet',
     'Squawk', 'Pigeon, dove', 'Crow', 'Owl', 'Gull, seagull',
     'Insect', 'Cricket', 'Cicada', 'Mosquito', 'Fly, housefly', 'Bee, wasp, etc.',
+    'Frog', 'Snake', 'Rattle',
     'Wind', 'Wind noise (microphone)', 'Rustling leaves', 'Rain', 'Rain on surface',
     'Thunder', 'Thunderstorm', 'Stream', 'Waterfall',
     'Silence', 'Speech', 'Male speech, man speaking', 'Female speech, woman speaking',
     'Conversation', 'Narration, monologue', 'Static', 'White noise', 'Pink noise',
     'Hum', 'Buzz', 'Mains hum',
+    'Music', 'Fireworks', 'Explosion', 'Glass', 'Noise',
+    'Bell', 'Bicycle bell', 'Bicycle', 'Buzzer', 'Ratchet, pawl',
 }
 
 
@@ -210,8 +213,16 @@ def extract_clips(det_df: pd.DataFrame):
 # THE THREE FILTERS
 
 def filter_mahalanobis(det_df, clips, feature_extractor, class_means, inv_cov,
-                       class_thresholds, verbose: bool = True) -> pd.DataFrame:
-    """Flag detections whose feature vector is OOD for every candidate class."""
+                       class_thresholds, percentile: int = 95,
+                       calibrate_on: str = 'detections',
+                       verbose: bool = True) -> pd.DataFrame:
+    """Flag detections whose feature vector is OOD.
+
+    calibrate_on='detections' (default) computes per-species thresholds from
+    the detection distances themselves, avoiding domain-shift false alarms
+    when noisy field recordings differ from clean training clips.
+    calibrate_on='training' uses the training-data thresholds (class_thresholds).
+    """
     X = np.stack([_audio_to_model_input(c, config.SAMPLE_RATE) for c in clips]).astype(np.float32)
     feats = feature_extractor.predict(X, batch_size=config.BATCH_SIZE,
                                       verbose=1 if verbose else 0)
@@ -223,15 +234,31 @@ def filter_mahalanobis(det_df, clips, feature_extractor, class_means, inv_cov,
         return [config.CLASS_NAMES.index(label)]
 
     scores = np.zeros(len(det_df), dtype=np.float32)
-    flags = np.zeros(len(det_df), dtype=bool)
     species = det_df['species'].to_numpy()
-    for i in range(len(det_df)):
-        members = members_for(species[i])
-        d2s = [float(_mahalanobis(feats[i:i + 1], c, class_means, inv_cov)[0])
-               for c in members]
-        scores[i] = min(d2s)  # distance to the nearest candidate cluster
-        flags[i] = all(d2s[k] > class_thresholds[members[k]]
-                       for k in range(len(members)))
+
+    if calibrate_on == 'detections':
+        for i in range(len(det_df)):
+            members = members_for(species[i])
+            d2s = [float(_mahalanobis(feats[i:i + 1], c, class_means, inv_cov)[0])
+                   for c in members]
+            scores[i] = min(d2s)
+        flags = np.zeros(len(det_df), dtype=bool)
+        for sp in np.unique(species):
+            mask = species == sp
+            thresh = float(np.percentile(scores[mask], percentile))
+            flags[mask] = scores[mask] > thresh
+            if verbose:
+                print(f'  Mahalanobis {sp}: threshold={thresh:.1f}, '
+                      f'flagged {int(flags[mask].sum())}/{int(mask.sum())}')
+    else:
+        flags = np.zeros(len(det_df), dtype=bool)
+        for i in range(len(det_df)):
+            members = members_for(species[i])
+            d2s = [float(_mahalanobis(feats[i:i + 1], c, class_means, inv_cov)[0])
+                   for c in members]
+            scores[i] = min(d2s)
+            flags[i] = all(d2s[k] > class_thresholds[members[k]]
+                           for k in range(len(members)))
 
     det_df = det_df.copy()
     det_df['mahalanobis_d2'] = scores
@@ -353,13 +380,34 @@ def save_hard_negatives(strong_fp_df, clips, fp_dir):
     return n_saved
 
 
+def save_clips_by_species(det_df, clips, out_dir):
+    """Save each detection's 2 s clip under ``out_dir/<species>/`` so they can
+    be reviewed after the original long recording has been deleted."""
+    out_dir = Path(out_dir)
+    n_saved = 0
+    for row in det_df.itertuples():
+        clip = clips[row.det_id]
+        sub = out_dir / row.species
+        sub.mkdir(parents=True, exist_ok=True)
+        stem = os.path.splitext(row.source_file)[0]
+        fname = (f'{stem}__t{int(row.start_time):05d}s'
+                 f'__conf{row.confidence:.2f}.wav')
+        sf.write(sub / fname, clip, config.SAMPLE_RATE)
+        n_saved += 1
+    return n_saved
+
+
 # ORCHESTRATOR
 
 def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
-                     output_dir=None, species_data=None, background_data=None,
+                     output_dir=None, fp_dir=None,
+                     species_data=None, background_data=None,
                      percentile: int = 95, isolation_window_s: float = 30.0,
                      suspicious_yamnet=None, save_clips: bool = True,
-                     use_cached_stats: bool = True, verbose: bool = True) -> dict:
+                     save_all_clips: bool = False,
+                     use_cached_stats: bool = True,
+                     mahal_calibration: str = 'detections',
+                     verbose: bool = True) -> dict:
     """
     Run the full three-filter cleanup over saved detection CSVs.
 
@@ -368,15 +416,29 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
         model_path: path to best_model.h5 (default: config.MODEL_SAVE_DIR).
         detection_dir: dir holding *_detections.csv (default:
             config.DETECTION_OUTPUT_DIR; searched recursively).
-        output_dir: where to write results (default:
-            config.OUTPUT_ROOT/auto_cleanup).
+        output_dir: where to write per-run results (clean/suspicious CSVs).
+            Default: config.OUTPUT_ROOT/auto_cleanup. Pass a per-station path
+            when processing one IPA station at a time.
+        fp_dir: where strong-FP clips are saved as hard negatives. Defaults to
+            the *global* config.OUTPUT_ROOT/auto_cleanup/auto_flagged_fp so
+            negatives accumulate in a single pool across stations — this is
+            the folder referenced by BACKGROUND_FOLDERS, so all per-station
+            FPs feed the next training round.
         species_data, background_data: pre-loaded training data; loaded via
             data_loader if omitted.
-        percentile: in-distribution percentile for the Mahalanobis cutoff.
+        percentile: percentile for the Mahalanobis cutoff (applied to either
+            training or detection distances depending on mahal_calibration).
         isolation_window_s: temporal-isolation neighbour window in seconds.
         suspicious_yamnet: set of AudioSet class names to treat as non-primate.
         save_clips: write >=2-flag clips as hard negatives.
+        save_all_clips: also write every clean and suspicious clip under
+            output_dir/clean_clips/<species>/ and suspicious_clips/<species>/
+            so they can be reviewed after the long recording is deleted.
+            Recommended for the per-station upload-process-delete workflow.
         use_cached_stats: reuse a cached class_stats.npz if present.
+        mahal_calibration: 'detections' (default) calibrates Mahalanobis
+            thresholds on field-detection distances to avoid domain-shift
+            false alarms; 'training' uses clean training-data thresholds.
 
     Returns:
         dict with keys: det_df, clean_df, suspicious_df, strong_fp_df, summary,
@@ -384,7 +446,7 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
     """
     output_dir = Path(output_dir or (Path(config.OUTPUT_ROOT) / 'auto_cleanup'))
     output_dir.mkdir(parents=True, exist_ok=True)
-    fp_dir = output_dir / 'auto_flagged_fp'
+    fp_dir = Path(fp_dir or (Path(config.OUTPUT_ROOT) / 'auto_cleanup' / 'auto_flagged_fp'))
 
     if model is None:
         model_path = model_path or os.path.join(config.MODEL_SAVE_DIR, 'best_model.h5')
@@ -412,7 +474,8 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
     clips = extract_clips(det_df)
 
     det_df = filter_mahalanobis(det_df, clips, feature_extractor, class_means,
-                                inv_cov, class_thresholds, verbose=verbose)
+                                inv_cov, class_thresholds, percentile=percentile,
+                                calibrate_on=mahal_calibration, verbose=verbose)
     det_df = filter_yamnet(det_df, clips, suspicious=suspicious_yamnet, verbose=verbose)
     det_df = filter_temporal_isolation(det_df, window_s=isolation_window_s, verbose=verbose)
     det_df = merge_flags(det_df)
@@ -431,10 +494,21 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
     if save_clips and len(strong_fp_df) > 0:
         n_saved = save_hard_negatives(strong_fp_df, clips, fp_dir)
 
+    n_clean_saved = n_susp_saved = 0
+    if save_all_clips:
+        if len(clean_df) > 0:
+            n_clean_saved = save_clips_by_species(
+                clean_df, clips, output_dir / 'clean_clips')
+        if len(suspicious_df) > 0:
+            n_susp_saved = save_clips_by_species(
+                suspicious_df, clips, output_dir / 'suspicious_clips')
+
     summary = summarize(det_df)
     if verbose:
-        print(f'\nClean:      {len(clean_df)}')
-        print(f'Suspicious: {len(suspicious_df)}')
+        print(f'\nClean:      {len(clean_df)}'
+              + (f' (saved {n_clean_saved} clips)' if save_all_clips else ''))
+        print(f'Suspicious: {len(suspicious_df)}'
+              + (f' (saved {n_susp_saved} clips)' if save_all_clips else ''))
         print(f'Strong FPs: {len(strong_fp_df)} (saved {n_saved} clips)')
         print(f'\n{summary.to_string()}')
         print(f'\nResults written to {output_dir}')
