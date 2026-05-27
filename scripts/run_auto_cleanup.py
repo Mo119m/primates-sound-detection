@@ -41,6 +41,10 @@ def main():
                         help='Do not write hard-negative WAV clips')
     parser.add_argument('--no-cache', action='store_true',
                         help='Recompute Mahalanobis stats instead of using the cache')
+    parser.add_argument('--mahal-calibration', type=str, default='detections',
+                        choices=['detections', 'training'],
+                        help='Calibrate Mahalanobis on detection distances '
+                             '(robust to domain shift) or training distances')
     args = parser.parse_args()
 
     auto_cleanup.run_auto_cleanup(
@@ -51,6 +55,7 @@ def main():
         isolation_window_s=args.isolation_window,
         save_clips=not args.no_save_clips,
         use_cached_stats=not args.no_cache,
+        mahal_calibration=args.mahal_calibration,
     )
 
 

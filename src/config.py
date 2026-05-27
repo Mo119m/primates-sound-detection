@@ -22,20 +22,30 @@ LONG_AUDIO_ROOT = os.environ.get(
 )
 
 # SPECIES CONFIGURATION
-# Each Cercopithecus nictitans call type is treated as its own class.
+# Cercopithecus nictitans call types are merged into a single "Cernic" class
+# for presence detection. Each entry can be a single folder (str) or a list of
+# folders whose clips are pooled under one label.
 SPECIES_FOLDERS = {
-    'Cernic_hack': 'species/CERNIC hacks',
-    'Cernic_kek': 'species/CERNIC keks',
-    'Cernic_pyow': 'species/CERNIC pyows',
+    'Cernic': [
+        'species/CERNIC putty-nose 5s',
+        'species/CERNIC hacks',
+        'species/CERNIC keks',
+        'species/CERNIC pyows',
+    ],
     'Colobus_guereza': 'species/Colobus guereza Clips 5s',
 }
 
 # Background noise folders (will be combined into single "Background" class)
+# The last entry accumulates hard negatives from the auto-cleanup loop.
+# To add impulsive-noise negatives (gunshots, branch-snaps) in a later round,
+# create a 'background/impulsive_noise' folder and uncomment the line below.
 BACKGROUND_FOLDERS = [
     'background/background noise Clips 5sec',
     'background/Cercocebus torquatus Clips 5s',
     'background/wrong classified',
     'background/Pan troglodytes Clips 5sec',
+    # 'background/impulsive_noise',
+    'outputs/auto_cleanup/auto_flagged_fp',
 ]
 
 # AUDIO PARAMETERS
@@ -132,16 +142,10 @@ N_CLASSES = len(SPECIES_FOLDERS) + 1  # +1 for Background class
 CLASS_NAMES = list(SPECIES_FOLDERS.keys()) + ['Background']
 
 # DETECTION GROUPING
-# The model is trained on fine-grained classes (each Cercopithecus nictitans
-# call type is its own class), but field detection only needs to know whether a
-# putty-nosed (Cernic) or Colobus call is present — not which Cernic subtype.
-# At detection time the softmax scores of classes sharing a group are summed, so
-# a window the model is confident is "some Cernic call" is not lost to the
-# threshold when its confidence is split across hack/kek/pyow.
+# With the merged Cernic class each model class maps directly to its own
+# detection group — no probability aggregation needed at detection time.
 DETECTION_GROUPS = {
-    'Cernic_hack': 'Cernic',
-    'Cernic_kek': 'Cernic',
-    'Cernic_pyow': 'Cernic',
+    'Cernic': 'Cernic',
     'Colobus_guereza': 'Colobus_guereza',
     'Background': 'Background',
 }
