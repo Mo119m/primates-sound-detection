@@ -20,8 +20,21 @@ import shutil
 
 
 def parse_time(filename):
-    """Extract (hour, minute) from YYYYMMDDTHHMMSS+... filename."""
-    m = re.match(r'\d{8}T(\d{2})(\d{2})\d{2}', os.path.basename(filename))
+    """Extract (hour, minute) of the recording start from the filename.
+
+    Supports two AudioMoth naming schemes:
+      - Old: ``YYYYMMDDTHHMMSS+ZZZZ_Short-term_Makokou.wav``
+      - New: ``SYYYYMMDDTHHMMSSmmm+ZZZZ_EYYYYMMDD..._<gps>.wav`` where the
+        leading ``S`` block is the start time (with millisecond precision) and
+        the ``E`` block is the end time. Filtering uses the start time.
+    """
+    basename = os.path.basename(filename)
+    # New scheme: leading 'S' + start timestamp (seconds may carry milliseconds)
+    m = re.match(r'S\d{8}T(\d{2})(\d{2})', basename)
+    if m:
+        return int(m.group(1)), int(m.group(2))
+    # Old scheme: bare start timestamp
+    m = re.match(r'\d{8}T(\d{2})(\d{2})', basename)
     if m:
         return int(m.group(1)), int(m.group(2))
     return None
