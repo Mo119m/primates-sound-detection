@@ -404,36 +404,50 @@ def save_detections(detections_df: pd.DataFrame,
     return csv_path
 
 
-def process_all_long_audio_files(model, 
-                                 confidence_threshold: float = config.DETECTION_CONFIDENCE_THRESHOLD) -> Dict[str, pd.DataFrame]:
+def process_all_long_audio_files(model,
+                                 confidence_threshold: float = config.DETECTION_CONFIDENCE_THRESHOLD,
+                                 audio_dir: str = None,
+                                 output_dir: str = None) -> Dict[str, pd.DataFrame]:
     """
     Process all long audio files in the directory
-    
+
     Args:
         model: Trained model
         confidence_threshold: Confidence threshold for detections
-    
+        audio_dir: Directory to scan for long recordings. Defaults to
+            config.LONG_AUDIO_ROOT. Pass a per-station path (e.g.
+            field_recordings/IPA10ST) when processing one station at a time.
+        output_dir: Directory to write *_detections.csv. Defaults to
+            config.DETECTION_OUTPUT_DIR. Pass a per-station subfolder (e.g.
+            detections/IPA10ST) so each station's CSVs stay isolated — this
+            keeps auto_cleanup from re-processing other stations' detections
+            (whose source audio may already be deleted, which would produce
+            empty/silent clips).
+
     Returns:
         Dictionary mapping filename to detection DataFrame
     """
     print("PROCESSING ALL LONG AUDIO FILES")
-    
+
     # Get all long audio files
-    audio_files = data_loader.get_long_audio_files()
+    audio_files = data_loader.get_long_audio_files(root=audio_dir)
     print(f"\nFound {len(audio_files)} audio files to process")
-    
+
     all_detections = {}
-    
+
     for i, audio_path in enumerate(audio_files, 1):
         print(f"Processing file {i}/{len(audio_files)}")
-        
+
         # Detect
         detections_df = detect_in_long_audio(model, audio_path, confidence_threshold)
-        
+
         # Save
         filename = os.path.basename(audio_path)
-        save_detections(detections_df, filename)
-        
+        if output_dir is not None:
+            save_detections(detections_df, filename, output_dir=output_dir)
+        else:
+            save_detections(detections_df, filename)
+
         # Store
         all_detections[filename] = detections_df
     
