@@ -32,7 +32,7 @@ SPECIES_FOLDERS = {
         'species/CERNIC keks',
         'species/CERNIC pyows',
     ],
-    'Colobus_guereza': 'species/Colobus guereza Clips 5s',
+    'Colobus_guereza': 'species/Colobus guereza 2s windows',
 }
 
 # Background noise folders (will be combined into single "Background" class)
