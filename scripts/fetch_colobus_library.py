@@ -120,18 +120,21 @@ def download_asset(asset_id: str, tmp_dir: str) -> str:
         return None
 
 
-def slice_recording(audio_path: str, asset_id: str, out_dir: str,
-                    silence_rel_db: float = 25.0) -> int:
+def slice_recording(audio_path: str, label: str, out_dir: str,
+                    silence_rel_db: float = 25.0, prefix: str = "ML") -> int:
     """Slice one recording into overlapping windows and save the loud ones.
 
     A window is kept only if its RMS is within ``silence_rel_db`` dB of the
     recording's loudest window, which drops the quiet gaps between roar bouts.
     Returns the number of clips written.
+
+    ``label`` + ``prefix`` form the output filename stem (e.g. ML657223371 for a
+    downloaded asset, or the source filename for a local re-slice).
     """
     try:
         audio, _ = librosa.load(audio_path, sr=SAMPLE_RATE, mono=True)
     except Exception as exc:
-        print(f"   ML{asset_id}: could not decode ({exc}), skipped")
+        print(f"   {prefix}{label}: could not decode ({exc}), skipped")
         return 0
 
     win = int(CLIP_DURATION * SAMPLE_RATE)
@@ -151,7 +154,7 @@ def slice_recording(audio_path: str, asset_id: str, out_dir: str,
     ])
     peak = rms.max()
     if peak <= 1e-9:
-        print(f"   ML{asset_id}: silent recording, skipped")
+        print(f"   {prefix}{label}: silent recording, skipped")
         return 0
     floor = peak * (10 ** (-silence_rel_db / 20))
 
@@ -163,38 +166,63 @@ def slice_recording(audio_path: str, asset_id: str, out_dir: str,
         # Peak-normalise so library-recording levels match our pipeline.
         clip = clip / (np.max(np.abs(clip)) + 1e-9) * 0.95
         t = s / SAMPLE_RATE
-        fname = f"ML{asset_id}__t{t:05.1f}s.wav"
+        fname = f"{prefix}{label}__t{t:05.1f}s.wav"
         sf.write(os.path.join(out_dir, fname), clip.astype(np.float32), SAMPLE_RATE)
         written += 1
     return written
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--ids", required=True,
-                        help="CSV export from Macaulay, or text file of ML IDs (one per line)")
-    parser.add_argument("--output", required=True,
-                        help="Output folder for the sliced 2s clips "
-                             "(e.g. .../species/Colobus guereza Library)")
-    parser.add_argument("--silence-rel-db", type=float, default=25.0,
-                        help="Drop windows quieter than this many dB below the "
-                             "recording's loudest window (default 25)")
-    parser.add_argument("--delay", type=float, default=1.0,
-                        help="Seconds to wait between downloads (be polite)")
-    args = parser.parse_args()
+AUDIO_EXTS = (".wav", ".mp3", ".flac", ".m4a", ".ogg", ".aif", ".aiff")
 
-    ids = parse_ids(args.ids)
+
+def run_local_mode(input_dir: str, output_dir: str, silence_rel_db: float):
+    """Re-slice an existing local folder of clips into overlapping 2s windows.
+
+    Used to expand the expert-labelled Colobus 5s clips: instead of the pipeline
+    taking only the single loudest 2s window from each clip, this emits every
+    loud 2s window so the model sees the full roar bout (different phases of the
+    repeated roar pulses), multiplying the positive set several-fold.
+    """
+    files = sorted(
+        os.path.join(input_dir, f) for f in os.listdir(input_dir)
+        if f.lower().endswith(AUDIO_EXTS)
+    )
+    if not files:
+        print(f"No audio files found in {input_dir}")
+        return
+    print(f"Re-slicing {len(files)} local clips from {input_dir}")
+    os.makedirs(output_dir, exist_ok=True)
+
+    total_clips, used = 0, 0
+    for n, path in enumerate(files, 1):
+        stem = os.path.splitext(os.path.basename(path))[0]
+        # Sanitise the stem for use as a filename prefix.
+        stem = re.sub(r"[^\w.-]+", "_", stem)
+        clips = slice_recording(path, stem, output_dir,
+                                silence_rel_db=silence_rel_db, prefix="")
+        if clips:
+            total_clips += clips
+            used += 1
+        if n % 25 == 0:
+            print(f"   [{n}/{len(files)}] {total_clips} windows so far")
+
+    print(f"\nDone: {total_clips} windows from {used}/{len(files)} clips "
+          f"-> {output_dir}")
+
+
+def run_download_mode(ids_path: str, output_dir: str, silence_rel_db: float,
+                      delay: float):
+    ids = parse_ids(ids_path)
     if not ids:
-        print(f"No ML catalog numbers found in {args.ids}")
+        print(f"No ML catalog numbers found in {ids_path}")
         return
     # De-duplicate while preserving order.
     seen = set()
     ids = [i for i in ids if not (i in seen or seen.add(i))]
     print(f"Found {len(ids)} unique recordings to fetch")
 
-    os.makedirs(args.output, exist_ok=True)
-    tmp_dir = os.path.join(args.output, "_downloads")
+    os.makedirs(output_dir, exist_ok=True)
+    tmp_dir = os.path.join(output_dir, "_downloads")
     os.makedirs(tmp_dir, exist_ok=True)
 
     total_clips = 0
@@ -204,17 +232,17 @@ def main():
         path = download_asset(asset_id, tmp_dir)
         if path is None:
             continue
-        clips = slice_recording(path, asset_id, args.output,
-                                silence_rel_db=args.silence_rel_db)
+        clips = slice_recording(path, asset_id, output_dir,
+                                silence_rel_db=silence_rel_db, prefix="ML")
         if clips:
             print(f"   -> {clips} clips")
             total_clips += clips
             used.append(asset_id)
         os.remove(path)
-        time.sleep(args.delay)
+        time.sleep(delay)
 
     # Drop a citation manifest next to the clips for the methods write-up.
-    manifest = os.path.join(args.output, "macaulay_assets_used.txt")
+    manifest = os.path.join(output_dir, "macaulay_assets_used.txt")
     with open(manifest, "w") as f:
         f.write("# Macaulay Library asset IDs used (cite recordist + asset ID)\n")
         for asset_id in used:
@@ -225,8 +253,34 @@ def main():
     except OSError:
         pass
 
-    print(f"\nDone: {total_clips} clips from {len(used)} recordings -> {args.output}")
+    print(f"\nDone: {total_clips} clips from {len(used)} recordings -> {output_dir}")
     print(f"Asset manifest: {manifest}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    src = parser.add_mutually_exclusive_group(required=True)
+    src.add_argument("--ids",
+                     help="CSV export from Macaulay, or text file of ML IDs "
+                          "(one per line) -> download then slice")
+    src.add_argument("--local",
+                     help="Folder of existing audio clips to re-slice into "
+                          "overlapping 2s windows (no download)")
+    parser.add_argument("--output", required=True,
+                        help="Output folder for the sliced 2s clips "
+                             "(e.g. .../species/Colobus guereza 2s windows)")
+    parser.add_argument("--silence-rel-db", type=float, default=25.0,
+                        help="Drop windows quieter than this many dB below the "
+                             "recording's loudest window (default 25)")
+    parser.add_argument("--delay", type=float, default=1.0,
+                        help="Seconds to wait between downloads (be polite)")
+    args = parser.parse_args()
+
+    if args.local:
+        run_local_mode(args.local, args.output, args.silence_rel_db)
+    else:
+        run_download_mode(args.ids, args.output, args.silence_rel_db, args.delay)
 
 
 if __name__ == "__main__":
