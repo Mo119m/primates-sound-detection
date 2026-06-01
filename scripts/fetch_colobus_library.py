@@ -137,6 +137,14 @@ def slice_recording(audio_path: str, label: str, out_dir: str,
         print(f"   {prefix}{label}: could not decode ({exc}), skipped")
         return 0
 
+    # Guard against empty/corrupt decodes and any non-finite samples up front so
+    # we never emit a zero-length or NaN clip (which blows up mel-spectrogram).
+    if audio.size == 0:
+        print(f"   {prefix}{label}: empty audio, skipped")
+        return 0
+    if not np.isfinite(audio).all():
+        audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+
     win = int(CLIP_DURATION * SAMPLE_RATE)
     hop = int(WINDOW_STRIDE * SAMPLE_RATE)
     if len(audio) < win:
@@ -163,8 +171,13 @@ def slice_recording(audio_path: str, label: str, out_dir: str,
         if r < floor:
             continue
         clip = audio[s:s + win]
+        clip_peak = float(np.max(np.abs(clip)))
+        # Absolute silence guard: never write an effectively-empty window even
+        # if it passed the recording-relative gate (a uniformly quiet bout).
+        if clip.size != win or clip_peak < 1e-4:
+            continue
         # Peak-normalise so library-recording levels match our pipeline.
-        clip = clip / (np.max(np.abs(clip)) + 1e-9) * 0.95
+        clip = clip / (clip_peak + 1e-9) * 0.95
         t = s / SAMPLE_RATE
         fname = f"{prefix}{label}__t{t:05.1f}s.wav"
         sf.write(os.path.join(out_dir, fname), clip.astype(np.float32), SAMPLE_RATE)
