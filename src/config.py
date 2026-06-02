@@ -46,6 +46,13 @@ BACKGROUND_FOLDERS = [
     'background/Pan troglodytes Clips 5sec',
     # 'background/impulsive_noise',
     'outputs/auto_cleanup/auto_flagged_fp',
+    # Confirmed field false positives mined from dev stations (IPA1-18) with
+    # scripts/mine_field_negatives.py: every saved clip from a station where the
+    # reviewer found no real call of that species. Distribution-matched hard
+    # negatives (real forest birds/insects/sawing) that the held-out test
+    # stations IPA19/20 never contribute to. Safe to list before it exists --
+    # scan_audio_files() just warns and skips a missing folder.
+    'background/field_fp_negatives',
 ]
 
 # AUDIO PARAMETERS
