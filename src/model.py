@@ -18,43 +18,72 @@ except ImportError:  # Allow running as a standalone script (e.g. in Colab)
 
 def build_model(num_classes: int = config.N_CLASSES,
                 input_shape: tuple = (config.IMG_HEIGHT, config.IMG_WIDTH, config.IMG_CHANNELS),
-                freeze_base: bool = config.FREEZE_BASE_LAYERS) -> keras.Model:
+                freeze_base: bool = config.FREEZE_BASE_LAYERS,
+                pooling: str = 'gap') -> keras.Model:
     """
     Build VGG19-based transfer learning model
-    
+
     Args:
         num_classes: Number of output classes
         input_shape: Input image shape
         freeze_base: Whether to freeze VGG19 base layers
-    
+        pooling: How to pool the VGG19 feature map before the dense head.
+            - 'gap' (default): a single GlobalAveragePooling2D over the whole
+              feature map. Simple, but averages away *where* in frequency the
+              energy sits, so a low roar and a high rhythmic bird trill collapse
+              to similar feature vectors.
+            - 'freq_bands': split the feature map along the frequency axis into
+              low/mid/high bands and pool each separately, then concatenate. The
+              dense head can then tell a low-frequency Colobus roar from a
+              high-frequency bird call. Targets the Colobus vs bird confusion.
+
     Returns:
         Compiled Keras model
     """
     print("\n Building Model")
-    
+
     # Load VGG19 with pretrained ImageNet weights
     base_model = VGG19(
         weights=config.PRETRAINED_WEIGHTS,
         include_top=False,
         input_shape=input_shape
     )
-    
+
     # Freeze base model layers if specified
     if freeze_base:
         base_model.trainable = False
         print("   Frozen VGG19 base layers")
     else:
         print("   VGG19 base layers trainable")
-    
+
     # Build the model
     inputs = keras.Input(shape=input_shape)
-    
+
     # VGG19 feature extraction
     x = base_model(inputs, training=False)
-    
-    # Global pooling
-    x = layers.GlobalAveragePooling2D()(x)
-    
+
+    # Pooling. The feature map is (batch, freq, time, channels): the height axis
+    # is frequency (row 0 ~ FMIN, last row ~ FMAX) because the mel-spectrogram is
+    # (n_mels, time) before the square resize.
+    if pooling == 'freq_bands':
+        n_freq = x.shape[1]
+        c1 = max(1, n_freq // 3)
+        c2 = n_freq - (n_freq // 3)
+        # Cropping2D keeps a contiguous frequency band by cropping the rows above
+        # and below it (axis order ((top, bottom), (left, right))). Standard
+        # serializable layers, so load_model needs no custom objects/safe_mode.
+        low = layers.Cropping2D(((0, n_freq - c1), (0, 0)), name='freq_low')(x)
+        mid = layers.Cropping2D(((c1, n_freq - c2), (0, 0)), name='freq_mid')(x)
+        high = layers.Cropping2D(((c2, 0), (0, 0)), name='freq_high')(x)
+        x = layers.Concatenate(name='freq_band_pool')([
+            layers.GlobalAveragePooling2D()(low),
+            layers.GlobalAveragePooling2D()(mid),
+            layers.GlobalAveragePooling2D()(high),
+        ])
+        print(f"   Frequency-band pooling: bands [0:{c1}, {c1}:{c2}, {c2}:{n_freq}]")
+    else:
+        x = layers.GlobalAveragePooling2D()(x)
+
     # Dense layers
     x = layers.Dense(512, activation='relu', name='dense_512')(x)
     x = layers.Dropout(config.DROPOUT_RATE)(x)
