@@ -99,6 +99,15 @@ RANDOM_SEED = 42
 # MODEL PARAMETERS
 MODEL_NAME = 'VGG19'
 PRETRAINED_WEIGHTS = 'imagenet'
+# Pooling head applied to the VGG19 feature map before the dense classifier:
+#   'gap'        -> GlobalAveragePooling2D (averages away both frequency and
+#                   time; the original head)
+#   'freq_bands' -> low/mid/high frequency-band pooling (keeps frequency, V6)
+#   'temporal'   -> frequency-pool + 1D-conv over time (keeps WHEN energy
+#                   occurs; targets the Cernic-vs-insect/sawing confusion)
+# Overridable via the PRIMATE_MODEL_POOLING env var so the standard training
+# pipeline can switch heads without editing code.
+MODEL_POOLING = os.environ.get('PRIMATE_MODEL_POOLING', 'gap')
 FREEZE_BASE_LAYERS = True  # Freeze VGG19 base layers initially
 UNFREEZE_LAST_N_BLOCKS = 1  # Fine-tune last N blocks later (optional)
 

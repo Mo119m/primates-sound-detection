@@ -36,6 +36,14 @@ def build_model(num_classes: int = config.N_CLASSES,
               low/mid/high bands and pool each separately, then concatenate. The
               dense head can then tell a low-frequency Colobus roar from a
               high-frequency bird call. Targets the Colobus vs bird confusion.
+            - 'temporal': pool away the frequency axis but KEEP time, then model
+              the time sequence with 1D convolutions. This is the only option
+              that preserves *when* energy occurs, so the head can separate a
+              real Cernic call (discrete low-frequency down-sweeping arcs) from
+              an insect pulse train or a continuous noise band that 'gap' /
+              'freq_bands' collapse to the same vector. Taps an intermediate VGG
+              block (block4_pool, 14x14 at 224 input) because the final block is
+              only 7x7 -- 7 time steps over 2s is too coarse for call rhythm.
 
     Returns:
         Compiled Keras model
@@ -59,8 +67,11 @@ def build_model(num_classes: int = config.N_CLASSES,
     # Build the model
     inputs = keras.Input(shape=input_shape)
 
-    # VGG19 feature extraction
-    x = base_model(inputs, training=False)
+    # VGG19 feature extraction. The 'temporal' head taps an intermediate block
+    # instead of the full base output, so it builds its own feature extractor
+    # below; running the full base here too would leave a dangling second VGG.
+    if pooling != 'temporal':
+        x = base_model(inputs, training=False)
 
     # Pooling. The feature map is (batch, freq, time, channels): the height axis
     # is frequency (row 0 ~ FMIN, last row ~ FMAX) because the mel-spectrogram is
@@ -81,6 +92,33 @@ def build_model(num_classes: int = config.N_CLASSES,
             layers.GlobalAveragePooling2D()(high),
         ])
         print(f"   Frequency-band pooling: bands [0:{c1}, {c1}:{c2}, {c2}:{n_freq}]")
+    elif pooling == 'temporal':
+        # Tap an intermediate block for finer time resolution. The full base
+        # output (7x7) only gives 7 time steps over 2s; block4_pool is 14x14 at
+        # 224 input, doubling the temporal resolution we can model.
+        tap = 'block4_pool'
+        feat = keras.Model(base_model.input,
+                           base_model.get_layer(tap).output,
+                           name='vgg19_temporal')  # name starts 'vgg' so
+                                                    # unfreeze_base_model finds it
+        fmap = feat(inputs, training=False)         # (b, freq, time, channels)
+        n_freq = fmap.shape[1]
+        n_time = fmap.shape[2]
+        n_ch = fmap.shape[3]
+        # Average over the frequency (height) axis only, keeping the time axis.
+        # AveragePooling2D + Reshape are standard serializable layers, so
+        # load_model needs no custom objects (same rationale as freq_bands).
+        x = layers.AveragePooling2D(pool_size=(n_freq, 1), name='freq_pool')(fmap)
+        x = layers.Reshape((n_time, n_ch), name='time_sequence')(x)
+        # 1D convolutions slide along time, so the head can learn the
+        # burst/silence/burst rhythm and the low-frequency arc shape.
+        x = layers.Conv1D(256, 3, padding='same', activation='relu',
+                          name='temporal_conv1')(x)
+        x = layers.Conv1D(256, 3, padding='same', activation='relu',
+                          name='temporal_conv2')(x)
+        x = layers.GlobalMaxPooling1D(name='temporal_pool')(x)
+        print(f"   Temporal pooling: tap {tap} -> freq-pooled to "
+              f"({n_time} time steps x {n_ch} ch) -> Conv1D")
     else:
         x = layers.GlobalAveragePooling2D()(x)
 
@@ -250,14 +288,22 @@ def unfreeze_base_model(model: keras.Model,
     return model
 
 
-def create_and_compile_model() -> keras.Model:
+def create_and_compile_model(pooling: str = None) -> keras.Model:
     """
     Convenience function to create and compile model in one step
-    
+
+    Args:
+        pooling: pooling head to use ('gap' | 'freq_bands' | 'temporal').
+            Defaults to config.MODEL_POOLING so the standard training pipeline
+            can switch heads via the PRIMATE_MODEL_POOLING env var without
+            editing code.
+
     Returns:
         Compiled model ready for training
     """
-    model = build_model()
+    if pooling is None:
+        pooling = getattr(config, 'MODEL_POOLING', 'gap')
+    model = build_model(pooling=pooling)
     model = compile_model(model)
     return model
 
