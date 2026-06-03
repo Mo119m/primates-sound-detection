@@ -27,7 +27,7 @@ LONG_AUDIO_ROOT = os.environ.get(
 # folders whose clips are pooled under one label.
 SPECIES_FOLDERS = {
     'Cernic': [
-        'species/CERNIC putty-nose 5s',
+        'species/CERNIC putty-nose 2s',
         'species/CERNIC hacks',
         'species/CERNIC keks',
         'species/CERNIC pyows',
