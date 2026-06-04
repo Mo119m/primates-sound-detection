@@ -31,6 +31,15 @@ SPECIES_FOLDERS = {
         'species/CERNIC hacks',
         'species/CERNIC keks',
         'species/CERNIC pyows',
+        # Real Cernic calls that were wrongly mined into Background by the
+        # auto-cleanup loop (the model fired high-confidence Cernic on a
+        # dev-station window, it was assumed a false positive, but human review
+        # confirmed a genuine putty-nose call). Recovered here as positives.
+        # Label safety: every clip is human-verified AND confirmed to originate
+        # from a dev station (IPA1-18 / Makokou short-term), never the held-out
+        # IPA19/20 -- so no test-station audio leaks into training. Safe to list
+        # before it exists; scan_audio_files() warns and skips a missing folder.
+        'species/CERNIC field_confirmed',
     ],
     'Colobus_guereza': 'species/Colobus guereza 2s windows',
 }
