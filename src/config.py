@@ -27,12 +27,21 @@ LONG_AUDIO_ROOT = os.environ.get(
 # folders whose clips are pooled under one label.
 SPECIES_FOLDERS = {
     'Cernic': [
-        'species/CERNIC putty-nose 5s',
+        'species/CERNIC putty-nose 2s',
         'species/CERNIC hacks',
         'species/CERNIC keks',
         'species/CERNIC pyows',
+        # Real Cernic calls that were wrongly mined into Background by the
+        # auto-cleanup loop (the model fired high-confidence Cernic on a
+        # dev-station window, it was assumed a false positive, but human review
+        # confirmed a genuine putty-nose call). Recovered here as positives.
+        # Label safety: every clip is human-verified AND confirmed to originate
+        # from a dev station (IPA1-18 / Makokou short-term), never the held-out
+        # IPA19/20 -- so no test-station audio leaks into training. Safe to list
+        # before it exists; scan_audio_files() warns and skips a missing folder.
+        'species/CERNIC field_confirmed',
     ],
-    'Colobus_guereza': 'species/Colobus guereza Clips 5s',
+    'Colobus_guereza': 'species/Colobus guereza 2s windows',
 }
 
 # Background noise folders (will be combined into single "Background" class)
@@ -46,6 +55,16 @@ BACKGROUND_FOLDERS = [
     'background/Pan troglodytes Clips 5sec',
     # 'background/impulsive_noise',
     'outputs/auto_cleanup/auto_flagged_fp',
+    # Confirmed field false positives mined from dev stations (IPA1-18) with
+    # scripts/mine_field_negatives.py. Distribution-matched hard negatives (real
+    # forest birds/insects/sawing/speech recorded by the same AudioMoth). Label
+    # safety: all Colobus clips are taken (no real Colobus at any dev station),
+    # but Cernic clips are YAMNet-gated -- only kept when an independent tagger
+    # calls the window bird/insect/etc., so real putty-nose calls are never
+    # pulled into Background. The held-out test stations IPA19/20 never feed in.
+    # Safe to list before it exists -- scan_audio_files() warns and skips a
+    # missing folder.
+    'background/field_fp_negatives',
 ]
 
 # AUDIO PARAMETERS
@@ -89,6 +108,15 @@ RANDOM_SEED = 42
 # MODEL PARAMETERS
 MODEL_NAME = 'VGG19'
 PRETRAINED_WEIGHTS = 'imagenet'
+# Pooling head applied to the VGG19 feature map before the dense classifier:
+#   'gap'        -> GlobalAveragePooling2D (averages away both frequency and
+#                   time; the original head)
+#   'freq_bands' -> low/mid/high frequency-band pooling (keeps frequency, V6)
+#   'temporal'   -> frequency-pool + 1D-conv over time (keeps WHEN energy
+#                   occurs; targets the Cernic-vs-insect/sawing confusion)
+# Overridable via the PRIMATE_MODEL_POOLING env var so the standard training
+# pipeline can switch heads without editing code.
+MODEL_POOLING = os.environ.get('PRIMATE_MODEL_POOLING', 'gap')
 FREEZE_BASE_LAYERS = True  # Freeze VGG19 base layers initially
 UNFREEZE_LAST_N_BLOCKS = 1  # Fine-tune last N blocks later (optional)
 

@@ -312,14 +312,21 @@ def get_long_audio_files(root: str = None) -> List[str]:
 def parse_recording_time(filename: str):
     """
     Extract the start hour and minute from an IPA recording filename.
-    Expected format: YYYYMMDDTHHMMSS+ZZZZ_....wav
+
+    Supports two AudioMoth naming schemes:
+      - Old: ``YYYYMMDDTHHMMSS+ZZZZ_....wav``
+      - New: ``SYYYYMMDDTHHMMSSmmm+ZZZZ_EYYYYMMDD..._<gps>.wav`` where the
+        leading ``S`` block is the start time (millisecond precision).
 
     Returns:
         (hour, minute) as ints, or None if parsing fails.
     """
     import re
     base = os.path.basename(filename)
-    m = re.match(r'\d{8}T(\d{2})(\d{2})\d{2}', base)
+    m = re.match(r'S\d{8}T(\d{2})(\d{2})', base)
+    if m:
+        return int(m.group(1)), int(m.group(2))
+    m = re.match(r'\d{8}T(\d{2})(\d{2})', base)
     if m:
         return int(m.group(1)), int(m.group(2))
     return None

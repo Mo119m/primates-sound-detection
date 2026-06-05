@@ -1,6 +1,6 @@
 # Primate Vocalization Detection
 
-Automated detection of primate calls in long rainforest field recordings from Makokou, Gabon. Uses VGG19 transfer learning on mel-spectrograms with a three-filter false-positive cleanup pipeline. Currently targets **Cercopithecus nictitans** (putty-nosed monkey) and **Colobus guereza**.
+Automated detection of primate calls in long rainforest field recordings from Makokou, Gabon. Uses VGG19 transfer learning on mel-spectrograms with a configurable pooling head (GAP / frequency-band / temporal CRNN) and a three-filter false-positive cleanup pipeline. Currently targets **Cercopithecus nictitans** (putty-nosed monkey) and **Colobus guereza**.
 
 ## Main Workflow
 
@@ -10,10 +10,10 @@ which call these same functions for you.
 
 ```
 Step 1  Configure   ->  Step 2  Train  ->  Step 3  Detect  ->  Step 4  Clean up  ->  Step 5  Retrain
-edit config.py          train.run_       detection.        auto_cleanup.          fold FPs into
-                        complete_        process_all_      run_auto_cleanup()     Background, go to
-                        training_        long_audio_                              Step 2 (iterate)
-                        pipeline()       files()
+edit config.py          train.run_         detection.        auto_cleanup.          fold FPs into
+                        complete_          process_all_      run_auto_cleanup()     Background, go to
+                        training_          long_audio_                              Step 2 (iterate)
+                        pipeline()         files()
 ```
 
 ```python
@@ -33,11 +33,15 @@ config.print_config_summary()
 ### Step 2 — Train the model
 
 One call runs the whole training pipeline (load audio -> spectrograms ->
-augmentation -> train -> evaluate). It saves `best_model.h5` to `outputs/models/`.
+augmentation -> two-stage train -> evaluate). It saves `best_model.h5` to `outputs/models/`.
 
 ```python
 trained_model = train.run_complete_training_pipeline()
 ```
+
+Training uses a two-stage schedule:
+1. **Frozen base** — VGG19 convolutional layers frozen, only the pooling head and dense classifier train (LR = 1e-4).
+2. **Fine-tune** — last VGG19 block(s) unfrozen for end-to-end fine-tuning (LR = 1e-5).
 
 > Want the individual steps instead? `train.prepare_dataset()` ->
 > `train.train_model(...)` -> `train.evaluate_model(...)`.
@@ -86,6 +90,24 @@ Move the flagged clips from `auto_cleanup/auto_flagged_fp/` into a background
 folder, add it to `BACKGROUND_FOLDERS` in `config.py`, then go back to **Step 2**.
 Repeat 3-5 times until false positives drop off.
 
+**Label audit**: after several self-training rounds, review the accumulated
+hard negatives for label pollution — real target species calls that were
+wrongly mined as false positives. Confirmed true positives should be moved to
+the corresponding `species/` folder (e.g. `species/CERNIC field_confirmed`).
+
+## Model Architecture
+
+The model uses VGG19 (pretrained on ImageNet) as a feature extractor with a
+configurable pooling head. Set the head via the `MODEL_POOLING` config option
+or `PRIMATE_MODEL_POOLING` environment variable.
+
+| Head | Config value | Description |
+|---|---|---|
+| **GAP** | `gap` | GlobalAveragePooling2D. Simple baseline. |
+| **Frequency-band** | `freq_bands` | Split feature map into low/mid/high frequency bands, pool each separately. Targets Colobus-vs-bird confusion. |
+| **Temporal** | `temporal` | Pool frequency axis, then Conv1D over time. Preserves *when* energy occurs (V7). |
+| **Temporal-frequency CRNN** | `temporal_freq` | 4 frequency bands × per-band Conv1D → cross-band Conv1D → BiLSTM → GlobalMaxPool+GlobalAvgPool → Dense. Preserves both *when* and *where* energy occurs (V8, current default). ~12.6M params. |
+
 ## Repository Structure
 
 ```
@@ -93,6 +115,7 @@ src/                           Core library modules
 scripts/                       Command-line entry points
 main_pipeline_notebooks/       Colab notebooks for training, detection, and cleanup
 presentation_notebooks/        Figures and slides generation
+paper/                         MethodsX manuscript (LaTeX)
 ```
 
 ## Source Modules (`src/`)
@@ -134,17 +157,17 @@ Data augmentation on mel-spectrograms to expand training data (7x multiplier).
 | `translate()` | Shift spectrogram in frequency |
 
 ### model.py
-VGG19-based transfer learning model.
+VGG19-based transfer learning model with configurable pooling heads.
 
 | Function | Description |
 |---|---|
-| `create_and_compile_model()` | Build VGG19 + custom head and compile |
+| `build_model()` | Build VGG19 + configurable pooling head and compile |
 | `load_trained_model()` | Load a saved `.h5` model |
 | `unfreeze_base_model()` | Unfreeze last N VGG19 blocks for fine-tuning |
 | `get_callbacks()` | EarlyStopping, ModelCheckpoint, ReduceLROnPlateau |
 
 ### train.py
-End-to-end training pipeline.
+End-to-end training pipeline with two-stage schedule.
 
 | Function | Description |
 |---|---|
@@ -161,7 +184,7 @@ Sliding-window detection in long field recordings with probability grouping.
 |---|---|
 | `detect_in_long_audio()` | Run full detection on a single file (windows -> predict -> NMS -> CSV) |
 | `process_all_long_audio_files()` | Detect across all files and aggregate results |
-| `group_probabilities()` | Sum softmax scores across Cernic subtypes before thresholding |
+| `group_probabilities()` | Sum softmax scores across detection groups before thresholding |
 | `sweep_thresholds()` | Apply multiple confidence thresholds to pre-computed predictions |
 | `apply_nms()` | Non-Maximum Suppression to remove overlapping detections |
 | `save_detections()` | Save detection results to CSV |
@@ -194,16 +217,36 @@ Visualization and analysis utilities.
 | `run_detection_ipa.py` | Run detection on an IPA field recording station. Args: `--station`, `--model`, `--threshold`, `--no-time-filter` |
 | `run_auto_cleanup.py` | Run the three-filter false-positive cleanup. Args: `--detection-dir`, `--model`, `--percentile`, `--isolation-window` |
 | `run_hard_negative_mining.py` | Extract medium-confidence predictions as candidate false positives for retraining |
+| `mine_field_negatives.py` | Mine confirmed false positives from dev-station field recordings as distribution-matched hard negatives |
 | `filter_recordings_by_time.py` | Copy only recordings within a time-of-day window (pre-upload filter) |
 | `analyze_detections.py` | Per-species detection analysis and threshold suggestion helpers |
+| `train_v7_temporal.py` | Train with the temporal (V7) pooling head |
+| `train_v8_temporal_freq.py` | Train with the temporal-frequency CRNN (V8) pooling head |
+| `tune_threshold.py` | Sweep detection confidence thresholds and report precision/recall |
+| `visualize_fp_vs_tp.py` | Side-by-side spectrogram comparison of true vs. false positives |
+| `fetch_colobus_library.py` | Download Colobus guereza reference calls from online sound libraries |
+| `acoustic_feature_separation.py` | Acoustic feature analysis for separating target vs. confuser species |
 
-## Notebooks (`main_pipeline_notebooks/`)
+## Notebooks
+
+### Main pipeline (`main_pipeline_notebooks/`)
 
 | Notebook | Description |
 |---|---|
 | `run_in_colab.ipynb` | Full pipeline: setup, train, detect (start here) |
 | `main_pipeline_updated.ipynb` | Detailed step-by-step training and evaluation |
 | `auto_cleanup_false_positives.ipynb` | Run auto-cleanup interactively with visualization |
+
+### Presentation (`presentation_notebooks/`)
+
+| Notebook / Script | Description |
+|---|---|
+| `01_data_overview.ipynb` | Dataset statistics and species distribution figures |
+| `02_model_results.ipynb` | Training curves, confusion matrices, per-class metrics |
+| `03_detection_analysis.ipynb` | Field detection results and temporal patterns |
+| `make_architecture_figure.py` | Generate model architecture diagram |
+| `make_augmentation_figure.py` | Generate augmentation examples figure |
+| `make_pipeline_figures.py` | Generate pipeline overview figures |
 
 ## Configuration
 
@@ -216,6 +259,7 @@ All parameters live in `src/config.py`. Key settings:
 | `WINDOW_SIZE` / `WINDOW_STRIDE` | 2.0 / 1.0 s | Detection sliding window |
 | `N_MELS` | 128 | Mel-spectrogram frequency bins |
 | `FMIN` / `FMAX` | 20 / 8000 Hz | Frequency range |
+| `MODEL_POOLING` | `gap` | Pooling head: `gap`, `freq_bands`, `temporal`, `temporal_freq` |
 | `BATCH_SIZE` | 32 | Training batch size |
 | `EPOCHS` | 50 | Max training epochs |
 | `DETECTION_CONFIDENCE_THRESHOLD` | 0.4 | Minimum confidence for detections |
@@ -226,24 +270,34 @@ Override data paths via environment variables: `PRIMATE_DATA_ROOT`, `PRIMATE_AUD
 ## Data Layout
 
 ```
-primates-data/                        (PRIMATE_DATA_ROOT)
+primates-data/                          (PRIMATE_DATA_ROOT)
   species/
-    CERNIC hacks/                     Putty-nosed monkey hack calls
-    CERNIC keks/                      Putty-nosed monkey kek calls
-    CERNIC pyows/                     Putty-nosed monkey pyow calls
-    Colobus guereza Clips 5s/         Colobus guereza calls
+    CERNIC putty-nose 2s/               Putty-nosed monkey putty-nose calls (2 s clips)
+    CERNIC hacks/                       Putty-nosed monkey hack calls
+    CERNIC keks/                        Putty-nosed monkey kek calls
+    CERNIC pyows/                       Putty-nosed monkey pyow calls
+    CERNIC field_confirmed/             Real Cernic calls recovered from label audit
+    Colobus guereza 2s windows/         Colobus guereza calls
   background/
-    background noise Clips 5sec/      Environmental noise
-    Cercocebus torquatus Clips 5s/    Non-target species
-    wrong classified/                 Misclassified examples
-    Pan troglodytes Clips 5sec/       Non-target species
+    background noise Clips 5sec/        Environmental noise
+    Cercocebus torquatus Clips 5s/      Non-target species
+    wrong classified/                   Misclassified examples
+    Pan troglodytes Clips 5sec/         Non-target species
+    field_fp_negatives/                 Distribution-matched hard negatives from dev stations
   field_recordings/
-    IPA1ST/YYYYMMDD/*.wav             IPA station field recordings
+    IPA1ST/YYYYMMDD/*.wav               IPA station field recordings
   outputs/
-    models/best_model.h5              Trained model
-    detections/                       Detection CSVs
-    auto_cleanup/                     Cleanup results and hard negatives
+    models/best_model.h5                Trained model
+    detections/                         Detection CSVs
+    auto_cleanup/                       Cleanup results and hard negatives
+      auto_flagged_fp/                  Accumulated hard negatives from self-training loop
 ```
+
+All four Cernic call types (putty-nose, hacks, keks, pyows) plus recovered
+field-confirmed calls are merged into a single **Cernic** class for binary
+presence detection. The `auto_flagged_fp` folder accumulates false positives
+across self-training iterations; `scan_audio_files()` walks it recursively, so
+all subfolders are loaded as Background during training.
 
 ## Installation
 
