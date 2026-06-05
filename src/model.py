@@ -18,43 +18,174 @@ except ImportError:  # Allow running as a standalone script (e.g. in Colab)
 
 def build_model(num_classes: int = config.N_CLASSES,
                 input_shape: tuple = (config.IMG_HEIGHT, config.IMG_WIDTH, config.IMG_CHANNELS),
-                freeze_base: bool = config.FREEZE_BASE_LAYERS) -> keras.Model:
+                freeze_base: bool = config.FREEZE_BASE_LAYERS,
+                pooling: str = 'gap') -> keras.Model:
     """
     Build VGG19-based transfer learning model
-    
+
     Args:
         num_classes: Number of output classes
         input_shape: Input image shape
         freeze_base: Whether to freeze VGG19 base layers
-    
+        pooling: How to pool the VGG19 feature map before the dense head.
+            - 'gap' (default): a single GlobalAveragePooling2D over the whole
+              feature map. Simple, but averages away *where* in frequency the
+              energy sits, so a low roar and a high rhythmic bird trill collapse
+              to similar feature vectors.
+            - 'freq_bands': split the feature map along the frequency axis into
+              low/mid/high bands and pool each separately, then concatenate. The
+              dense head can then tell a low-frequency Colobus roar from a
+              high-frequency bird call. Targets the Colobus vs bird confusion.
+            - 'temporal': pool away the frequency axis but KEEP time, then model
+              the time sequence with 1D convolutions. Preserves WHEN energy
+              occurs (V7 head).
+            - 'temporal_freq': like 'temporal' but splits frequency into 4
+              bands before temporal modelling. Each band gets its own Conv1D
+              stream, then all bands merge for a cross-band Conv1D + BiLSTM.
+              Preserves both WHEN and WHERE (low/mid/high) energy occurs (V8).
+
     Returns:
         Compiled Keras model
     """
     print("\n Building Model")
-    
+
     # Load VGG19 with pretrained ImageNet weights
     base_model = VGG19(
         weights=config.PRETRAINED_WEIGHTS,
         include_top=False,
         input_shape=input_shape
     )
-    
+
     # Freeze base model layers if specified
     if freeze_base:
         base_model.trainable = False
         print("   Frozen VGG19 base layers")
     else:
         print("   VGG19 base layers trainable")
-    
+
     # Build the model
     inputs = keras.Input(shape=input_shape)
-    
-    # VGG19 feature extraction
-    x = base_model(inputs, training=False)
-    
-    # Global pooling
-    x = layers.GlobalAveragePooling2D()(x)
-    
+
+    # VGG19 feature extraction. The 'temporal' head taps an intermediate block
+    # instead of the full base output, so it builds its own feature extractor
+    # below; running the full base here too would leave a dangling second VGG.
+    if pooling not in ('temporal', 'temporal_freq'):
+        x = base_model(inputs, training=False)
+
+    # Pooling. The feature map is (batch, freq, time, channels): the height axis
+    # is frequency (row 0 ~ FMIN, last row ~ FMAX) because the mel-spectrogram is
+    # (n_mels, time) before the square resize.
+    if pooling == 'freq_bands':
+        n_freq = x.shape[1]
+        c1 = max(1, n_freq // 3)
+        c2 = n_freq - (n_freq // 3)
+        # Cropping2D keeps a contiguous frequency band by cropping the rows above
+        # and below it (axis order ((top, bottom), (left, right))). Standard
+        # serializable layers, so load_model needs no custom objects/safe_mode.
+        low = layers.Cropping2D(((0, n_freq - c1), (0, 0)), name='freq_low')(x)
+        mid = layers.Cropping2D(((c1, n_freq - c2), (0, 0)), name='freq_mid')(x)
+        high = layers.Cropping2D(((c2, 0), (0, 0)), name='freq_high')(x)
+        x = layers.Concatenate(name='freq_band_pool')([
+            layers.GlobalAveragePooling2D()(low),
+            layers.GlobalAveragePooling2D()(mid),
+            layers.GlobalAveragePooling2D()(high),
+        ])
+        print(f"   Frequency-band pooling: bands [0:{c1}, {c1}:{c2}, {c2}:{n_freq}]")
+    elif pooling in ('temporal', 'temporal_freq'):
+        # CRNN head -- tells a real call (discrete bursts with rhythm) from an
+        # insect pulse train or continuous noise, a distinction that only exists
+        # in TIME and that 'gap'/'freq_bands' average away.
+        #
+        # 'temporal': pools away frequency entirely (V7).
+        # 'temporal_freq': splits frequency into N_FREQ_BANDS bands BEFORE
+        #   temporal modelling so the head can also learn WHERE in frequency
+        #   energy sits (Colobus roar ~512Hz vs Cernic hack ~1kHz vs bird >2kHz).
+        #   Each band gets its own Conv1D+BiLSTM stream, concatenated at the end.
+        tap = 'block4_conv4'
+        feat = keras.Model(base_model.input,
+                           base_model.get_layer(tap).output,
+                           name='vgg19_temporal')  # 'vgg' prefix so
+                                                    # unfreeze_base_model finds it
+        fmap = feat(inputs, training=False)         # (b, freq, time, channels)
+        n_freq = fmap.shape[1]
+        n_time = fmap.shape[2]
+        n_ch = fmap.shape[3]
+
+        if pooling == 'temporal':
+            # V7 path: average over frequency, keep time only.
+            x = layers.AveragePooling2D(pool_size=(n_freq, 1), name='freq_pool')(fmap)
+            x = layers.Reshape((n_time, n_ch), name='time_sequence')(x)
+            x = layers.Conv1D(256, 3, padding='same', name='temporal_conv1')(x)
+            x = layers.BatchNormalization(name='temporal_bn1')(x)
+            x = layers.Activation('relu', name='temporal_relu1')(x)
+            x = layers.Conv1D(256, 3, padding='same', name='temporal_conv2')(x)
+            x = layers.BatchNormalization(name='temporal_bn2')(x)
+            x = layers.Activation('relu', name='temporal_relu2')(x)
+            x = layers.Bidirectional(
+                layers.LSTM(128, return_sequences=True, dropout=0.3),
+                name='temporal_bilstm')(x)
+            x = layers.Concatenate(name='temporal_pool')([
+                layers.GlobalMaxPooling1D()(x),
+                layers.GlobalAveragePooling1D()(x),
+            ])
+            print(f"   Temporal CRNN head: tap {tap} -> freq-pooled to "
+                  f"({n_time} steps x {n_ch} ch) -> Conv1D x2 -> BiLSTM")
+        else:
+            # temporal_freq: split frequency into bands, each gets its own
+            # temporal pathway, then merge.  The model explicitly sees WHICH
+            # frequency band is active at each time step.
+            N_BANDS = 4
+            band_size = n_freq // N_BANDS
+            band_outputs = []
+            band_boundaries = []
+            for b in range(N_BANDS):
+                f_start = b * band_size
+                f_end = n_freq if b == N_BANDS - 1 else (b + 1) * band_size
+                band_boundaries.append((f_start, f_end))
+                bh = f_start
+                crop_top = bh
+                crop_bot = n_freq - f_end
+                band = layers.Cropping2D(
+                    ((crop_top, crop_bot), (0, 0)),
+                    name=f'freq_band_{b}')(fmap)
+                band_h = f_end - f_start
+                band = layers.AveragePooling2D(
+                    pool_size=(band_h, 1),
+                    name=f'band_{b}_freq_pool')(band)
+                band = layers.Reshape(
+                    (n_time, n_ch),
+                    name=f'band_{b}_seq')(band)
+                band = layers.Conv1D(
+                    128, 3, padding='same',
+                    name=f'band_{b}_conv1')(band)
+                band = layers.BatchNormalization(
+                    name=f'band_{b}_bn1')(band)
+                band = layers.Activation(
+                    'relu', name=f'band_{b}_relu1')(band)
+                band_outputs.append(band)
+
+            # Stack bands: (batch, time, N_BANDS * 128)
+            x = layers.Concatenate(
+                axis=-1, name='band_merge')(band_outputs)
+            # Cross-band temporal convolution
+            x = layers.Conv1D(256, 3, padding='same',
+                              name='cross_band_conv')(x)
+            x = layers.BatchNormalization(name='cross_band_bn')(x)
+            x = layers.Activation('relu', name='cross_band_relu')(x)
+            # Recurrent layer sees all bands together over time
+            x = layers.Bidirectional(
+                layers.LSTM(128, return_sequences=True, dropout=0.3),
+                name='temporal_bilstm')(x)
+            x = layers.Concatenate(name='temporal_pool')([
+                layers.GlobalMaxPooling1D()(x),
+                layers.GlobalAveragePooling1D()(x),
+            ])
+            print(f"   Temporal-freq CRNN head: tap {tap} -> "
+                  f"{N_BANDS} freq bands x {n_time} time steps -> "
+                  f"per-band Conv1D -> merge -> cross-band Conv1D -> BiLSTM")
+    else:
+        x = layers.GlobalAveragePooling2D()(x)
+
     # Dense layers
     x = layers.Dense(512, activation='relu', name='dense_512')(x)
     x = layers.Dropout(config.DROPOUT_RATE)(x)
@@ -221,14 +352,23 @@ def unfreeze_base_model(model: keras.Model,
     return model
 
 
-def create_and_compile_model() -> keras.Model:
+def create_and_compile_model(pooling: str = None) -> keras.Model:
     """
     Convenience function to create and compile model in one step
-    
+
+    Args:
+        pooling: pooling head to use ('gap' | 'freq_bands' | 'temporal' |
+            'temporal_freq').
+            Defaults to config.MODEL_POOLING so the standard training pipeline
+            can switch heads via the PRIMATE_MODEL_POOLING env var without
+            editing code.
+
     Returns:
         Compiled model ready for training
     """
-    model = build_model()
+    if pooling is None:
+        pooling = getattr(config, 'MODEL_POOLING', 'gap')
+    model = build_model(pooling=pooling)
     model = compile_model(model)
     return model
 
