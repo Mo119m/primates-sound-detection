@@ -9,12 +9,12 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 setup(
     name="primate-vocalization-detection",
     version="1.0.0",
-    author="Mo",
-    author_email="your.email@example.com",
+    author="Moshi Fu",
+    author_email="",
     description="Automated detection of primate vocalizations in rainforest audio recordings",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/primate-vocalization-detection",
+    url="https://github.com/mo119m/primates-sound-detection",
     package_dir={"primate_detection": "src"},
     packages=["primate_detection"],
     classifiers=[
