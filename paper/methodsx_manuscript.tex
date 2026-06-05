@@ -11,7 +11,7 @@
 %%   double-spaced, line-numbered manuscript format Elsevier expects.
 %%
 %% TODO before submitting:
-%%   - fill every [bracketed] placeholder (authors, affiliations, ethics,
+%%   - fill every [bracketed] placeholder (affiliations, ethics,
 %%     funding, CRediT roles);
 %%   - prepare the Graphical abstract as a SEPARATE image file;
 %%   - delete this comment header.
@@ -40,9 +40,9 @@
 \title{A transfer-learning and automatic false-positive cleanup pipeline
 for detecting primate vocalizations in long tropical-forest recordings}
 
-\author[a]{[First Last]\corref{cor1}}
+\author[a]{Moshi Fu\corref{cor1}}
 \ead{mfu39@wisc.edu}
-\cortext[cor1]{Corresponding author. X: [@handle --- optional, delete if none]}
+\cortext[cor1]{Corresponding author.}
 
 \author[a]{[Co-author Name]}
 
@@ -60,36 +60,38 @@ for detecting primate vocalizations in long tropical-forest recordings}
 %% outline the method (no technical steps).
 \begin{abstract}
 Passive acoustic monitoring (PAM) produces thousands of hours of
-tropical-forest audio that are infeasible to annotate by hand, yet automatic
-call detectors trained on clean reference clips generate large numbers of
-false positives when deployed on noisy field soundscapes. We describe an
+tropical-forest audio that are infeasible to annotate by hand. We describe an
 end-to-end pipeline that detects primate vocalizations --- the putty-nosed
 monkey (\textit{Cercopithecus nictitans}) and \textit{Colobus guereza} ---
-in long field recordings from Makokou, Gabon. Two-second audio windows are
-converted to mel-spectrogram images and classified with a VGG19 convolutional
-network pretrained on ImageNet and adapted by transfer learning. Detection
-combines sliding windows, summation of softmax scores across call types,
-non-maximum suppression, and a time-of-day filter. To suppress false positives
-without manual listening, three independent filters --- a Mahalanobis
-out-of-distribution score, a YAMNet/AudioSet cross-check, and a
-temporal-isolation rule --- flag suspicious detections; strongly flagged clips
-are exported as hard negatives and folded back into the background class for
+in long field recordings from Makokou, Gabon. A three-class model (Cernic,
+Colobus, Background) is built by pooling all putty-nosed call types at the
+training level, eliminating the need for softmax summation at detection time.
+Two-second audio windows --- with short clips embedded in real background noise
+and longer clips trimmed to their highest-energy window --- are converted to
+mel-spectrogram images and classified by a temporal-frequency CRNN head
+attached to a VGG19 backbone: the feature map is split into four frequency
+bands, processed by per-band and cross-band convolutions, and fed through a
+bidirectional LSTM to capture spectro-temporal structure. Two-stage training
+(frozen base then partial fine-tuning) with human-verified, label-audited
+training data achieves 99.1\% validation accuracy with zero cross-species
+confusion. An automatic three-filter false-positive cleanup flags suspicious
+detections, and confirmed false positives are recycled as hard negatives for
 iterative retraining.
 
 \begin{itemize}
-\item A reusable transfer-learning workflow for detecting primate calls in
-long, noisy field recordings.
-\item An automatic three-filter false-positive cleanup that needs no manual
-listening.
-\item An iterative hard-negative mining loop that progressively reduces false
-positives.
+\item A temporal-frequency CRNN head on a VGG19 backbone for three-class
+primate call detection with two-stage transfer learning.
+\item Human-verified training data with hard-negative recovery from
+false-positive pools, eliminating label noise and silence shortcuts.
+\item An automatic three-filter cleanup pipeline that feeds confirmed false
+positives back as hard negatives for iterative retraining.
 \end{itemize}
 \end{abstract}
 
 %% KEYWORDS -- minimum three, separated by \sep.
 \begin{keyword}
 Bioacoustics \sep Passive acoustic monitoring \sep Transfer learning \sep
-Convolutional neural network \sep Mel-spectrogram \sep
+Convolutional recurrent neural network \sep Mel-spectrogram \sep
 False-positive filtering \sep Out-of-distribution detection \sep
 \textit{Cercopithecus nictitans} \sep \textit{Colobus guereza}
 \end{keyword}
@@ -104,10 +106,10 @@ None.
 \section*{Graphical abstract}
 \textit{[Submitted as a separate image file (min.\ 531 $\times$ 1328 px,
 h $\times$ w; readable at 5 $\times$ 13 cm; TIFF/EPS/PDF/MS Office). Suggested
-content: the five-stage pipeline --- reference clips $\rightarrow$
-mel-spectrogram + VGG19 classifier $\rightarrow$ sliding-window detection
-$\rightarrow$ three-filter cleanup $\rightarrow$ hard-negative retraining
-loop.]}
+content: the pipeline --- reference clips $\rightarrow$
+mel-spectrogram + temporal-frequency CRNN classifier $\rightarrow$
+sliding-window detection $\rightarrow$ three-filter cleanup $\rightarrow$
+hard-negative retraining loop.]}
 
 %% =====================================================================
 \section*{Specifications table}
@@ -119,8 +121,9 @@ loop.]}
 Subject area & Agricultural and Biological Sciences \\
 More specific subject area & Bioacoustics; passive acoustic monitoring;
 conservation biology \\
-Name of your method & VGG19 transfer-learning detection with three-filter
-automatic false-positive cleanup for primate vocalizations \\
+Name of your method & VGG19 temporal-frequency CRNN with two-stage
+fine-tuning and three-filter automatic false-positive cleanup for primate
+vocalizations \\
 Name and reference of original method & Transfer learning with the VGG19
 architecture \cite{simonyan2015}; out-of-distribution detection via the
 Mahalanobis distance \cite{lee2018}; audio event tagging with YAMNet trained
@@ -160,8 +163,7 @@ This method addresses that problem for two primate species recorded at
 Makokou, Gabon: the putty-nosed monkey (\textit{Cercopithecus nictitans}),
 whose repertoire includes acoustically distinct ``hack'', ``kek'', and
 ``pyow'' call types \cite{arnold2006}, and \textit{Colobus guereza}. Rather
-than only training a classifier, we wrap it in (i) a detection stage that
-aggregates the three putty-nosed call types into a single decision and applies
+than only training a classifier, we wrap it in (i) a detection stage with
 domain-appropriate post-processing, (ii) an automatic three-filter cleanup
 that flags likely false positives using signals independent of the detector
 itself, and (iii) an iterative hard-negative mining loop that recycles
@@ -192,23 +194,40 @@ timestamp in each filename) are processed; this removes large stretches of
 audio in which the species are unlikely to call and reduces both compute and
 false positives.
 
-The model is trained on short reference clips organized into five classes:
+The model is trained on short reference clips organized into three classes:
 \begin{itemize}
-\item \textbf{Cernic\_hack, Cernic\_kek, Cernic\_pyow} --- the three
-putty-nosed monkey call types, each treated as its own class so the network
-can learn their distinct spectral structure;
+\item \textbf{Cernic} --- all putty-nosed monkey call types (hack, kek, pyow)
+pooled into a single class. Four source folders (one per call type, plus
+field-confirmed recoveries) are mapped to the single ``Cernic'' label via
+\texttt{config.SPECIES\_FOLDERS}, so that merging happens at training time and
+the model directly outputs a unified putty-nosed decision;
 \item \textbf{Colobus\_guereza} --- \textit{Colobus guereza} calls;
 \item \textbf{Background} --- a pooled negative class assembled from ambient
-forest noise plus calls of non-target animals present at the site (e.g.\
-\textit{Cercocebus torquatus}, \textit{Pan troglodytes}) and previously
-misclassified clips.
+forest noise, calls of non-target animals present at the site (e.g.\
+\textit{Cercocebus torquatus}, \textit{Pan troglodytes}), and previously
+misclassified clips recycled through the hard-negative mining loop.
 \end{itemize}
+
+\noindent All training clips underwent human verification. For Colobus, 69
+mislabelled clips (containing only bird calls due to mechanical slicing of
+longer recordings) were identified and removed. For the Background class, a
+label-quality audit of the entire auto-flagged false-positive pool (4669
+files) was conducted using model-confidence-based rescoring and manual review;
+six clips confirmed as real Cernic calls were recovered and moved to a
+dedicated \texttt{field\_confirmed} training folder.
 
 \subsection*{2. Audio preprocessing and mel-spectrogram representation}
 
 All audio is resampled to 44.1\,kHz and standardized to a fixed 2.0\,s
-duration: clips shorter than the target are zero-padded, and longer clips are
-randomly cropped (acting as light augmentation for sustained calls). Each 2\,s
+duration. Clips shorter than the target (e.g.\ hack, kek, and pyow calls,
+typically $\sim$0.3\,s) are embedded at a random position within a 2\,s
+segment of real background noise randomly selected from the Background pool;
+this eliminates the silence shortcut that zero-padding would introduce and
+forces the model to distinguish the call from genuine ambient sound. Clips
+longer than 2\,s (e.g.\ putty-nosed 5\,s field recordings) are trimmed to the
+deterministic 2\,s window with the highest RMS energy
+(\texttt{find\_loudest\_window}), ensuring that the segment reviewed by a
+human annotator is identical to the segment used for training. Each 2\,s
 waveform is converted to a mel-spectrogram with librosa \cite{mcfee2015} using
 a 2048-sample FFT, 512-sample hop, 128 mel bands, and a 20--8000\,Hz analysis
 range, and is expressed in decibels relative to its per-clip maximum. The
@@ -234,29 +253,67 @@ SpecAugment-style masking and mixing \cite{park2019}.
 
 \subsection*{4. Model architecture}
 
-The classifier is a VGG19 network \cite{simonyan2015} pretrained on ImageNet
-\cite{deng2009} with its convolutional base frozen and used as a fixed feature
-extractor. On top of the base we add global average pooling, a 512-unit ReLU
-dense layer, dropout (0.5), a 256-unit ReLU dense layer (used later as the
-feature tap for out-of-distribution scoring), a second dropout (0.5), and a
-five-way softmax output. The model is compiled with the Adam optimizer
-(learning rate $1 \times 10^{-4}$) and sparse categorical cross-entropy,
-tracking top-1 and top-2 accuracy. An optional fine-tuning step can unfreeze
-the last $N$ VGG19 blocks for further adaptation.
+The classifier couples a VGG19 convolutional backbone \cite{simonyan2015}
+pretrained on ImageNet \cite{deng2009} with a custom temporal-frequency CRNN
+head designed to exploit both the spectral location and the temporal rhythm of
+primate calls. The motivation is that Colobus roars concentrate energy around
+$\sim$512\,Hz, putty-nosed calls around $\sim$1\,kHz, and common confusers
+(birds, insects) above $\sim$2\,kHz; encoding \emph{where} in frequency the
+energy sits and \emph{when} it occurs lets the model discriminate species that
+a global pooling layer would conflate.
+
+The feature map from \texttt{block4\_conv4} of VGG19 (spatial size
+28\,$\times$\,28, 512 channels) is extracted before the final VGG19 block. The
+frequency axis (height) is split into four equal bands (each 7 bins), so that
+each band covers a contiguous portion of the mel-frequency range. Within each
+band, the frequency dimension is collapsed (average pooling over the 7 bins),
+yielding a time-$\times$-channel sequence of shape 28\,$\times$\,512. Each
+band is then processed by its own one-dimensional convolutional stream ---
+Conv1D(128 filters, kernel size 3, same padding) followed by batch
+normalization and ReLU --- producing four sequences of shape
+28\,$\times$\,128. These are concatenated along the channel axis
+(28\,$\times$\,512) and passed through a cross-band Conv1D(256, kernel 3,
+same padding) + batch normalization + ReLU layer that allows the network to
+learn interactions between frequency bands.
+
+The resulting 28\,$\times$\,256 sequence is fed into a bidirectional LSTM with
+128 units per direction (return sequences enabled, recurrent dropout 0.3),
+which captures temporal dependencies such as the rhythmic hack--hack or
+pyow--hack patterns characteristic of putty-nosed calling bouts. The LSTM
+output sequence is summarized by concatenating global max pooling and global
+average pooling over the time axis, producing a 512-dimensional vector that
+retains both peak activation and average energy. This vector passes through
+two dense layers (256 units, ReLU, dropout 0.5; then 128 units, ReLU, dropout
+0.5) and a final three-way softmax output. The full model has approximately
+12.6 million trainable parameters.
 
 \subsection*{5. Model training}
 
-The augmented dataset is split 80/20 into training and validation sets with
-stratification by class and a fixed random seed for reproducibility. Because
-the background class greatly outnumbers individual call types, balanced class
-weights (inversely proportional to class frequency) are applied during
-training. The model is trained for up to 50 epochs with a batch size of 32
-under three callbacks: early stopping on validation loss (patience 10, best
-weights restored), model checkpointing on best validation accuracy, and
-learning-rate reduction on plateau (factor 0.5, patience 5, floor
-$1 \times 10^{-7}$). The best checkpoint is saved as \texttt{best\_model.h5}.
-Training concludes with a per-class accuracy report and a confusion matrix on
-the validation set.
+Training proceeds in two stages, following a standard transfer-learning
+protocol of head training followed by partial fine-tuning.
+
+\paragraph{Stage 1 --- Head training.}
+The entire VGG19 convolutional base is frozen and only the temporal-frequency
+CRNN head is trained. The optimizer is Adam with an initial learning rate of
+$1 \times 10^{-4}$, and the loss is sparse categorical cross-entropy.
+
+\paragraph{Stage 2 --- Partial fine-tuning.}
+The last two convolutional blocks of VGG19 (\texttt{block4} and
+\texttt{block5}) are unfrozen while earlier blocks remain frozen to preserve
+low-level features. The learning rate is reduced to $1 \times 10^{-5}$ to
+avoid catastrophic forgetting.
+
+\paragraph{Shared training settings.}
+Both stages use the augmented dataset split 80/20 into training and validation
+sets with stratification by class and a fixed random seed for
+reproducibility. Balanced class weights (inversely proportional to class
+frequency) compensate for the larger Background class. Training runs for up to
+50 epochs per stage with a batch size of 32, governed by three callbacks:
+early stopping on validation accuracy (patience 10, best weights restored),
+model checkpointing on best validation accuracy, and learning-rate reduction
+on plateau (factor 0.5, patience 5, floor $1 \times 10^{-7}$). The best
+checkpoint is saved as \texttt{best\_model.h5}. Training concludes with a
+per-class accuracy report and a confusion matrix on the validation set.
 
 \subsection*{6. Sliding-window detection}
 
@@ -264,17 +321,15 @@ A trained model is applied to each long recording with a 2.0\,s window
 advanced in 1.0\,s steps (50\,\% overlap); a final window is anchored at the
 end of the file so trailing audio is not dropped. Every window is converted to
 a mel-spectrogram image and classified. Because the three putty-nosed call
-types are separate classes but field detection only needs to know that
-\emph{some} putty-nosed call is present, the softmax scores of the three
-Cernic classes are \textbf{summed into a single ``Cernic'' group} before the
-decision is made; this prevents a confident ``some putty-nosed call'' window
-from being lost when its probability is split across hack/kek/pyow. The window
-is assigned to the highest-scoring group, and is kept as a detection if that
-group is not Background and its summed score meets a confidence threshold
-(default 0.4). Overlapping detections of the same group are then reduced by
-per-class non-maximum suppression at an intersection-over-union threshold of
-0.5. Per-file detections (start time, end time, species, confidence) are
-written to CSV.
+types are already merged into the single Cernic class at training time, no
+softmax summation across call types is needed at detection time ---
+\texttt{DETECTION\_GROUPS} is simply an identity mapping (Cernic $\to$ Cernic,
+Colobus $\to$ Colobus, Background $\to$ Background). The window is assigned to
+its highest-scoring class and is kept as a detection if that class is not
+Background and its confidence meets a threshold (default 0.4). Overlapping
+detections of the same class are then reduced by per-class non-maximum
+suppression at an intersection-over-union threshold of 0.5. Per-file
+detections (start time, end time, species, confidence) are written to CSV.
 
 \subsection*{7. Automatic false-positive cleanup}
 
@@ -285,19 +340,17 @@ detection is treated. For each detection a 2\,s clip is extracted from the
 source recording.
 
 \paragraph{(a) Mahalanobis out-of-distribution filter}
-Using the 256-unit dense layer as a feature extractor, per-class feature means
+Using a penultimate dense layer as a feature extractor, per-class feature means
 and a pooled, ridge-regularized inverse covariance are estimated from the
 original (non-augmented) training clips \cite{lee2018}. For each detection the
-Mahalanobis distance to its candidate class cluster(s) is computed; for the
-coarse ``Cernic'' label this is the distance to the nearest of the
-hack/kek/pyow clusters. A real call lies close to its training cluster,
-whereas an unfamiliar sound does not. Because field clips are systematically
-noisier than clean training clips, thresholds calibrated on training data flag
-almost everything; we therefore calibrate the cutoff on the \textbf{detection
-distances themselves}, flagging, per species, the detections beyond the 95th
-percentile of the observed distance distribution (a configurable percentile).
-This makes the filter a relative-outlier detector that is robust to the
-train-to-field domain shift.
+Mahalanobis distance to its candidate class cluster is computed. A real call
+lies close to its training cluster, whereas an unfamiliar sound does not.
+Because field clips are systematically noisier than clean training clips,
+thresholds calibrated on training data flag almost everything; we therefore
+calibrate the cutoff on the \textbf{detection distances themselves}, flagging,
+per species, the detections beyond the 95th percentile of the observed
+distance distribution (a configurable percentile). This makes the filter a
+relative-outlier detector that is robust to the train-to-field domain shift.
 
 \paragraph{(b) YAMNet cross-check}
 Each clip is resampled to 16\,kHz and passed to YAMNet, a network trained on
@@ -337,19 +390,81 @@ without ever requiring exhaustive manual annotation of the field recordings.
 %% =====================================================================
 \section*{Method validation}
 
-\textit{[To be completed once results are available. Planned validation:
-(i) per-class accuracy and confusion matrix on the held-out validation split;
-(ii) precision/recall of field detections against a manually verified subset
-of recordings; (iii) the change in clean-vs-suspicious detection counts across
-hard-negative mining iterations, demonstrating the reduction in false
-positives.]}
+We report two levels of validation: (i) performance on a held-out validation
+split drawn from the same curated clip pool as training, and (ii) a field test
+on continuous recordings from one acoustic station not used during development.
+
+\paragraph{Validation-set performance (V8 model).}
+The validation set contains 2713 clips stratified across the three classes.
+Table~\ref{tab:val} summarizes per-class results.
+
+\begin{table}[h]
+\centering
+\caption{Per-class validation-set performance of the final (V8) model.}
+\label{tab:val}
+\begin{tabular}{lrrr}
+\toprule
+Class & Samples & Accuracy (\%) & Mean confidence \\
+\midrule
+Cernic           & 492  & 97.15 & 0.969 \\
+Colobus\_guereza & 864  & 99.88 & 0.998 \\
+Background       & 1357 & 99.34 & 0.992 \\
+\midrule
+\textbf{Overall} & \textbf{2713} & \textbf{99.12} & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent Overall accuracy is 99.12\% with a loss of 0.036. Notably, the
+confusion matrix shows \textbf{zero cross-species confusion} between Cernic
+and Colobus. All errors involve the Background class: 14 Cernic clips are
+conservatively classified as Background (mostly weak or brief hacks and pyows
+embedded in noise), while 6 Background clips are misclassified as Cernic and 3
+as Colobus.
+
+\paragraph{Field test --- IPA19ST.}
+The V8 model was applied to 40 continuous recordings from station IPA19ST.
+Of 19 total detections, 17 were attributed to Cernic and 2 to Colobus:
+\begin{itemize}
+\item \textbf{Cernic}: 14 true positives out of 17 detections
+(precision 82.4\%).
+\item \textbf{Colobus}: 0 true positives out of 2 detections (precision 0\%;
+both were overlapping events from the sliding window).
+\end{itemize}
+
+\paragraph{Model-version progression on IPA19ST.}
+The improvement across architecture iterations is striking. The V6 model
+(frequency-band pooling replacing global average pooling) produced 39
+detections, all false positives (precision 0\%). The V7 model (temporal CRNN
+head with Conv1D + BiLSTM but no frequency-band split) yielded 3 detections
+with 1 true positive. The final V8 model (temporal-frequency CRNN) recovered
+Cernic recall (14 true positives) while keeping false positives manageable (5
+total FP out of 19 detections).
+
+\paragraph{Pending validation.}
+Field-test results for station IPA20ST are pending and will be reported in a
+future update.
 
 %% =====================================================================
 \section*{Limitations}
 
 \begin{itemize}
-\item The pipeline currently targets two species (and three putty-nosed call
-types). Re-targeting to new species requires curated reference clips and edits
+\item The training set contains no real Colobus field recordings from the
+Makokou site; all Colobus reference clips are sourced from curated databases.
+This domain mismatch likely explains the poor Colobus precision on field data
+(0 of 2 detections on IPA19ST). Collecting site-specific Colobus recordings
+is a priority for future work.
+\item The auto-cleanup pipeline introduces a circular bias: hard negatives
+are scored by the same model that produced them, so genuine calls with low
+model confidence may be systematically hidden. This risk is mitigated by a
+mining-confidence audit in which high-confidence clips in the false-positive
+pool are manually reviewed, and confirmed calls are recovered into the
+training set.
+\item The model is conservative on weak or short calls. On the validation
+set, 14 Cernic clips (2.8\%) --- mostly brief hacks and pyows embedded in
+loud ambient noise --- are misclassified as Background. This trade-off
+favours precision over recall.
+\item Re-targeting to new species requires curated reference clips and edits
 to the configuration; performance on rare or quiet calls with few reference
 examples is not guaranteed.
 \item The YAMNet cross-check has no primate-specific class and only rejects
@@ -388,10 +503,10 @@ guidelines for non-invasive field research.]
 %% =====================================================================
 \section*{CRediT author statement}
 
-\textbf{[Author 1]:} Conceptualization, Methodology, Software, Validation,
+\textbf{Moshi Fu:} Conceptualization, Methodology, Software, Validation,
 Formal analysis, Data curation, Writing -- original draft, Visualization.
-\textbf{[Author 2]:} [Supervision, Resources, Writing -- review \& editing,
-Funding acquisition]. \textbf{[Author 3]:} [Investigation, Data curation].
+\textbf{[Co-author Name]:} [Supervision, Resources, Writing -- review \&
+editing, Funding acquisition].
 
 %% =====================================================================
 \section*{Acknowledgments}
@@ -399,9 +514,7 @@ Funding acquisition]. \textbf{[Author 3]:} [Investigation, Data curation].
 [Acknowledge field teams, station maintainers, and anyone who contributed
 reference annotations but does not meet authorship criteria.] This research did
 not receive any specific grant from funding agencies in the public,
-commercial, or not-for-profit sectors. [Replace with your funding sources if
-applicable, in the form: ``This work was supported by [funder] [grant
-number].'']
+commercial, or not-for-profit sectors.
 
 %% =====================================================================
 %% DECLARATION OF INTERESTS -- keep BOTH statements; tick the correct box.
