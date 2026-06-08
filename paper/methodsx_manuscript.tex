@@ -105,7 +105,7 @@ False-positive filtering \sep Out-of-distribution detection \sep
 
 %% =====================================================================
 \section*{Related research article}
-None.
+\textit{[To be added.]}
 
 %% =====================================================================
 \section*{Graphical abstract}
@@ -126,10 +126,11 @@ hard-negative retraining loop.]}
 Subject area & Agricultural and Biological Sciences \\
 More specific subject area & Bioacoustics; passive acoustic monitoring;
 conservation biology \\
-Name of your method & VGG19 temporal-frequency CRNN with two-stage
-fine-tuning, a dedicated hard-negative confuser class, a low-frequency
-spectral-energy gate, and three-filter automatic false-positive cleanup for
-primate vocalizations \\
+Name of your method & A two-stage classification-and-detection pipeline for
+primate vocalizations: a VGG19 temporal-frequency CRNN classifier with
+two-stage fine-tuning and a dedicated hard-negative confuser class, coupled to
+a sliding-window detector with a low-frequency spectral-energy gate and
+three-filter automatic false-positive cleanup \\
 Name and reference of original method & Transfer learning with the VGG19
 architecture \cite{simonyan2015}; out-of-distribution detection via the
 Mahalanobis distance \cite{lee2018}; audio event tagging with YAMNet trained
@@ -527,6 +528,12 @@ low-frequency gate. Aggregate per-station detection counts, the Cernic
 detections retained after manual review, and the number of \textit{Colobus}
 false positives removed by the low-frequency gate will be reported once all
 stations have been processed.
+
+\textit{[Detection results placeholder --- to be filled once all 16 stations
+are processed: a per-station table of Cernic and \textit{Colobus} detection
+counts, total Cernic detections retained after manual review, and the number
+of \textit{Colobus} false positives suppressed by the confuser class and the
+low-frequency gate.]}
 
 \paragraph{Architecture progression (development history).}
 The components of the model were added in response to failures observed on a
