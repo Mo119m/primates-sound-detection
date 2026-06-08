@@ -26,6 +26,9 @@ ENV/
 env/
 .venv
 
+# Local environment configuration (copy from .env.example)
+.env
+
 # IDE
 .vscode/
 .idea/
