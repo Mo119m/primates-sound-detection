@@ -61,26 +61,19 @@ for detecting primate vocalizations in long tropical-forest recordings}
 \begin{abstract}
 Passive acoustic monitoring (PAM) produces thousands of hours of
 tropical-forest audio that are infeasible to annotate by hand. We describe an
-end-to-end pipeline that detects primate vocalizations --- the putty-nosed
-monkey (\textit{Cercopithecus nictitans}) and \textit{Colobus guereza} ---
-in long field recordings from Makokou, Gabon. A four-class model is built by
-pooling all putty-nosed call types into a single Cernic class at the training
-level (so no softmax summation is needed at detection time) and by adding a
-dedicated hard-negative ``confuser'' class for a forest sound that the detector
-repeatedly mistakes for \textit{Colobus}. Two-second audio windows --- with
-short clips embedded in real background noise and longer clips trimmed to their
-highest-energy window --- are converted to mel-spectrogram images and
-classified by a temporal-frequency CRNN head attached to a VGG19 backbone: the
-feature map is split into four frequency bands, processed by per-band and
-cross-band convolutions, and fed through a bidirectional LSTM to capture
-spectro-temporal structure. Two-stage training (frozen base then partial
-fine-tuning) on human-verified, label-audited clips reaches 96\% validation
-accuracy with near-zero confusion between the two primate classes. At detection
-time the confuser class is folded into the background group so it never
-produces a detection, and a complementary low-frequency spectral-energy gate
-suppresses high-frequency false positives. An automatic three-filter cleanup
-additionally flags suspicious detections, and confirmed false positives are
-recycled as hard negatives for iterative retraining.
+end-to-end pipeline that detects two primates --- the putty-nosed monkey
+(\textit{Cercopithecus nictitans}) and \textit{Colobus guereza} --- in long
+field recordings from Makokou, Gabon. A four-class model pools all putty-nosed
+call types into a single Cernic class and adds a dedicated hard-negative
+``confuser'' class for a forest sound the detector repeatedly mistakes for
+\textit{Colobus}. Two-second windows are converted to mel-spectrograms and
+classified by a temporal-frequency CRNN head on a VGG19 backbone. Two-stage
+training on human-verified clips reaches 96\% validation accuracy with
+near-zero confusion between the primate classes. At detection time the confuser class is folded
+into the background group so it never fires, a low-frequency spectral-energy
+gate suppresses high-frequency false positives, an automatic three-filter
+cleanup flags suspicious detections, and confirmed false positives are recycled
+as hard negatives for retraining.
 
 \begin{itemize}
 \item A temporal-frequency CRNN head on a VGG19 backbone for primate call
