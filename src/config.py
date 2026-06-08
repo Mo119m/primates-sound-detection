@@ -125,9 +125,12 @@ PRETRAINED_WEIGHTS = 'imagenet'
 #                   time; the original head)
 #   'freq_bands' -> low/mid/high frequency-band pooling (keeps frequency, V6)
 #   'temporal'   -> frequency-pool + 1D-conv over time (keeps WHEN energy
-#                   occurs; targets the Cernic-vs-insect/sawing confusion)
+#                   occurs; targets the Cernic-vs-insect/sawing confusion, V7)
+#   'temporal_freq' -> per-band Conv1D + cross-band Conv1D + BiLSTM (keeps both
+#                   WHEN and WHERE energy occurs; the PRODUCTION V10 head)
 # Overridable via the PRIMATE_MODEL_POOLING env var so the standard training
-# pipeline can switch heads without editing code.
+# pipeline can switch heads without editing code. The code default is 'gap';
+# set PRIMATE_MODEL_POOLING=temporal_freq to reproduce the published V10 model.
 MODEL_POOLING = os.environ.get('PRIMATE_MODEL_POOLING', 'gap')
 FREEZE_BASE_LAYERS = True  # Freeze VGG19 base layers initially
 UNFREEZE_LAST_N_BLOCKS = 1  # Fine-tune last N blocks later (optional)
@@ -145,6 +148,16 @@ MIN_DELTA = 0.001  # Minimum change to qualify as improvement
 # DETECTION PARAMETERS
 DETECTION_CONFIDENCE_THRESHOLD = 0.4  # Only keep detections above this
 NMS_IOU_THRESHOLD = 0.5  # Non-maximum suppression overlap threshold
+
+# LOW-FREQUENCY SPECTRAL-ENERGY GATE (post-processing for Colobus detections)
+# A detected Colobus clip is kept only if the fraction of its spectral energy
+# below LOWFREQ_GATE_CUTOFF (within the FMIN-FMAX band) is at least
+# LOWFREQ_GATE_THRESHOLD. Real C. guereza roars are overwhelmingly low-frequency
+# (p5 ~ 0.41), whereas the dominant out-of-distribution false positives
+# (insects, cicadas) are high-frequency (median ~ 0.01), so the gate removes the
+# latter without touching real calls. Runs on saved clips; no retraining needed.
+LOWFREQ_GATE_CUTOFF = 1500     # Hz
+LOWFREQ_GATE_THRESHOLD = 0.40  # minimum low-frequency energy fraction to keep
 
 # TIME FILTER FOR FIELD RECORDINGS
 # Only process recordings whose start time falls within this window (HH:MM).

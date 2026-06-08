@@ -1,6 +1,17 @@
 # Primate Vocalization Detection
 
-Automated detection of primate calls in long rainforest field recordings from Makokou, Gabon. Uses VGG19 transfer learning on mel-spectrograms with a configurable pooling head (GAP / frequency-band / temporal CRNN) and a three-filter false-positive cleanup pipeline. Currently targets **Cercopithecus nictitans** (putty-nosed monkey) and **Colobus guereza**.
+Automated detection of primate calls in long rainforest field recordings from
+Makokou, Gabon. The production model (**V10**) is a four-class classifier
+— *Cernic* (**Cercopithecus nictitans**, putty-nosed monkey), **Colobus
+guereza**, a dedicated hard-negative *confuser* class, and *Background* — built
+on a VGG19 backbone with a temporal-frequency CRNN head. A sliding-window
+detector turns the classifier into a detector over continuous audio, with two
+complementary false-positive controls: a low-frequency spectral-energy gate on
+*Colobus* detections, and a three-filter automatic cleanup pipeline whose
+confirmed false positives are recycled as hard negatives for iterative
+retraining.
+
+> **Reproducing the published results?** Jump to [Reproducibility](#reproducibility).
 
 ## Main Workflow
 
@@ -99,14 +110,39 @@ the corresponding `species/` folder (e.g. `species/CERNIC field_confirmed`).
 
 The model uses VGG19 (pretrained on ImageNet) as a feature extractor with a
 configurable pooling head. Set the head via the `MODEL_POOLING` config option
-or `PRIMATE_MODEL_POOLING` environment variable.
+or the `PRIMATE_MODEL_POOLING` environment variable. **The production V10 model
+uses `temporal_freq`**; the other heads are earlier iterations kept for
+provenance and ablation.
 
 | Head | Config value | Description |
 |---|---|---|
-| **GAP** | `gap` | GlobalAveragePooling2D. Simple baseline. |
-| **Frequency-band** | `freq_bands` | Split feature map into low/mid/high frequency bands, pool each separately. Targets Colobus-vs-bird confusion. |
-| **Temporal** | `temporal` | Pool frequency axis, then Conv1D over time. Preserves *when* energy occurs (V7). |
-| **Temporal-frequency CRNN** | `temporal_freq` | 4 frequency bands × per-band Conv1D → cross-band Conv1D → BiLSTM → GlobalMaxPool+GlobalAvgPool → Dense. Preserves both *when* and *where* energy occurs (V8, current default). ~12.6M params. |
+| GAP | `gap` | GlobalAveragePooling2D. Simple baseline (the code default). |
+| Frequency-band | `freq_bands` | Split feature map into low/mid/high frequency bands, pool each separately (V6). |
+| Temporal | `temporal` | Pool frequency axis, then Conv1D over time. Preserves *when* energy occurs (V7). |
+| **Temporal-frequency CRNN** | `temporal_freq` | 4 frequency bands × per-band Conv1D → cross-band Conv1D → BiLSTM → GlobalMaxPool+GlobalAvgPool → Dense(512)→Dense(256). Preserves both *when* and *where* energy occurs. **Production head (V10), ~12.6M params.** |
+
+### Four-class design and the confuser class
+
+V10 trains four classes — `Cernic`, `Colobus_guereza`, `Colobus_confuser`,
+`Background`. The four putty-nosed call types (putty-nose, hacks, keks, pyows)
+plus recovered field-confirmed calls are pooled into a single **Cernic** class.
+The **`Colobus_confuser`** class is a *dedicated hard negative*: it collects the
+forest sounds the detector repeatedly mis-fired as *Colobus*. Giving it its own
+softmax output forces the model to learn the Colobus-vs-confuser boundary
+explicitly instead of drowning a few hundred hard negatives in the generic
+Background class. At detection time the confuser is folded into the Background
+group (see `DETECTION_GROUPS` in `config.py`), so it never produces a detection.
+
+### Low-frequency spectral-energy gate
+
+A complementary, post-hoc gate is applied to *Colobus* detections only. For each
+detected clip it computes the fraction of spectral energy below a 1500 Hz cutoff
+(within the 20–8000 Hz band, same STFT parameters as the pipeline) and rejects
+the detection if that fraction falls below a threshold (default 0.40). Genuine
+*C. guereza* roars are overwhelmingly low-frequency, whereas the most common
+out-of-distribution false positives (insects, cicadas) are high-frequency, so
+the gate removes them without touching real calls. Because it runs on saved
+clips, it requires no retraining.
 
 ## Repository Structure
 
@@ -184,9 +220,12 @@ Sliding-window detection in long field recordings with probability grouping.
 |---|---|
 | `detect_in_long_audio()` | Run full detection on a single file (windows -> predict -> NMS -> CSV) |
 | `process_all_long_audio_files()` | Detect across all files and aggregate results |
+| `get_detection_groups()` | Build detection labels and the class indices feeding each group |
 | `group_probabilities()` | Sum softmax scores across detection groups before thresholding |
 | `sweep_thresholds()` | Apply multiple confidence thresholds to pre-computed predictions |
 | `apply_nms()` | Non-Maximum Suppression to remove overlapping detections |
+| `lowfreq_energy_ratio()` | Fraction of a clip's spectral energy below the low-frequency cutoff |
+| `apply_lowfreq_gate()` | Drop Colobus detections that fail the low-frequency gate |
 | `save_detections()` | Save detection results to CSV |
 
 ### auto_cleanup.py
@@ -216,6 +255,7 @@ Visualization and analysis utilities.
 |---|---|
 | `run_detection_ipa.py` | Run detection on an IPA field recording station. Args: `--station`, `--model`, `--threshold`, `--no-time-filter` |
 | `run_auto_cleanup.py` | Run the three-filter false-positive cleanup. Args: `--detection-dir`, `--model`, `--percentile`, `--isolation-window` |
+| `apply_lowfreq_gate.py` | Apply the low-frequency spectral-energy gate to saved Colobus detection clips. Args: `--clip-root`, `--station`, `--cutoff`, `--threshold`, `--move-rejected` |
 | `run_hard_negative_mining.py` | Extract medium-confidence predictions as candidate false positives for retraining |
 | `mine_field_negatives.py` | Mine confirmed false positives from dev-station field recordings as distribution-matched hard negatives |
 | `filter_recordings_by_time.py` | Copy only recordings within a time-of-day window (pre-upload filter) |
@@ -263,6 +303,8 @@ All parameters live in `src/config.py`. Key settings:
 | `BATCH_SIZE` | 32 | Training batch size |
 | `EPOCHS` | 50 | Max training epochs |
 | `DETECTION_CONFIDENCE_THRESHOLD` | 0.4 | Minimum confidence for detections |
+| `LOWFREQ_GATE_CUTOFF` | 1500 Hz | Low-frequency gate boundary |
+| `LOWFREQ_GATE_THRESHOLD` | 0.40 | Minimum low-frequency energy fraction to keep a Colobus detection |
 | `TIME_FILTER_START` / `END` | 05:30 / 10:30 | Field recording time window |
 
 Override data paths via environment variables: `PRIMATE_DATA_ROOT`, `PRIMATE_AUDIO_ROOT`, `PRIMATE_LONG_AUDIO_ROOT`, `PRIMATE_IPA_ROOT`, `PRIMATE_OUTPUT_ROOT`.
@@ -278,6 +320,7 @@ primates-data/                          (PRIMATE_DATA_ROOT)
     CERNIC pyows/                       Putty-nosed monkey pyow calls
     CERNIC field_confirmed/             Real Cernic calls recovered from label audit
     Colobus guereza 2s windows/         Colobus guereza calls
+    Colobus_confuser/                   Hard-negative confuser class (mined Colobus FPs)
   background/
     background noise Clips 5sec/        Environmental noise
     Cercocebus torquatus Clips 5s/      Non-target species
@@ -294,10 +337,11 @@ primates-data/                          (PRIMATE_DATA_ROOT)
 ```
 
 All four Cernic call types (putty-nose, hacks, keks, pyows) plus recovered
-field-confirmed calls are merged into a single **Cernic** class for binary
-presence detection. The `auto_flagged_fp` folder accumulates false positives
-across self-training iterations; `scan_audio_files()` walks it recursively, so
-all subfolders are loaded as Background during training.
+field-confirmed calls are merged into a single **Cernic** class. The
+`Colobus_confuser` folder holds the mined hard negatives that train the
+confuser class. The `auto_flagged_fp` folder accumulates false positives across
+self-training iterations; `scan_audio_files()` walks it recursively, so all
+subfolders are loaded as Background during training.
 
 ## Installation
 
@@ -307,10 +351,15 @@ cd primates-sound-detection
 pip install -r requirements.txt
 ```
 
-YAMNet filter (auto-cleanup) additionally requires:
+For exact reproducibility (Python 3.10 / Google Colab environment matching the
+published results with TensorFlow 2.15), use the frozen requirements instead:
+
 ```bash
-pip install tensorflow-hub resampy
+pip install -r requirements-frozen.txt
 ```
+
+All dependencies including `tensorflow-hub` and `resampy` (needed for the YAMNet
+auto-cleanup filter) are included in both requirements files.
 
 ## Dependencies
 
@@ -319,3 +368,47 @@ pip install tensorflow-hub resampy
 - scikit-learn
 - pandas, numpy, matplotlib
 - soundfile
+- tensorflow-hub, resampy (YAMNet auto-cleanup filter)
+
+## Reproducibility
+
+To reproduce the published **V10** four-class model and field results:
+
+1. **Environment.** `pip install -r requirements-frozen.txt` for exact version
+   match (Python 3.10, TensorFlow 2.15, Google Colab). Or
+   `pip install -r requirements.txt` for flexible versions.
+
+2. **Select the production head.** The code default is `gap`; the published
+   model uses the temporal-frequency CRNN. Set it via environment variable so
+   no source edit is needed:
+   ```bash
+   export PRIMATE_MODEL_POOLING=temporal_freq
+   ```
+
+3. **Point the pipeline at your data.** Lay out `species/`, `background/`, and
+   the field recordings as in [Data Layout](#data-layout), then set
+   `PRIMATE_DATA_ROOT` (and the other `PRIMATE_*` paths if they differ).
+   Confirm with `config.print_config_summary()` — it should report
+   `Classes: 4 (Cernic, Colobus_guereza, Colobus_confuser, Background)`.
+
+4. **Train.** `train.run_complete_training_pipeline()` writes `best_model.h5`
+   to `outputs/models/`. Two-stage training on the human-verified, label-audited
+   clip pool reaches **96.14 %** validation accuracy (3471-clip stratified
+   split), with near-zero confusion between the two primate classes.
+
+5. **Detect.** Run detection per station, e.g.
+   `python scripts/run_detection_ipa.py --station IPA1ST`, which exports one
+   clip per detection.
+
+6. **Gate Colobus detections.** Apply the low-frequency gate to the saved clips:
+   ```bash
+   python scripts/apply_lowfreq_gate.py --clip-root <OUTPUT_ROOT>/detection_clips_model_v10
+   ```
+
+7. **(Optional) Clean up and iterate.** Run the three-filter auto-cleanup,
+   fold confirmed false positives back into Background, and retrain (Steps 4–5
+   in [Main Workflow](#main-workflow)).
+
+Key parameters that fix the results — `SAMPLE_RATE`, `N_MELS`, `FMIN/FMAX`,
+`WINDOW_SIZE/STRIDE`, `DETECTION_CONFIDENCE_THRESHOLD`, `LOWFREQ_GATE_CUTOFF`,
+`LOWFREQ_GATE_THRESHOLD` — all live in `src/config.py`.
