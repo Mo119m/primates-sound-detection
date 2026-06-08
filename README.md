@@ -362,6 +362,27 @@ pip install -r requirements-frozen.txt
 All dependencies including `tensorflow-hub` and `resampy` (needed for the YAMNet
 auto-cleanup filter) are included in both requirements files.
 
+## Running on Colab
+
+The easiest path. Open `main_pipeline_notebooks/run_in_colab.ipynb` in Google
+Colab and run the cells in order — it walks through every step with checkpoints.
+
+1. **Runtime → Change runtime type → T4 GPU.**
+2. **Put your data on Google Drive** at `My Drive/primates-data/` with the
+   subfolders `species/`, `background/`, `long_audio/` (and `field_recordings/`
+   for detection) — see [Data Layout](#data-layout).
+3. **Run the notebook cells.** They mount Drive, clone this repo, install
+   `requirements.txt`, set the environment, and run the pipeline. The two
+   environment variables the notebook sets for you are:
+   ```python
+   os.environ['PRIMATE_DATA_ROOT']     = '/content/drive/MyDrive/primates-data'
+   os.environ['PRIMATE_MODEL_POOLING'] = 'temporal_freq'   # production V10 head
+   ```
+4. **`config.print_config_summary()`** should report
+   `Classes: 4 (Cernic, Colobus_guereza, Colobus_confuser, Background)`.
+
+That's it — the `drive.mount()` cell is the only Colab-specific step.
+
 ## Running Locally
 
 The pipeline runs the same locally as in Colab — **no source code needs to be
