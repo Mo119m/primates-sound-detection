@@ -253,6 +253,7 @@ Visualization and analysis utilities.
 
 | Script | Description |
 |---|---|
+| `check_environment.py` | Verify local setup: packages import, config paths resolve, data folders exist |
 | `run_detection_ipa.py` | Run detection on an IPA field recording station. Args: `--station`, `--model`, `--threshold`, `--no-time-filter` |
 | `run_auto_cleanup.py` | Run the three-filter false-positive cleanup. Args: `--detection-dir`, `--model`, `--percentile`, `--isolation-window` |
 | `apply_lowfreq_gate.py` | Apply the low-frequency spectral-energy gate to saved Colobus detection clips. Args: `--clip-root`, `--station`, `--cutoff`, `--threshold`, `--move-rejected` |
@@ -360,6 +361,48 @@ pip install -r requirements-frozen.txt
 
 All dependencies including `tensorflow-hub` and `resampy` (needed for the YAMNet
 auto-cleanup filter) are included in both requirements files.
+
+## Running Locally
+
+The pipeline runs the same locally as in Colab — **no source code needs to be
+edited or commented out**. Every path is read from environment variables
+(see `src/config.py`), and the only Colab-specific code is the `drive.mount()`
+cell in the notebooks, which you simply skip when running locally.
+
+**1. Configure your paths.** Copy the template and edit it:
+
+```bash
+cp .env.example .env
+# edit .env: set PRIMATE_DATA_ROOT to your local data folder
+set -a; source .env; set +a     # load the variables into your shell
+```
+
+`.env` sets two things that matter most:
+- `PRIMATE_DATA_ROOT` — the folder holding `species/`, `background/`,
+  `field_recordings/`, `outputs/` (see [Data Layout](#data-layout)).
+- `PRIMATE_MODEL_POOLING=temporal_freq` — selects the production V10 head
+  (the code default is `gap`).
+
+**2. Verify the setup.** A one-shot check that packages import and the data
+folders are found:
+
+```bash
+python scripts/check_environment.py
+```
+
+It prints `[ OK ]` / `[WARN]` / `[FAIL]` per item and exits non-zero if anything
+required is missing.
+
+**3. Run.** Use the same functions/scripts as the [Main Workflow](#main-workflow),
+e.g. train with `train.run_complete_training_pipeline()` or detect a station
+with `python scripts/run_detection_ipa.py --station IPA1ST`. Do **not** run the
+`drive.mount(...)` notebook cell — that is the single Colab-only step.
+
+> Prefer not to use a `.env` file? Just export the variables inline:
+> ```bash
+> PRIMATE_DATA_ROOT=/path/to/data PRIMATE_MODEL_POOLING=temporal_freq \
+>     python scripts/run_detection_ipa.py --station IPA1ST
+> ```
 
 ## Dependencies
 
