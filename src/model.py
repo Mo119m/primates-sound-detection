@@ -16,6 +16,48 @@ except ImportError:  # Allow running as a standalone script (e.g. in Colab)
     import config
 
 
+@keras.saving.register_keras_serializable(package='primate')
+class FrequencyCoord(layers.Layer):
+    """Append a normalized frequency-coordinate channel to a feature map.
+
+    Input:  (batch, freq, time, channels)
+    Output: (batch, freq, time, channels + 1)
+
+    The extra channel encodes ABSOLUTE frequency position: 0.0 at the lowest
+    mel row (~FMIN), 1.0 at the highest (~FMAX), constant across time and batch.
+
+    Why this exists: VGG19's convolutions are translation-invariant in
+    frequency, so a rhythmic harmonic texture produces almost the same features
+    whether it sits low (a Colobus roar ~512 Hz) or high (a bird trill >2 kHz).
+    The model therefore keys on the texture and ignores WHERE it is, which is
+    exactly the cue a human uses to tell the two apart. Concatenating this
+    coordinate channel makes the downstream convolutions position-aware (a
+    "CoordConv"): the network can now learn "this texture AT low frequency =
+    Colobus" while the same texture high up is rejected.
+
+    Registered as a serializable Keras object so models using it load via
+    keras.models.load_model without an explicit custom_objects argument, as long
+    as src.model has been imported (which registers the class).
+    """
+
+    def build(self, input_shape):
+        n_freq = int(input_shape[1])
+        # Constant column vector of frequency positions in [0, 1], shaped to
+        # broadcast over batch and time. Recreated on load via build(), so it
+        # carries no trainable weights and needs no extra config.
+        coord = tf.linspace(0.0, 1.0, n_freq)
+        self.coord = tf.reshape(coord, (1, n_freq, 1, 1))
+        super().build(input_shape)
+
+    def call(self, inputs):
+        shape = tf.shape(inputs)
+        coord = tf.tile(self.coord, (shape[0], 1, shape[2], 1))
+        return tf.concat([inputs, tf.cast(coord, inputs.dtype)], axis=-1)
+
+    def compute_output_shape(self, input_shape):
+        return tuple(input_shape[:-1]) + (input_shape[-1] + 1,)
+
+
 def build_model(num_classes: int = config.N_CLASSES,
                 input_shape: tuple = (config.IMG_HEIGHT, config.IMG_WIDTH, config.IMG_CHANNELS),
                 freeze_base: bool = config.FREEZE_BASE_LAYERS,
@@ -43,6 +85,12 @@ def build_model(num_classes: int = config.N_CLASSES,
               bands before temporal modelling. Each band gets its own Conv1D
               stream, then all bands merge for a cross-band Conv1D + BiLSTM.
               Preserves both WHEN and WHERE (low/mid/high) energy occurs (V8).
+            - 'temporal_freqpos': like 'temporal_freq' but first stamps an
+              explicit frequency-position channel onto the VGG feature map and
+              fuses it with a Conv2D, so each call texture is tagged with the
+              absolute frequency where it occurs. Directly targets the Colobus
+              (low) vs bird (high) confusion that the coarse, position-blind
+              band split leaves unresolved (V11).
 
     Returns:
         Compiled Keras model
@@ -69,7 +117,7 @@ def build_model(num_classes: int = config.N_CLASSES,
     # VGG19 feature extraction. The 'temporal' head taps an intermediate block
     # instead of the full base output, so it builds its own feature extractor
     # below; running the full base here too would leave a dangling second VGG.
-    if pooling not in ('temporal', 'temporal_freq'):
+    if pooling not in ('temporal', 'temporal_freq', 'temporal_freqpos'):
         x = base_model(inputs, training=False)
 
     # Pooling. The feature map is (batch, freq, time, channels): the height axis
@@ -91,7 +139,7 @@ def build_model(num_classes: int = config.N_CLASSES,
             layers.GlobalAveragePooling2D()(high),
         ])
         print(f"   Frequency-band pooling: bands [0:{c1}, {c1}:{c2}, {c2}:{n_freq}]")
-    elif pooling in ('temporal', 'temporal_freq'):
+    elif pooling in ('temporal', 'temporal_freq', 'temporal_freqpos'):
         # CRNN head -- tells a real call (discrete bursts with rhythm) from an
         # insect pulse train or continuous noise, a distinction that only exists
         # in TIME and that 'gap'/'freq_bands' average away.
@@ -101,12 +149,33 @@ def build_model(num_classes: int = config.N_CLASSES,
         #   temporal modelling so the head can also learn WHERE in frequency
         #   energy sits (Colobus roar ~512Hz vs Cernic hack ~1kHz vs bird >2kHz).
         #   Each band gets its own Conv1D+BiLSTM stream, concatenated at the end.
+        # 'temporal_freqpos': like 'temporal_freq', but FIRST stamps an explicit
+        #   frequency-position channel onto the VGG feature map (FrequencyCoord)
+        #   and fuses it with a Conv2D, so every texture feature is tagged with
+        #   the absolute frequency where it occurs. This fixes the Colobus/bird
+        #   confusion at its root: the band split alone only gives a coarse,
+        #   implicit "which channel slice" cue and VGG's filters are frequency
+        #   translation-invariant, so a rhythmic texture looks the same high or
+        #   low. With the coordinate baked in, the model learns the pattern AND
+        #   its location together (V11).
         tap = 'block4_conv4'
         feat = keras.Model(base_model.input,
                            base_model.get_layer(tap).output,
                            name='vgg19_temporal')  # 'vgg' prefix so
                                                     # unfreeze_base_model finds it
         fmap = feat(inputs, training=False)         # (b, freq, time, channels)
+
+        if pooling == 'temporal_freqpos':
+            # Stamp absolute frequency position onto every cell, then fuse it
+            # with the texture features via a 3x3 Conv2D so downstream pooling
+            # operates on frequency-AWARE features rather than position-blind
+            # VGG textures.
+            fmap = FrequencyCoord(name='freq_coord')(fmap)
+            fmap = layers.Conv2D(128, 3, padding='same',
+                                 name='freqpos_fuse_conv')(fmap)
+            fmap = layers.BatchNormalization(name='freqpos_fuse_bn')(fmap)
+            fmap = layers.Activation('relu', name='freqpos_fuse_relu')(fmap)
+
         n_freq = fmap.shape[1]
         n_time = fmap.shape[2]
         n_ch = fmap.shape[3]
@@ -180,7 +249,9 @@ def build_model(num_classes: int = config.N_CLASSES,
                 layers.GlobalMaxPooling1D()(x),
                 layers.GlobalAveragePooling1D()(x),
             ])
-            print(f"   Temporal-freq CRNN head: tap {tap} -> "
+            coord_note = (" (+frequency-coordinate fusion)"
+                          if pooling == 'temporal_freqpos' else "")
+            print(f"   Temporal-freq CRNN head{coord_note}: tap {tap} -> "
                   f"{N_BANDS} freq bands x {n_time} time steps -> "
                   f"per-band Conv1D -> merge -> cross-band Conv1D -> BiLSTM")
     else:
@@ -387,10 +458,14 @@ def load_trained_model(model_path: str) -> keras.Model:
     
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model file not found: {model_path}")
-    
-    model = keras.models.load_model(model_path)
+
+    # FrequencyCoord is passed explicitly (and registered via decorator) so a
+    # 'temporal_freqpos' model loads even if it was registered under a different
+    # import path. Standard heads ignore the unused custom_objects entry.
+    model = keras.models.load_model(
+        model_path, custom_objects={'FrequencyCoord': FrequencyCoord})
     print("   Model loaded successfully!")
-    
+
     return model
 
 

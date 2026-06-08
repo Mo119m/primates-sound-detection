@@ -128,6 +128,11 @@ PRETRAINED_WEIGHTS = 'imagenet'
 #                   occurs; targets the Cernic-vs-insect/sawing confusion, V7)
 #   'temporal_freq' -> per-band Conv1D + cross-band Conv1D + BiLSTM (keeps both
 #                   WHEN and WHERE energy occurs; the PRODUCTION V10 head)
+#   'temporal_freqpos' -> temporal_freq plus an explicit frequency-coordinate
+#                   channel (CoordConv) fused into the feature map before the
+#                   band split, so each call texture is tagged with its absolute
+#                   frequency. Targets the Colobus(low)-vs-bird(high) confusion
+#                   that the position-blind band split leaves unresolved (V11)
 # Overridable via the PRIMATE_MODEL_POOLING env var so the standard training
 # pipeline can switch heads without editing code. The code default is 'gap';
 # set PRIMATE_MODEL_POOLING=temporal_freq to reproduce the published V10 model.
