@@ -149,11 +149,11 @@ here if you deposit the reference clips.] \\
 
 Passive acoustic monitoring is now a standard tool for surveying vocal animals
 across large areas and long time spans, but it generates volumes of audio that
-cannot realistically be reviewed by ear \cite{stowell2022}. Deep convolutional
+cannot realistically be reviewed by ear \cite{cauzinille2024}. Deep convolutional
 networks applied to spectrogram ``images'' have become the dominant approach
 for automatically detecting species-specific calls, and transfer learning from
 large image or audio corpora lets such detectors be trained from comparatively
-few annotated examples \cite{dufourq2022,kahl2021}. These approaches work well
+few annotated examples \cite{sun2022}. These approaches work well
 on clean, isolated reference clips.
 
 The difficulty in practice is precision rather than recall. A model trained on
@@ -276,7 +276,7 @@ original shape); and one frequency translation of $\pm$20 mel bins.
 Background-class clips are not augmented, so that the negative class reflects
 the true diversity of ambient sound rather than synthetic variants. The
 augmentation operations are spectrogram-domain analogues of standard
-SpecAugment-style masking and mixing \cite{park2019}.
+standard spectrogram-domain masking and mixing techniques.
 
 \subsection*{4. Model architecture}
 
@@ -653,9 +653,16 @@ not used.]
 %% =====================================================================
 \begin{thebibliography}{99}
 
-\bibitem{stowell2022}
-D. Stowell, Computational bioacoustics with deep learning: a review and
-roadmap, PeerJ 10 (2022) e13152. \url{https://doi.org/10.7717/peerj.13152}
+\bibitem{cauzinille2024}
+J. Cauzinille, B. Favre, R. Marxer, A. Rey, Applying machine learning to
+primate bioacoustics: review and perspectives, Am. J. Primatol. (2024) e23666.
+\url{https://doi.org/10.1002/ajp.23666}
+
+\bibitem{sun2022}
+Y. Sun, T.M. Maeda, C. Sol\'is-Lemus, D. Pimentel-Alarc\'on, Z. Bu\v{r}ivalov\'a,
+Classification of animal sounds in a hyperdiverse rainforest using convolutional
+neural networks with data augmentation, Ecol. Indic. 145 (2022) 109621.
+\url{https://doi.org/10.1016/j.ecolind.2022.109621}
 
 \bibitem{simonyan2015}
 K. Simonyan, A. Zisserman, Very deep convolutional networks for large-scale
@@ -693,22 +700,6 @@ B. McFee, C. Raffel, D. Liang, D.P.W. Ellis, M. McVicar, E. Battenberg,
 O. Nieto, librosa: audio and music signal analysis in Python, in: Proceedings
 of the 14th Python in Science Conference (SciPy), 2015, pp. 18--25.
 \url{https://doi.org/10.25080/Majora-7b98e3ed-003}
-
-\bibitem{park2019}
-D.S. Park, W. Chan, Y. Zhang, C.-C. Chiu, B. Zoph, E.D. Cubuk, Q.V. Le,
-SpecAugment: a simple data augmentation method for automatic speech
-recognition, in: Interspeech, 2019, pp. 2613--2617.
-\url{https://doi.org/10.21437/Interspeech.2019-2680}
-
-\bibitem{kahl2021}
-S. Kahl, C.M. Wood, M. Eibl, H. Klinck, BirdNET: a deep learning solution for
-avian diversity monitoring, Ecol. Inform. 61 (2021) 101236.
-\url{https://doi.org/10.1016/j.ecoinf.2021.101236}
-
-\bibitem{dufourq2022}
-E. Dufourq, C. Batist, R. Foquet, I. Durbach, Passive acoustic monitoring of
-animal populations with transfer learning, Ecol. Inform. 70 (2022) 101688.
-\url{https://doi.org/10.1016/j.ecoinf.2022.101688}
 
 \end{thebibliography}
 
