@@ -42,6 +42,18 @@ SPECIES_FOLDERS = {
         'species/CERNIC field_confirmed',
     ],
     'Colobus_guereza': 'species/Colobus guereza 2s windows',
+    # Dedicated hard-negative class for the low-frequency forest sound that the
+    # model repeatedly mis-fires as Colobus (pulsed, <1 kHz, morphologically
+    # close to a guereza roar). These clips are ALL the Colobus false positives
+    # mined by the auto-cleanup loop across dev stations -- human-reviewed so no
+    # real Cernic leaks in (genuine Cernic found during review was deleted or
+    # recovered into 'CERNIC field_confirmed'). Giving the confuser its own
+    # softmax output forces the model to learn the Colobus-vs-confuser boundary
+    # explicitly instead of drowning these few hundred hard negatives inside the
+    # huge generic Background class (which V9 proved is not enough). At detection
+    # time this class is folded into the Background group (see DETECTION_GROUPS)
+    # so it never produces a detection.
+    'Colobus_confuser': 'species/Colobus_confuser',
 }
 
 # Background noise folders (will be combined into single "Background" class)
@@ -175,6 +187,12 @@ CLASS_NAMES = list(SPECIES_FOLDERS.keys()) + ['Background']
 DETECTION_GROUPS = {
     'Cernic': 'Cernic',
     'Colobus_guereza': 'Colobus_guereza',
+    # The confuser is a trained class but NOT a detection target: route its
+    # softmax mass into the Background group so a window the model calls
+    # "confuser" is excluded from detections exactly like Background. Crucially
+    # this keeps the confuser probability OUT of the Colobus_guereza group, so a
+    # real guereza window is no longer inflated by confuser energy.
+    'Colobus_confuser': 'Background',
     'Background': 'Background',
 }
 
