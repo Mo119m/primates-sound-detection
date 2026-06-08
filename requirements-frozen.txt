@@ -1,0 +1,17 @@
+# Exact pinned versions for reproducibility.
+# These versions are tested together in Google Colab (Python 3.10, single GPU)
+# and match the environment used to produce the published results.
+#
+# For flexible installation (e.g. a different Python version), use
+# requirements.txt instead, which specifies minimum versions only.
+
+tensorflow==2.15.0
+librosa==0.10.2
+soundfile==0.12.1
+scikit-learn==1.4.2
+pandas==2.2.2
+matplotlib==3.8.0
+numpy==1.26.4
+opencv-python==4.10.0.84
+tensorflow-hub==0.16.1
+resampy==0.4.3

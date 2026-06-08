@@ -63,6 +63,84 @@ def group_probabilities(pred: np.ndarray,
     return np.array([pred[indices[g]].sum() for g in labels])
 
 
+def lowfreq_energy_ratio(audio: np.ndarray,
+                         cutoff: float = None) -> float:
+    """
+    Fraction of spectral energy below ``cutoff`` within the FMIN-FMAX band.
+
+    Uses the same STFT parameters as the rest of the pipeline (config.N_FFT,
+    config.HOP_LENGTH) so the measurement matches the spectrograms the model
+    was trained on.
+
+    Args:
+        audio: mono waveform sampled at config.SAMPLE_RATE.
+        cutoff: low-frequency cutoff in Hz (defaults to
+            config.LOWFREQ_GATE_CUTOFF).
+
+    Returns:
+        Low-frequency energy fraction in [0, 1], or None if the clip is too
+        short or contains no energy in the analysis band.
+    """
+    import librosa
+
+    cutoff = config.LOWFREQ_GATE_CUTOFF if cutoff is None else cutoff
+    if audio is None or len(audio) < config.N_FFT:
+        return None
+
+    S = np.abs(librosa.stft(audio, n_fft=config.N_FFT,
+                            hop_length=config.HOP_LENGTH)) ** 2
+    freqs = librosa.fft_frequencies(sr=config.SAMPLE_RATE, n_fft=config.N_FFT)
+    band = (freqs >= config.FMIN) & (freqs <= config.FMAX)
+    low = (freqs >= config.FMIN) & (freqs < cutoff)
+
+    total = S[band].sum()
+    if total <= 0:
+        return None
+    return float(S[low].sum() / total)
+
+
+def apply_lowfreq_gate(detections_df: pd.DataFrame,
+                       audio: np.ndarray,
+                       sr: int,
+                       species: str = 'Colobus_guereza',
+                       cutoff: float = None,
+                       threshold: float = None) -> pd.DataFrame:
+    """
+    Drop ``species`` detections whose low-frequency energy fraction is below a
+    threshold. Detections of other species pass through unchanged.
+
+    Real C. guereza roars are overwhelmingly low-frequency (ratio ~0.98);
+    the dominant false positives (insects, cicadas) are high-frequency
+    (ratio ~0.01). A detection is kept when its ratio >= threshold.
+
+    Args:
+        detections_df: output of detect_in_long_audio() for one recording.
+        audio: the recording's waveform (config.SAMPLE_RATE).
+        sr: sample rate of ``audio``.
+        species: detection label to gate (default 'Colobus_guereza').
+        cutoff: low-frequency cutoff in Hz (defaults to config.LOWFREQ_GATE_CUTOFF).
+        threshold: minimum low-frequency fraction to keep (defaults to
+            config.LOWFREQ_GATE_THRESHOLD).
+
+    Returns:
+        Filtered DataFrame with the same columns as the input.
+    """
+    threshold = config.LOWFREQ_GATE_THRESHOLD if threshold is None else threshold
+    if len(detections_df) == 0:
+        return detections_df
+
+    keep = []
+    for _, row in detections_df.iterrows():
+        if row['species'] != species:
+            keep.append(True)
+            continue
+        clip = audio[int(row['start_time'] * sr):int(row['end_time'] * sr)]
+        ratio = lowfreq_energy_ratio(clip, cutoff=cutoff)
+        keep.append(True if ratio is None else ratio >= threshold)
+
+    return detections_df[keep].reset_index(drop=True)
+
+
 def detect_in_long_audio(model,
                          audio_path: str,
                          confidence_threshold: float = config.DETECTION_CONFIDENCE_THRESHOLD) -> pd.DataFrame:

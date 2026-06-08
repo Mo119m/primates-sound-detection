@@ -303,6 +303,8 @@ All parameters live in `src/config.py`. Key settings:
 | `BATCH_SIZE` | 32 | Training batch size |
 | `EPOCHS` | 50 | Max training epochs |
 | `DETECTION_CONFIDENCE_THRESHOLD` | 0.4 | Minimum confidence for detections |
+| `LOWFREQ_GATE_CUTOFF` | 1500 Hz | Low-frequency gate boundary |
+| `LOWFREQ_GATE_THRESHOLD` | 0.40 | Minimum low-frequency energy fraction to keep a Colobus detection |
 | `TIME_FILTER_START` / `END` | 05:30 / 10:30 | Field recording time window |
 
 Override data paths via environment variables: `PRIMATE_DATA_ROOT`, `PRIMATE_AUDIO_ROOT`, `PRIMATE_LONG_AUDIO_ROOT`, `PRIMATE_IPA_ROOT`, `PRIMATE_OUTPUT_ROOT`.
@@ -349,8 +351,15 @@ cd primates-sound-detection
 pip install -r requirements.txt
 ```
 
-YAMNet filter (auto-cleanup) and the low-frequency gate's clip scoring are
-already covered by `requirements.txt` (`tensorflow-hub`, `resampy`).
+For exact reproducibility (Python 3.10 / Google Colab environment matching the
+published results with TensorFlow 2.15), use the frozen requirements instead:
+
+```bash
+pip install -r requirements-frozen.txt
+```
+
+All dependencies including `tensorflow-hub` and `resampy` (needed for the YAMNet
+auto-cleanup filter) are included in both requirements files.
 
 ## Dependencies
 
@@ -365,9 +374,9 @@ already covered by `requirements.txt` (`tensorflow-hub`, `resampy`).
 
 To reproduce the published **V10** four-class model and field results:
 
-1. **Environment.** `pip install -r requirements.txt` (Python ≥ 3.8,
-   TensorFlow 2.x). The model was trained and run in Google Colab on a single
-   GPU.
+1. **Environment.** `pip install -r requirements-frozen.txt` for exact version
+   match (Python 3.10, TensorFlow 2.15, Google Colab). Or
+   `pip install -r requirements.txt` for flexible versions.
 
 2. **Select the production head.** The code default is `gap`; the published
    model uses the temporal-frequency CRNN. Set it via environment variable so
