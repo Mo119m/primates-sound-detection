@@ -10,7 +10,7 @@ setup(
     name="primate-vocalization-detection",
     version="1.0.0",
     author="Moshi Fu",
-    author_email="",
+    author_email="mfu39@wisc.edu",
     description="Automated detection of primate vocalizations in rainforest audio recordings",
     long_description=long_description,
     long_description_content_type="text/markdown",
