@@ -135,7 +135,8 @@ PRETRAINED_WEIGHTS = 'imagenet'
 #                   that the position-blind band split leaves unresolved (V11)
 # Overridable via the PRIMATE_MODEL_POOLING env var so the standard training
 # pipeline can switch heads without editing code. The code default is 'gap';
-# set PRIMATE_MODEL_POOLING=temporal_freq to reproduce the published V10 model.
+# set PRIMATE_MODEL_POOLING=temporal_freqpos to reproduce the published V11
+# model (use temporal_freq for the earlier V10 model).
 MODEL_POOLING = os.environ.get('PRIMATE_MODEL_POOLING', 'gap')
 FREEZE_BASE_LAYERS = True  # Freeze VGG19 base layers initially
 UNFREEZE_LAST_N_BLOCKS = 1  # Fine-tune last N blocks later (optional)
