@@ -81,9 +81,23 @@ BACKGROUND_FOLDERS = [
 
 # AUDIO PARAMETERS
 SAMPLE_RATE = 44100  # Hz
-CLIP_DURATION = 2.0  # seconds
-WINDOW_SIZE = 2.0  # seconds (for detection sliding window)
-WINDOW_STRIDE = 1.0  # seconds (50% overlap)
+CLIP_DURATION = 2.0  # seconds — length of every TRAINING clip
+# SLIDING-WINDOW DETECTION (preprocessing.extract_sliding_windows)
+# A long field recording is sliced into fixed-length windows that are each
+# classified independently, then high-confidence runs are merged into one
+# detection (see detection.detect_in_long_audio).
+#   WINDOW_SIZE   = length of each window, in seconds. Kept identical to
+#                   CLIP_DURATION so the model sees the same 2 s input
+#                   distribution it was trained on.
+#   WINDOW_STRIDE = how far the window advances each step. 1.0 s on a 2.0 s
+#                   window = 50% overlap, so a call that straddles a window
+#                   boundary (e.g. sitting across [0-2s] and [2-4s]) is still
+#                   fully captured by the overlapping [1-3s] window instead of
+#                   being split in half and missed. Smaller stride = finer time
+#                   resolution but more windows (slower); larger stride = faster
+#                   but higher risk of clipping a call across the boundary.
+WINDOW_SIZE = 2.0  # seconds (one detection window == one training clip length)
+WINDOW_STRIDE = 1.0  # seconds (50% overlap so boundary-straddling calls aren't lost)
 
 # MEL-SPECTROGRAM PARAMETERS
 N_FFT = 2048
@@ -166,8 +180,21 @@ LOWFREQ_GATE_CUTOFF = 1500     # Hz
 LOWFREQ_GATE_THRESHOLD = 0.40  # minimum low-frequency energy fraction to keep
 
 # TIME FILTER FOR FIELD RECORDINGS
-# Only process recordings whose start time falls within this window (HH:MM).
-# Set to None to disable filtering.
+# Coarse, FILE-LEVEL filter (it does NOT trim audio — it only decides which
+# whole recordings to process). The recording's start time is parsed from its
+# filename (e.g. "S20210225T065943" -> 06:59) and the file is kept only if that
+# start time falls within [TIME_FILTER_START, TIME_FILTER_END] (inclusive).
+#
+# WHEN TO TURN IT ON (time_filter=True in get_ipa_station_files):
+#   Production / survey runs. Putty-nose and Colobus call mainly in the early
+#   morning, so restricting to the dawn window skips most of the day's audio —
+#   far less compute and fewer false positives. Use the SAME window for every
+#   station so per-station detection counts are comparable in the paper.
+# WHEN TO TURN IT OFF (time_filter=False):
+#   Debugging / recovering missed calls / auditing one station's full-day
+#   behaviour (e.g. the per-station V11 spot-checks). Processes every recording.
+#
+# Set either bound to None to disable filtering entirely.
 TIME_FILTER_START = "05:30"
 TIME_FILTER_END = "10:30"
 
