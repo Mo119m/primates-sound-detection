@@ -123,6 +123,22 @@ AUGMENTATION_CONFIG = {
 # Background noise mixing parameters
 BG_MIX_SNR_RANGE = (-5, 10)  # SNR in dB (signal-to-noise ratio range)
 
+# COLOBUS HIGH-FREQUENCY NUISANCE AUGMENTATION (V12)
+# The curated Colobus reference clips carry incidental high-frequency bird/insect
+# energy. Because that high-freq content correlates with the Colobus label during
+# training, the model learned to fire on high-freq TEXTURE and confused forest
+# insects/birds (which sit at 2-5 kHz) with Colobus in the field, even after the
+# V11 frequency-position head. To break that spurious correlation, every Colobus
+# training clip also yields COLOBUS_HF_AUG_COUNT extra variants whose band ABOVE
+# COLOBUS_HF_CUTOFF_HZ is replaced with high-freq content from random background
+# clips, while the low-frequency roar (the true, invariant Colobus signature) is
+# left untouched. With the high band decorrelated from the label, the model is
+# forced to key on the low-frequency roar. Applied ONLY to the class named below
+# (Cernic's discriminative energy IS high-freq and must be preserved).
+COLOBUS_HF_AUG_CLASS = 'Colobus_guereza'
+COLOBUS_HF_CUTOFF_HZ = 1500   # roar lives below this; randomize everything above
+COLOBUS_HF_AUG_COUNT = 2      # extra high-freq-randomized variants per Colobus clip
+
 # Geometric augmentation parameters
 CHOP_RANGE = (0.1, 0.3)  # Crop 10-30% from edges
 TRANSLATE_RANGE = (-20, 20)  # Frequency bins to shift
@@ -173,11 +189,24 @@ NMS_IOU_THRESHOLD = 0.5  # Non-maximum suppression overlap threshold
 # A detected Colobus clip is kept only if the fraction of its spectral energy
 # below LOWFREQ_GATE_CUTOFF (within the FMIN-FMAX band) is at least
 # LOWFREQ_GATE_THRESHOLD. Real C. guereza roars are overwhelmingly low-frequency
-# (p5 ~ 0.41), whereas the dominant out-of-distribution false positives
-# (insects, cicadas) are high-frequency (median ~ 0.01), so the gate removes the
-# latter without touching real calls. Runs on saved clips; no retraining needed.
+# (p5 ~ 0.41 on the 617 reference clips), whereas the dominant out-of-distribution
+# false positives (insects, cicadas at 2-5 kHz) are high-frequency (median ~0.01),
+# so the gate removes the latter without touching real calls. It runs at
+# detection time and adds a `low_freq_ratio` column to every Colobus detection,
+# which doubles as a RANKING signal: sorting detections by this ratio surfaces the
+# genuine low-frequency roar candidates (high ratio) for manual review and pushes
+# the insect false positives (near-zero ratio) to the bottom. No retraining needed.
+#
+# The gate cannot create true positives -- it only removes false ones; the model
+# must still fire on a real roar in the first place (that is what the V12
+# high-frequency-nuisance augmentation above is for). Calibrate LOWFREQ_GATE_THRESHOLD
+# with detection.lowfreq_energy_ratio (NOT the ad-hoc <1 kHz / full-spectrum metric)
+# so the number matches the deployed gate; pick it below the reference-clip p5 and
+# above the field false-positive p95 to keep real calls while cutting insects.
+LOWFREQ_GATE_ENABLED = True    # apply the gate inside detect_in_long_audio
 LOWFREQ_GATE_CUTOFF = 1500     # Hz
-LOWFREQ_GATE_THRESHOLD = 0.40  # minimum low-frequency energy fraction to keep
+LOWFREQ_GATE_THRESHOLD = 0.30  # minimum low-frequency energy fraction to keep
+                               # (below the 0.41 reference p5 for a TP safety margin)
 
 # TIME FILTER FOR FIELD RECORDINGS
 # Coarse, FILE-LEVEL filter (it does NOT trim audio — it only decides which
