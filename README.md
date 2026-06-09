@@ -189,7 +189,8 @@ group (see `DETECTION_GROUPS` in `config.py`), so it never produces a detection.
 ```
 src/                           Core library modules
 scripts/                       Command-line entry points
-main_pipeline_notebooks/       Colab notebooks for training, detection, and cleanup
+data/                          Local drop-in workspace (put your audio here; git-ignored)
+main_pipeline_notebooks/       Notebooks: main_local.ipynb (local) + run_in_colab.ipynb (Colab)
 presentation_notebooks/        Figures and slides generation
 paper/                         MethodsX manuscript (LaTeX)
 ```
@@ -315,7 +316,8 @@ Visualization and analysis utilities.
 
 | Notebook | Description |
 |---|---|
-| `run_in_colab.ipynb` | Full pipeline: setup, train, detect (start here) |
+| `main_local.ipynb` | **Local run** — drop data into `data/`, run end-to-end with zero path config (start here for local) |
+| `run_in_colab.ipynb` | Full pipeline on Google Colab: mount Drive, train, detect (start here for Colab) |
 | `main_pipeline_updated.ipynb` | Detailed step-by-step training and evaluation |
 | `auto_cleanup_false_positives.ipynb` | Run auto-cleanup interactively with visualization |
 
@@ -426,12 +428,28 @@ That's it — the `drive.mount()` cell is the only Colab-specific step.
 
 ## Running Locally
 
-The pipeline runs the same locally as in Colab — **no source code needs to be
-edited or commented out**. Every path is read from environment variables
-(see `src/config.py`), and the only Colab-specific code is the `drive.mount()`
-cell in the notebooks, which you simply skip when running locally.
+### Easiest: drop-in `data/` folder + `main_local.ipynb`
 
-**1. Configure your paths.** Copy the template and edit it:
+The repo ships with a ready-made [`data/`](data/README.md) workspace whose
+folders already match what the pipeline expects. **No path configuration, no
+source edits.**
+
+1. Clone the repo and `pip install -r requirements.txt`.
+2. Copy your audio into the prepared folders (see [`data/README.md`](data/README.md)):
+   - `data/species/<call-type>/` — labelled call clips (training positives)
+   - `data/background/<...>/` — negative clips
+   - `data/long_audio/` — continuous recordings to run detection on
+3. Open **`main_pipeline_notebooks/main_local.ipynb`** and run the cells in order.
+
+The first cell finds the repo root, points `PRIMATE_DATA_ROOT` at `data/`, and
+selects the V11 head automatically. Outputs land in `data/outputs/`. The audio
+you drop in is git-ignored, so it never bloats your clone or gets committed.
+
+### Alternative: data outside the repo (`.env`)
+
+If your data lives elsewhere, point the pipeline at it with environment
+variables instead — every path is read from `src/config.py`, so **no source
+code needs editing**.
 
 ```bash
 cp .env.example .env
@@ -445,20 +463,15 @@ set -a; source .env; set +a     # load the variables into your shell
 - `PRIMATE_MODEL_POOLING=temporal_freqpos` — selects the production V11 head
   (the code default is `gap`).
 
-**2. Verify the setup.** A one-shot check that packages import and the data
-folders are found:
+Verify with a one-shot check that packages import and the data folders are found:
 
 ```bash
 python scripts/check_environment.py
 ```
 
-It prints `[ OK ]` / `[WARN]` / `[FAIL]` per item and exits non-zero if anything
-required is missing.
-
-**3. Run.** Use the same functions/scripts as the [Main Workflow](#main-workflow),
+Then use the same functions/scripts as the [Main Workflow](#main-workflow),
 e.g. train with `train.run_complete_training_pipeline()` or detect a station
-with `python scripts/run_detection_ipa.py --station IPA1ST`. Do **not** run the
-`drive.mount(...)` notebook cell — that is the single Colab-only step.
+with `python scripts/run_detection_ipa.py --station IPA1ST`.
 
 > Prefer not to use a `.env` file? Just export the variables inline:
 > ```bash

@@ -51,3 +51,11 @@ outputs/
 *.h5
 *.pkl
 *.pth
+
+# Local data drop-in workspace: keep the folder structure (.gitkeep) and the
+# README under version control, but ignore any audio/data the user drops in.
+/data/**
+!/data/
+!/data/**/
+!/data/README.md
+!/data/**/.gitkeep
