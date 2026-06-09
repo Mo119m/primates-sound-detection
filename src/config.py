@@ -205,8 +205,8 @@ NMS_IOU_THRESHOLD = 0.5  # Non-maximum suppression overlap threshold
 # above the field false-positive p95 to keep real calls while cutting insects.
 LOWFREQ_GATE_ENABLED = True    # apply the gate inside detect_in_long_audio
 LOWFREQ_GATE_CUTOFF = 1500     # Hz
-LOWFREQ_GATE_THRESHOLD = 0.30  # minimum low-frequency energy fraction to keep
-                               # (below the 0.41 reference p5 for a TP safety margin)
+LOWFREQ_GATE_THRESHOLD = 0.20  # calibrated: FP max=0.092, Colobus p05=0.261;
+                               # 0.20 cuts 100% FP, keeps 97.6% TP (gap 0.11 wide)
 
 # TIME FILTER FOR FIELD RECORDINGS
 # Coarse, FILE-LEVEL filter (it does NOT trim audio — it only decides which
