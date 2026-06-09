@@ -16,7 +16,17 @@ except ImportError:  # Allow running as a standalone script (e.g. in Colab)
     import config
 
 
-@keras.saving.register_keras_serializable(package='primate')
+# The registration decorator moved between Keras versions: it lives at
+# keras.saving.* in Keras 3 but only at keras.utils.* in the tf.keras shim that
+# some Colab runtimes expose. Resolve whichever exists so importing this module
+# never crashes at decoration time.
+try:
+    _register_serializable = keras.saving.register_keras_serializable
+except AttributeError:  # older tf.keras shim
+    _register_serializable = keras.utils.register_keras_serializable
+
+
+@_register_serializable(package='primate')
 class FrequencyCoord(layers.Layer):
     """Append a normalized frequency-coordinate channel to a feature map.
 
