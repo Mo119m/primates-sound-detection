@@ -14,6 +14,52 @@ except ImportError:  # Allow running as a standalone script (e.g. in Colab)
     import config
 
 
+def _mel_cutoff_row(cutoff_hz: float,
+                    n_mels: int = config.N_MELS,
+                    fmin: float = config.FMIN,
+                    fmax: float = config.FMAX) -> int:
+    """Mel-spectrogram row index whose centre frequency first reaches cutoff_hz.
+
+    Rows *below* this index hold the low-frequency Colobus roar; rows *at or
+    above* it hold the high-frequency band that the nuisance augmentation
+    randomizes. Imported lazily so augmentation.py has no hard top-level
+    dependency on librosa for the geometric augmentations.
+    """
+    import librosa
+    freqs = librosa.mel_frequencies(n_mels=n_mels, fmin=fmin, fmax=fmax)
+    idx = int(np.searchsorted(freqs, cutoff_hz))
+    return int(np.clip(idx, 1, n_mels - 1))
+
+
+def highfreq_nuisance(spec: np.ndarray,
+                      background_spec: np.ndarray,
+                      cutoff_hz: float = None) -> np.ndarray:
+    """Randomize the HIGH-frequency band of a spectrogram, keeping the low band.
+
+    Replaces everything above ``cutoff_hz`` with the high band of a random
+    background clip while leaving the low-frequency content untouched. Both
+    inputs are dB mel-spectrograms (freq = rows, row 0 = lowest frequency), so
+    the high band is copied across directly with no domain conversion.
+
+    Purpose (V12): the curated Colobus reference clips carry incidental
+    high-frequency bird/insect energy that correlates with the Colobus label, so
+    the model learned to fire on high-frequency texture and confused forest
+    insects/birds with Colobus in the field. Swapping in *varied* high-frequency
+    content across training examples decorrelates the high band from the label,
+    forcing the model to rely on the invariant low-frequency roar -- the true
+    Colobus signature. Applied ONLY to the Colobus class (Cernic IS high-freq and
+    must keep its high band intact).
+    """
+    if cutoff_hz is None:
+        cutoff_hz = config.COLOBUS_HF_CUTOFF_HZ
+    if background_spec.shape != spec.shape:
+        background_spec = random_crop_spectrogram(background_spec, spec.shape)
+    row = _mel_cutoff_row(cutoff_hz, n_mels=spec.shape[0])
+    out = spec.copy()
+    out[row:, :] = background_spec[row:, :]
+    return out
+
+
 def add_background_noise(spec: np.ndarray, 
                         background_spec: np.ndarray,
                         snr_db: float = None) -> np.ndarray:
@@ -182,15 +228,20 @@ def resize_to_original_shape(spec: np.ndarray, original_shape: Tuple[int, int]) 
 
 
 def augment_spectrogram(spec: np.ndarray,
-                       background_specs: List[np.ndarray] = None) -> List[np.ndarray]:
+                       background_specs: List[np.ndarray] = None,
+                       species_name: str = None) -> List[np.ndarray]:
     """
     Apply all augmentation strategies to a single spectrogram
     Following config.AUGMENTATION_CONFIG (Scheme A - Conservative)
-    
+
     Args:
         spec: Input spectrogram
         background_specs: List of background spectrograms for noise mixing
-    
+        species_name: class label of this clip. When it matches
+            config.COLOBUS_HF_AUG_CLASS, extra high-frequency-randomized variants
+            are added (see highfreq_nuisance) so the model learns to key on the
+            low-frequency Colobus roar rather than incidental high-freq texture.
+
     Returns:
         List of augmented spectrograms
     """
@@ -224,7 +275,17 @@ def augment_spectrogram(spec: np.ndarray,
     for _ in range(config.AUGMENTATION_CONFIG['translate']):
         shifted = translate(spec.copy())
         augmented.append(shifted)
-    
+
+    # High-frequency nuisance randomization (Colobus only, V12).
+    # Decorrelates the high band from the Colobus label so the model is forced to
+    # rely on the low-frequency roar. Skipped for every other class (notably
+    # Cernic, whose discriminative energy IS in the high band).
+    if (species_name == config.COLOBUS_HF_AUG_CLASS
+            and background_specs is not None and len(background_specs) > 0):
+        for _ in range(config.COLOBUS_HF_AUG_COUNT):
+            bg_spec = random.choice(background_specs)
+            augmented.append(highfreq_nuisance(spec.copy(), bg_spec))
+
     return augmented
 
 
@@ -260,7 +321,8 @@ def augment_dataset(species_specs: dict,
 
         species_aug_count = 0
         for i, spec in enumerate(specs):
-            augmented_specs = augment_spectrogram(spec, background_specs)
+            augmented_specs = augment_spectrogram(spec, background_specs,
+                                                  species_name=species_name)
 
             for j, aug_spec in enumerate(augmented_specs):
                 X_all.append(aug_spec)

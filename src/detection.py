@@ -141,6 +141,43 @@ def apply_lowfreq_gate(detections_df: pd.DataFrame,
     return detections_df[keep].reset_index(drop=True)
 
 
+def annotate_lowfreq_ratio(detections_df: pd.DataFrame,
+                           audio: np.ndarray,
+                           sr: int,
+                           species: str = 'Colobus_guereza',
+                           cutoff: float = None) -> pd.DataFrame:
+    """
+    Add a ``low_freq_ratio`` column to ``species`` detections (NaN for others).
+
+    This is the ranking signal for finding real low-frequency roars: a genuine
+    C. guereza detection scores high (energy concentrated below ``cutoff``),
+    while insect/cicada false positives score near zero. Sorting detections by
+    this column surfaces the true-positive candidates for manual review.
+
+    Args:
+        detections_df: output of detect_in_long_audio() for one recording.
+        audio: the recording's waveform (config.SAMPLE_RATE).
+        sr: sample rate of ``audio``.
+        species: detection label to score (default 'Colobus_guereza').
+        cutoff: low-frequency cutoff in Hz (defaults to config.LOWFREQ_GATE_CUTOFF).
+
+    Returns:
+        The DataFrame with an added ``low_freq_ratio`` column.
+    """
+    if len(detections_df) == 0:
+        return detections_df
+    ratios = []
+    for _, row in detections_df.iterrows():
+        if row['species'] != species:
+            ratios.append(np.nan)
+            continue
+        clip = audio[int(row['start_time'] * sr):int(row['end_time'] * sr)]
+        ratios.append(lowfreq_energy_ratio(clip, cutoff=cutoff))
+    detections_df = detections_df.copy()
+    detections_df['low_freq_ratio'] = ratios
+    return detections_df
+
+
 def detect_in_long_audio(model,
                          audio_path: str,
                          confidence_threshold: float = config.DETECTION_CONFIDENCE_THRESHOLD) -> pd.DataFrame:
@@ -220,10 +257,27 @@ def detect_in_long_audio(model,
         print(f"\n Applying Non-Maximum Suppression")
         detections = apply_nms(detections)
         print(f"   After NMS: {len(detections)} detections")
-    
+
     # Convert to DataFrame
     df = pd.DataFrame(detections)
-    
+
+    # Low-frequency energy ratio for Colobus detections. Always recorded as a
+    # column (so detections can be RANKED by it to surface real low-frequency
+    # roar candidates); the gate then optionally drops the high-frequency insect
+    # false positives. See config LOW-FREQUENCY SPECTRAL-ENERGY GATE notes.
+    if len(df) > 0:
+        df = annotate_lowfreq_ratio(df, audio, sr,
+                                    species=config.COLOBUS_HF_AUG_CLASS)
+        if config.LOWFREQ_GATE_ENABLED:
+            before = len(df)
+            df = apply_lowfreq_gate(df, audio, sr,
+                                    species=config.COLOBUS_HF_AUG_CLASS)
+            dropped = before - len(df)
+            if dropped:
+                print(f"\n Low-freq gate (>= {config.LOWFREQ_GATE_THRESHOLD}): "
+                      f"dropped {dropped} {config.COLOBUS_HF_AUG_CLASS} "
+                      f"detection(s) as high-frequency false positives")
+
     # Print summary
     if len(df) > 0:
         print("\n Detection Summary:")

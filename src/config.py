@@ -81,9 +81,23 @@ BACKGROUND_FOLDERS = [
 
 # AUDIO PARAMETERS
 SAMPLE_RATE = 44100  # Hz
-CLIP_DURATION = 2.0  # seconds
-WINDOW_SIZE = 2.0  # seconds (for detection sliding window)
-WINDOW_STRIDE = 1.0  # seconds (50% overlap)
+CLIP_DURATION = 2.0  # seconds — length of every TRAINING clip
+# SLIDING-WINDOW DETECTION (preprocessing.extract_sliding_windows)
+# A long field recording is sliced into fixed-length windows that are each
+# classified independently, then high-confidence runs are merged into one
+# detection (see detection.detect_in_long_audio).
+#   WINDOW_SIZE   = length of each window, in seconds. Kept identical to
+#                   CLIP_DURATION so the model sees the same 2 s input
+#                   distribution it was trained on.
+#   WINDOW_STRIDE = how far the window advances each step. 1.0 s on a 2.0 s
+#                   window = 50% overlap, so a call that straddles a window
+#                   boundary (e.g. sitting across [0-2s] and [2-4s]) is still
+#                   fully captured by the overlapping [1-3s] window instead of
+#                   being split in half and missed. Smaller stride = finer time
+#                   resolution but more windows (slower); larger stride = faster
+#                   but higher risk of clipping a call across the boundary.
+WINDOW_SIZE = 2.0  # seconds (one detection window == one training clip length)
+WINDOW_STRIDE = 1.0  # seconds (50% overlap so boundary-straddling calls aren't lost)
 
 # MEL-SPECTROGRAM PARAMETERS
 N_FFT = 2048
@@ -109,6 +123,22 @@ AUGMENTATION_CONFIG = {
 # Background noise mixing parameters
 BG_MIX_SNR_RANGE = (-5, 10)  # SNR in dB (signal-to-noise ratio range)
 
+# COLOBUS HIGH-FREQUENCY NUISANCE AUGMENTATION (V12)
+# The curated Colobus reference clips carry incidental high-frequency bird/insect
+# energy. Because that high-freq content correlates with the Colobus label during
+# training, the model learned to fire on high-freq TEXTURE and confused forest
+# insects/birds (which sit at 2-5 kHz) with Colobus in the field, even after the
+# V11 frequency-position head. To break that spurious correlation, every Colobus
+# training clip also yields COLOBUS_HF_AUG_COUNT extra variants whose band ABOVE
+# COLOBUS_HF_CUTOFF_HZ is replaced with high-freq content from random background
+# clips, while the low-frequency roar (the true, invariant Colobus signature) is
+# left untouched. With the high band decorrelated from the label, the model is
+# forced to key on the low-frequency roar. Applied ONLY to the class named below
+# (Cernic's discriminative energy IS high-freq and must be preserved).
+COLOBUS_HF_AUG_CLASS = 'Colobus_guereza'
+COLOBUS_HF_CUTOFF_HZ = 1500   # roar lives below this; randomize everything above
+COLOBUS_HF_AUG_COUNT = 2      # extra high-freq-randomized variants per Colobus clip
+
 # Geometric augmentation parameters
 CHOP_RANGE = (0.1, 0.3)  # Crop 10-30% from edges
 TRANSLATE_RANGE = (-20, 20)  # Frequency bins to shift
@@ -128,9 +158,15 @@ PRETRAINED_WEIGHTS = 'imagenet'
 #                   occurs; targets the Cernic-vs-insect/sawing confusion, V7)
 #   'temporal_freq' -> per-band Conv1D + cross-band Conv1D + BiLSTM (keeps both
 #                   WHEN and WHERE energy occurs; the PRODUCTION V10 head)
+#   'temporal_freqpos' -> temporal_freq plus an explicit frequency-coordinate
+#                   channel (CoordConv) fused into the feature map before the
+#                   band split, so each call texture is tagged with its absolute
+#                   frequency. Targets the Colobus(low)-vs-bird(high) confusion
+#                   that the position-blind band split leaves unresolved (V11)
 # Overridable via the PRIMATE_MODEL_POOLING env var so the standard training
 # pipeline can switch heads without editing code. The code default is 'gap';
-# set PRIMATE_MODEL_POOLING=temporal_freq to reproduce the published V10 model.
+# set PRIMATE_MODEL_POOLING=temporal_freqpos to reproduce the published V11
+# model (use temporal_freq for the earlier V10 model).
 MODEL_POOLING = os.environ.get('PRIMATE_MODEL_POOLING', 'gap')
 FREEZE_BASE_LAYERS = True  # Freeze VGG19 base layers initially
 UNFREEZE_LAST_N_BLOCKS = 1  # Fine-tune last N blocks later (optional)
@@ -153,15 +189,41 @@ NMS_IOU_THRESHOLD = 0.5  # Non-maximum suppression overlap threshold
 # A detected Colobus clip is kept only if the fraction of its spectral energy
 # below LOWFREQ_GATE_CUTOFF (within the FMIN-FMAX band) is at least
 # LOWFREQ_GATE_THRESHOLD. Real C. guereza roars are overwhelmingly low-frequency
-# (p5 ~ 0.41), whereas the dominant out-of-distribution false positives
-# (insects, cicadas) are high-frequency (median ~ 0.01), so the gate removes the
-# latter without touching real calls. Runs on saved clips; no retraining needed.
+# (p5 ~ 0.41 on the 617 reference clips), whereas the dominant out-of-distribution
+# false positives (insects, cicadas at 2-5 kHz) are high-frequency (median ~0.01),
+# so the gate removes the latter without touching real calls. It runs at
+# detection time and adds a `low_freq_ratio` column to every Colobus detection,
+# which doubles as a RANKING signal: sorting detections by this ratio surfaces the
+# genuine low-frequency roar candidates (high ratio) for manual review and pushes
+# the insect false positives (near-zero ratio) to the bottom. No retraining needed.
+#
+# The gate cannot create true positives -- it only removes false ones; the model
+# must still fire on a real roar in the first place (that is what the V12
+# high-frequency-nuisance augmentation above is for). Calibrate LOWFREQ_GATE_THRESHOLD
+# with detection.lowfreq_energy_ratio (NOT the ad-hoc <1 kHz / full-spectrum metric)
+# so the number matches the deployed gate; pick it below the reference-clip p5 and
+# above the field false-positive p95 to keep real calls while cutting insects.
+LOWFREQ_GATE_ENABLED = True    # apply the gate inside detect_in_long_audio
 LOWFREQ_GATE_CUTOFF = 1500     # Hz
-LOWFREQ_GATE_THRESHOLD = 0.40  # minimum low-frequency energy fraction to keep
+LOWFREQ_GATE_THRESHOLD = 0.20  # calibrated: FP max=0.092, Colobus p05=0.261;
+                               # 0.20 cuts 100% FP, keeps 97.6% TP (gap 0.11 wide)
 
 # TIME FILTER FOR FIELD RECORDINGS
-# Only process recordings whose start time falls within this window (HH:MM).
-# Set to None to disable filtering.
+# Coarse, FILE-LEVEL filter (it does NOT trim audio — it only decides which
+# whole recordings to process). The recording's start time is parsed from its
+# filename (e.g. "S20210225T065943" -> 06:59) and the file is kept only if that
+# start time falls within [TIME_FILTER_START, TIME_FILTER_END] (inclusive).
+#
+# WHEN TO TURN IT ON (time_filter=True in get_ipa_station_files):
+#   Production / survey runs. Putty-nose and Colobus call mainly in the early
+#   morning, so restricting to the dawn window skips most of the day's audio —
+#   far less compute and fewer false positives. Use the SAME window for every
+#   station so per-station detection counts are comparable in the paper.
+# WHEN TO TURN IT OFF (time_filter=False):
+#   Debugging / recovering missed calls / auditing one station's full-day
+#   behaviour (e.g. the per-station V11 spot-checks). Processes every recording.
+#
+# Set either bound to None to disable filtering entirely.
 TIME_FILTER_START = "05:30"
 TIME_FILTER_END = "10:30"
 
