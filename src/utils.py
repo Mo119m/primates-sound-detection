@@ -357,6 +357,9 @@ def extract_all_detected_clips(all_detections: dict,
         if detections_df is None or len(detections_df) == 0:
             continue
 
+        # ``filename`` may be a path relative to the scan root (e.g.
+        # "CL C3 SBL/rec.wav") when recordings live in nested station
+        # subfolders, so join preserves that subpath to locate the source.
         audio_path = os.path.join(long_audio_root, filename)
         if not os.path.exists(audio_path):
             print(f"  Skip {filename}: source recording not found at {audio_path}")
@@ -374,7 +377,9 @@ def extract_all_detected_clips(all_detections: dict,
             skipped_files.append(filename)
             continue
 
-        base_name = os.path.splitext(filename)[0]
+        # Use only the bare recording name (not any station subpath) in the
+        # clip filename so it stays a valid single filename.
+        base_name = os.path.splitext(os.path.basename(filename))[0]
         n_in_file = 0
 
         for _, det in detections_df.iterrows():

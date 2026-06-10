@@ -524,8 +524,12 @@ def save_detections(detections_df: pd.DataFrame,
     
     # Save to CSV
     if len(detections_df) > 0:
-        # Select columns to save
-        save_df = detections_df[['start_time', 'end_time', 'species', 'confidence']].copy()
+        # Select columns to save. Keep low_freq_ratio when present so the
+        # Colobus low-frequency ranking signal survives into the CSV.
+        cols = ['start_time', 'end_time', 'species', 'confidence']
+        if 'low_freq_ratio' in detections_df.columns:
+            cols.append('low_freq_ratio')
+        save_df = detections_df[cols].copy()
         save_df.to_csv(csv_path, index=False)
         print(f"\n Detections saved to: {csv_path}")
     else:
@@ -581,21 +585,30 @@ def process_all_long_audio_files(model,
 
     all_detections = {}
 
+    scan_root = audio_dir or config.LONG_AUDIO_ROOT
+    base_out = output_dir if output_dir is not None else config.DETECTION_OUTPUT_DIR
+
     for i, audio_path in enumerate(audio_files, 1):
         print(f"Processing file {i}/{len(audio_files)}")
 
         # Detect
         detections_df = detect_in_long_audio(model, audio_path, confidence_threshold)
 
-        # Save
+        # Key detections by the path RELATIVE to the scan root so nested station
+        # subfolders (e.g. "CL C3 SBL/rec.wav") are preserved. This (a) lets clip
+        # export re-open the correct source file and (b) lets us mirror the source
+        # folder layout in the output so each station's CSVs stay grouped instead
+        # of piling into one flat folder.
+        rel_path = os.path.relpath(audio_path, scan_root)
+        rel_dir = os.path.dirname(rel_path)
         filename = os.path.basename(audio_path)
-        if output_dir is not None:
-            save_detections(detections_df, filename, output_dir=output_dir)
-        else:
-            save_detections(detections_df, filename)
+        csv_out_dir = os.path.join(base_out, rel_dir) if rel_dir else base_out
 
-        # Store
-        all_detections[filename] = detections_df
+        save_detections(detections_df, filename, output_dir=csv_out_dir)
+
+        # Store keyed by the relative path (falls back to bare filename for a
+        # flat layout, keeping backward compatibility).
+        all_detections[rel_path] = detections_df
     
 
     print(" ALL FILES PROCESSED!")
