@@ -327,8 +327,9 @@ def extract_all_detected_clips(all_detections: dict,
         padding: Extra seconds of audio kept on each side of the detection
             window so the reviewer hears a little context.
         organize_by_species: If True (default), clips are grouped into
-            ``output_dir/<species>/`` subfolders so a reviewer can listen to
-            all detections of one species back-to-back.
+            ``output_dir/<species>/<station>/`` subfolders (the station layer
+            mirrors the source recording's folder, e.g. "CL C3 SBL") so a
+            reviewer can listen to one species — and one station — at a time.
         long_audio_root: Folder to look up source recordings in. Defaults to
             ``config.LONG_AUDIO_ROOT``.
 
@@ -351,7 +352,7 @@ def extract_all_detected_clips(all_detections: dict,
     print("Extracting detection clips for manual review")
     print(f"  output dir: {output_dir}")
     print(f"  padding:    {padding}s on each side")
-    print(f"  layout:     {'one folder per species' if organize_by_species else 'flat'}\n")
+    print(f"  layout:     {'<species>/<station>/' if organize_by_species else '<station>/'}\n")
 
     for filename, detections_df in all_detections.items():
         if detections_df is None or len(detections_df) == 0:
@@ -392,12 +393,17 @@ def extract_all_detected_clips(all_detections: dict,
             end_sample = int(min(len(audio), end_t + padding) * sr)
             clip = audio[start_sample:end_sample]
 
+            # Nest by station so each recording's source folder (e.g.
+            # "CL C3 SBL") stays grouped: detected_clips/<species>/<station>/.
+            # station_dir is '' for a flat (single-folder) layout.
+            station_dir = os.path.dirname(filename)
+            parts = [output_dir]
             if organize_by_species:
-                species_dir = os.path.join(output_dir, species)
-                os.makedirs(species_dir, exist_ok=True)
-                save_dir = species_dir
-            else:
-                save_dir = output_dir
+                parts.append(species)
+            if station_dir:
+                parts.append(station_dir)
+            save_dir = os.path.join(*parts)
+            os.makedirs(save_dir, exist_ok=True)
 
             # Filename layout: species first so it sorts naturally; integer
             # second offset so files sort chronologically inside a species
