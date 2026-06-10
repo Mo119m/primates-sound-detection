@@ -539,7 +539,8 @@ def save_detections(detections_df: pd.DataFrame,
 def process_all_long_audio_files(model,
                                  confidence_threshold: float = config.DETECTION_CONFIDENCE_THRESHOLD,
                                  audio_dir: str = None,
-                                 output_dir: str = None) -> Dict[str, pd.DataFrame]:
+                                 output_dir: str = None,
+                                 time_filter: bool = False) -> Dict[str, pd.DataFrame]:
     """
     Process all long audio files in the directory
 
@@ -549,12 +550,20 @@ def process_all_long_audio_files(model,
         audio_dir: Directory to scan for long recordings. Defaults to
             config.LONG_AUDIO_ROOT. Pass a per-station path (e.g.
             field_recordings/IPA10ST) when processing one station at a time.
+            The scan is recursive, so pointing it at a parent folder that
+            holds many station subfolders (e.g. an external drive's
+            acoustic_data/) processes every station in one pass.
         output_dir: Directory to write *_detections.csv. Defaults to
             config.DETECTION_OUTPUT_DIR. Pass a per-station subfolder (e.g.
             detections/IPA10ST) so each station's CSVs stay isolated — this
             keeps auto_cleanup from re-processing other stations' detections
             (whose source audio may already be deleted, which would produce
             empty/silent clips).
+        time_filter: if True, keep only recordings whose start time (parsed
+            from the AudioMoth filename) falls inside the survey window
+            config.TIME_FILTER_START–TIME_FILTER_END (e.g. 05:30–10:30). Use
+            this for production/survey runs so you don't process every hour of
+            every day; leave False to process every file.
 
     Returns:
         Dictionary mapping filename to detection DataFrame
@@ -564,6 +573,11 @@ def process_all_long_audio_files(model,
     # Get all long audio files
     audio_files = data_loader.get_long_audio_files(root=audio_dir)
     print(f"\nFound {len(audio_files)} audio files to process")
+
+    if time_filter:
+        audio_files = data_loader.filter_files_by_time(audio_files)
+        print(f"After time filter ({config.TIME_FILTER_START}–"
+              f"{config.TIME_FILTER_END}): {len(audio_files)} files")
 
     all_detections = {}
 
