@@ -13,7 +13,7 @@ import sys
 # Environment – MUST happen before any src import
 # ---------------------------------------------------------------------------
 os.environ.setdefault("PRIMATE_DATA_ROOT", "/tmp/test_data")
-os.environ.setdefault("PRIMATE_MODEL_POOLING", "temporal_freq")
+os.environ.setdefault("PRIMATE_MODEL_POOLING", "temporal_freqpos")
 
 # ---------------------------------------------------------------------------
 # Path – make ``import config`` (etc.) work from tests/

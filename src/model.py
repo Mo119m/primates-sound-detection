@@ -100,7 +100,7 @@ def build_model(num_classes: int = config.N_CLASSES,
               fuses it with a Conv2D, so each call texture is tagged with the
               absolute frequency where it occurs. Directly targets the Colobus
               (low) vs bird (high) confusion that the coarse, position-blind
-              band split leaves unresolved (V11).
+              band split leaves unresolved (V11/V12).
 
     Returns:
         Compiled Keras model
@@ -167,7 +167,7 @@ def build_model(num_classes: int = config.N_CLASSES,
         #   implicit "which channel slice" cue and VGG's filters are frequency
         #   translation-invariant, so a rhythmic texture looks the same high or
         #   low. With the coordinate baked in, the model learns the pattern AND
-        #   its location together (V11).
+        #   its location together (V11/V12).
         tap = 'block4_conv4'
         feat = keras.Model(base_model.input,
                            base_model.get_layer(tap).output,
