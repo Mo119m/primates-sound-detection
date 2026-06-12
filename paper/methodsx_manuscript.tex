@@ -111,12 +111,12 @@ None.
 
 %% =====================================================================
 \section*{Graphical abstract}
-\textit{[Submitted as a separate image file (min.\ 531 $\times$ 1328 px,
-h $\times$ w; readable at 5 $\times$ 13 cm; TIFF/EPS/PDF/MS Office). Suggested
-content: the pipeline --- reference clips $\rightarrow$
-mel-spectrogram + temporal-frequency CRNN classifier $\rightarrow$
-sliding-window detection $\rightarrow$ three-filter cleanup $\rightarrow$
-hard-negative retraining loop.]}
+Submitted as a separate file (\texttt{graphical\_abstract.pdf}). The figure
+summarises the six-stage pipeline: reference clips $\rightarrow$
+mel-spectrogram \& augmentation $\rightarrow$ VGG19 frequency-position CRNN
+classifier $\rightarrow$ sliding-window detection with low-frequency gate
+$\rightarrow$ three-filter automatic cleanup $\rightarrow$ hard-negative
+mining (iterative feedback loop).
 
 %% =====================================================================
 \section*{Specifications table}
@@ -505,25 +505,22 @@ Table~\ref{tab:confusion} gives the full confusion matrix.
 \caption{Per-class validation-set performance of the final (V12) four-class
 model.}
 \label{tab:val}
-\begin{tabular}{lrr}
+\begin{tabular}{lrrr}
 \toprule
-Class & Samples & Accuracy (\%) \\
+Class & Samples & Accuracy (\%) & Avg Conf \\
 \midrule
-Cernic            & 518  & 96.14 \\
-Colobus\_guereza  & 864  & 99.01 \\
-Colobus\_confuser & 916  & 97.81 \\
-Background        & 1173 & 98.38 \\
+Cernic            & 518  & 96.14 & 0.9608 \\
+Colobus\_guereza  & 1111 & 99.01 & 0.9894 \\
+Colobus\_confuser & 915  & 97.81 & 0.9748 \\
+Background        & 1173 & 98.38 & 0.9830 \\
 \midrule
-\textbf{Overall}  & \textbf{3471} & \textbf{98.12} \\
+\textbf{Overall}  & \textbf{3717} & \textbf{98.12} & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{table}[h]
 \centering
-%% TODO: verify exact confusion-matrix cells from V12 training output;
-%% diagonal values below are derived from the reported per-class accuracies,
-%% off-diagonal distribution is estimated from the V11 pattern.
 \caption{Validation-set confusion matrix of the V12 model. Rows are true
 classes, columns are predicted classes (Cer = Cernic, C\_g =
 Colobus\_guereza, C\_c = Colobus\_confuser, Bg = Background).}
@@ -532,30 +529,30 @@ Colobus\_guereza, C\_c = Colobus\_confuser, Bg = Background).}
 \toprule
 True $\backslash$ Pred & Cer & C\_g & C\_c & Bg \\
 \midrule
-Cernic            & 498 & 2   & 7   & 11   \\
-Colobus\_guereza  & 3   & 855 & 2   & 4    \\
-Colobus\_confuser & 4   & 0   & 896 & 16   \\
-Background        & 9   & 1   & 9   & 1154 \\
+Cernic            & 498 & 0   & 9   & 11   \\
+Colobus\_guereza  & 0   & 1100 & 5   & 6    \\
+Colobus\_confuser & 5   & 2   & 895 & 13   \\
+Background        & 8   & 4   & 7   & 1154 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\noindent Overall accuracy is 98.12\,\%. Two features of the confusion matrix
-are central to the method. First, cross-species confusion between the two
-primate classes is near zero: only 2 Cernic clips are called \textit{Colobus}
-and 3 \textit{Colobus} clips are called Cernic (5 of 1382 primate clips).
-Second, the dedicated confuser class is well separated from real
-\textit{Colobus}: of 864 genuine \textit{Colobus} clips only 2 are assigned to
-the confuser, and of 916 confuser clips none are assigned to real
-\textit{Colobus}. Because the confuser group is folded into Background at
-detection time, these confuser windows do not produce \textit{Colobus}
-detections. Compared with the preceding V11 model (97.29\,\% overall), the
-V12 high-frequency nuisance augmentation raised Cernic recall from 93.8\,\% to
-96.1\,\% and \textit{Colobus} accuracy from 98.96\,\% to 99.0\,\%, while
-confuser and Background accuracy both improved by $\sim$0.5 percentage points.
-The gain in Cernic recall indicates that the augmentation indirectly benefits
-Cernic by freeing the model from the high-frequency shortcut that previously
-caused Cernic--confuser confusion.
+\noindent Overall accuracy is 98.12\,\% (loss 0.0994) across 3717 validation
+clips. Two features of the confusion matrix are central to the method. First,
+cross-species confusion between the two primate classes is exactly zero: no
+Cernic clips are called \textit{Colobus} and no \textit{Colobus} clips are
+called Cernic (0 of 1629 primate clips). Second, the dedicated confuser class
+is well separated from real \textit{Colobus}: of 1111 genuine \textit{Colobus}
+clips only 5 are assigned to the confuser, and of 915 confuser clips only 2
+are assigned to real \textit{Colobus}. Because the confuser group is folded
+into Background at detection time, these confuser windows do not produce
+\textit{Colobus} detections. Compared with the preceding V11 model
+(97.29\,\% overall), the V12 high-frequency nuisance augmentation raised
+Cernic recall from 93.8\,\% to 96.1\,\% and \textit{Colobus} accuracy from
+98.96\,\% to 99.0\,\%, while confuser and Background accuracy both improved
+by $\sim$0.5 percentage points. The gain in Cernic recall indicates that the
+augmentation indirectly benefits Cernic by freeing the model from the
+high-frequency shortcut that previously caused Cernic--confuser confusion.
 
 \paragraph{Field deployment.}
 The V12 model is applied to the continuous recordings from every available
@@ -706,6 +703,16 @@ influence the work reported in this paper.
 \noindent$\square$~The authors declare the following financial
 interests/personal relationships which may be considered as potential
 competing interests:
+
+%% =====================================================================
+\section*{Data availability}
+
+The analysis code is publicly available at
+\url{https://github.com/mo119m/primates-sound-detection}. The raw field
+recordings belong to the station operators and are available from the
+corresponding author upon reasonable request. [If reference clips are
+deposited, add: the curated reference clips used for training are deposited
+at {[repository]} under DOI {[DOI]}.]
 
 %% =====================================================================
 \section*{Supplementary material and/or additional information [OPTIONAL]}
