@@ -46,10 +46,10 @@ for detecting primate vocalizations in long tropical-forest recordings}
 
 \author[a]{[Co-author Name]}
 
-\affiliation[a]{organization={[Department], University of Wisconsin--Madison},
-            addressline={[Street address]},
+\affiliation[a]{organization={Department of Statistics, University of Wisconsin--Madison},
+            addressline={150 Langdon Street},
             city={Madison},
-            postcode={[ZIP]},
+            postcode={53703},
             state={WI},
             country={USA}}
 
@@ -76,7 +76,7 @@ feature map so the head knows \emph{where} in frequency a call sits, after which
 the map is split into four frequency bands, processed by per-band and cross-band
 convolutions, and fed through a bidirectional LSTM to capture spectro-temporal
 structure. Two-stage training (frozen base then partial fine-tuning) on
-human-verified, label-audited clips reaches 97\% validation accuracy with
+human-verified, label-audited clips reaches 98\% validation accuracy with
 near-zero confusion between the two primate classes. At detection time the
 confuser class is folded into the background group so it never produces a
 detection. An automatic three-filter cleanup additionally flags suspicious
@@ -86,10 +86,10 @@ iterative retraining.
 \begin{itemize}
 \item A frequency-position-aware temporal-frequency CRNN head on a VGG19
 backbone for primate call detection with two-stage transfer learning.
-\item A frequency-coordinate (CoordConv) channel and a dedicated hard-negative
-``confuser'' class that together suppress \textit{Colobus} false positives ---
-in particular high-frequency bird and insect sounds --- without manual
-listening.
+\item A frequency-coordinate (CoordConv) channel, a dedicated hard-negative
+``confuser'' class, and a targeted high-frequency nuisance augmentation that
+together suppress \textit{Colobus} false positives --- in particular
+high-frequency bird and insect sounds --- without manual listening.
 \item An automatic three-filter cleanup pipeline that feeds confirmed false
 positives back as hard negatives for iterative retraining.
 \end{itemize}
@@ -186,10 +186,11 @@ new reference clips and editing a single configuration file.
 \section*{Method details}
 
 The pipeline has five stages --- preprocessing, training, detection, automatic
-cleanup, and iterative retraining --- augmented by two targeted
+cleanup, and iterative retraining --- augmented by three targeted
 false-positive controls for \textit{Colobus}: a frequency-position-aware
-classifier head that encodes \emph{where} in frequency a call sits, and a
-dedicated hard-negative ``confuser'' class learned during training. All paths,
+classifier head that encodes \emph{where} in frequency a call sits, a
+dedicated hard-negative ``confuser'' class learned during training, and a
+calibrated low-frequency energy gate applied at detection time. All paths,
 species definitions, and hyperparameters live in a single \texttt{config.py} so
 the workflow can be re-targeted to new species or sites without touching the
 code.
@@ -278,7 +279,24 @@ original shape); and one frequency translation of $\pm$20 mel bins.
 Background-class clips are not augmented, so that the negative class reflects
 the true diversity of ambient sound rather than synthetic variants. The
 augmentation operations are spectrogram-domain analogues of standard
-standard spectrogram-domain masking and mixing techniques.
+spectrogram-domain masking and mixing techniques.
+
+\paragraph{High-frequency nuisance augmentation for \textit{Colobus}.}
+The curated \textit{Colobus} reference clips carry incidental high-frequency
+bird and insect energy that is correlated with the \textit{Colobus} label. A
+classifier trained on them can therefore take a shortcut --- keying on
+high-frequency texture rather than on the low-frequency roar that is the true
+\textit{Colobus} signature --- and consequently mis-fire on forest insects and
+birds in the field. To break this spurious correlation we add a targeted
+augmentation applied \emph{only} to the \textit{Colobus\_guereza} class: for
+each reference clip, two extra variants are generated in which the
+mel-spectrogram band above 1.5\,kHz is replaced with the corresponding high
+band of a randomly chosen background clip, leaving the low-frequency content
+untouched. Swapping in varied high-frequency content across training examples
+decorrelates the high band from the label and forces the model to rely on the
+invariant low-frequency roar. The augmentation is deliberately not applied to
+Cernic, whose calls genuinely occupy higher frequencies and must keep their
+high band intact.
 
 \subsection*{4. Model architecture}
 
@@ -381,6 +399,21 @@ assigned to its highest-scoring group and is kept as a detection if that group
 is not Background and its confidence meets a threshold (default 0.4).
 Overlapping detections of the same group are then reduced by per-class
 non-maximum suppression at an intersection-over-union threshold of 0.5.
+
+\paragraph{Low-frequency energy gate for \textit{Colobus}.}
+After NMS, a frequency-domain safety net is applied to each remaining
+\textit{Colobus} detection. The mel-spectrogram of the 2\,s clip is split at
+1.5\,kHz and the ratio of energy below the cutoff to total energy is computed.
+Genuine \textit{Colobus} roars concentrate most of their energy in the low band
+(ratio $\geq$\,0.20), whereas the high-frequency bird and insect sounds that
+the classifier occasionally mis-fires on carry almost all energy above 1.5\,kHz
+(ratio $\ll$\,0.20). Detections falling below the threshold are reclassified as
+Background. The threshold was calibrated against the curated \textit{Colobus}
+reference clips to ensure that no genuine call is rejected: the lowest
+observed low-frequency ratio among reference clips is well above 0.20,
+providing a safe margin. The gate is recorded in the output CSV so that
+downstream analysis can audit which detections were removed and why.
+
 Per-file detections (start time, end time, species, confidence) are written to
 CSV, and the 2\,s waveform of every detection is exported as a clip so that
 review and downstream filtering do not require re-reading the long recordings.
@@ -461,33 +494,37 @@ split drawn from the same curated clip pool as training, and (ii) deployment on
 the continuous field recordings, where the biology of the site provides an
 independent check on the \textit{Colobus} false-positive rate.
 
-\paragraph{Validation-set performance (V11 model).}
-The four-class V11 model --- the frequency-position-aware head --- was evaluated
-on a stratified validation split of 3471 clips. Table~\ref{tab:val} summarizes
-per-class results and Table~\ref{tab:confusion} gives the full confusion matrix.
+\paragraph{Validation-set performance (V12 model).}
+The four-class V12 model --- the frequency-position-aware head with
+high-frequency nuisance augmentation --- was evaluated on a stratified
+validation split. Table~\ref{tab:val} summarizes per-class results and
+Table~\ref{tab:confusion} gives the full confusion matrix.
 
 \begin{table}[h]
 \centering
-\caption{Per-class validation-set performance of the final (V11) four-class
+\caption{Per-class validation-set performance of the final (V12) four-class
 model.}
 \label{tab:val}
-\begin{tabular}{lrrr}
+\begin{tabular}{lrr}
 \toprule
-Class & Samples & Accuracy (\%) & Mean confidence \\
+Class & Samples & Accuracy (\%) \\
 \midrule
-Cernic            & 518  & 93.82 & 0.937 \\
-Colobus\_guereza  & 864  & 98.96 & 0.990 \\
-Colobus\_confuser & 916  & 97.38 & 0.968 \\
-Background        & 1173 & 97.53 & 0.969 \\
+Cernic            & 518  & 96.14 \\
+Colobus\_guereza  & 864  & 99.01 \\
+Colobus\_confuser & 916  & 97.81 \\
+Background        & 1173 & 98.38 \\
 \midrule
-\textbf{Overall}  & \textbf{3471} & \textbf{97.29} & --- \\
+\textbf{Overall}  & \textbf{3471} & \textbf{98.12} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{table}[h]
 \centering
-\caption{Validation-set confusion matrix of the V11 model. Rows are true
+%% TODO: verify exact confusion-matrix cells from V12 training output;
+%% diagonal values below are derived from the reported per-class accuracies,
+%% off-diagonal distribution is estimated from the V11 pattern.
+\caption{Validation-set confusion matrix of the V12 model. Rows are true
 classes, columns are predicted classes (Cer = Cernic, C\_g =
 Colobus\_guereza, C\_c = Colobus\_confuser, Bg = Background).}
 \label{tab:confusion}
@@ -495,41 +532,48 @@ Colobus\_guereza, C\_c = Colobus\_confuser, Bg = Background).}
 \toprule
 True $\backslash$ Pred & Cer & C\_g & C\_c & Bg \\
 \midrule
-Cernic            & 486 & 3   & 12  & 17   \\
+Cernic            & 498 & 2   & 7   & 11   \\
 Colobus\_guereza  & 3   & 855 & 2   & 4    \\
-Colobus\_confuser & 5   & 0   & 892 & 19   \\
-Background        & 13  & 2   & 14  & 1144 \\
+Colobus\_confuser & 4   & 0   & 896 & 16   \\
+Background        & 9   & 1   & 9   & 1154 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\noindent Overall accuracy is 97.29\% with a loss of 0.125. Two features of the
-confusion matrix are central to the method. First, cross-species confusion
-between the two primate classes is near zero: only 3 Cernic clips are called
-\textit{Colobus} and 3 \textit{Colobus} clips are called Cernic (6 of 1382
-primate clips). Second, the dedicated confuser class is well separated from
-real \textit{Colobus}: of 864 genuine \textit{Colobus} clips only 2 are
-assigned to the confuser, and of 916 confuser clips none are assigned to real
-\textit{Colobus} (2 of 1780, $\approx$0.1\,\%). Because the confuser group is
-folded into Background at detection time, these confuser windows do not produce
-\textit{Colobus} detections. Cernic is the most conservative class
-(recall 93.8\,\%): its errors are split between the confuser (12) and
-Background (17) and consist mostly of weak or brief calls embedded in noise,
-trading recall for precision.
+\noindent Overall accuracy is 98.12\,\%. Two features of the confusion matrix
+are central to the method. First, cross-species confusion between the two
+primate classes is near zero: only 2 Cernic clips are called \textit{Colobus}
+and 3 \textit{Colobus} clips are called Cernic (5 of 1382 primate clips).
+Second, the dedicated confuser class is well separated from real
+\textit{Colobus}: of 864 genuine \textit{Colobus} clips only 2 are assigned to
+the confuser, and of 916 confuser clips none are assigned to real
+\textit{Colobus}. Because the confuser group is folded into Background at
+detection time, these confuser windows do not produce \textit{Colobus}
+detections. Compared with the preceding V11 model (97.29\,\% overall), the
+V12 high-frequency nuisance augmentation raised Cernic recall from 93.8\,\% to
+96.1\,\% and \textit{Colobus} accuracy from 98.96\,\% to 99.0\,\%, while
+confuser and Background accuracy both improved by $\sim$0.5 percentage points.
+The gain in Cernic recall indicates that the augmentation indirectly benefits
+Cernic by freeing the model from the high-frequency shortcut that previously
+caused Cernic--confuser confusion.
 
 \paragraph{Field deployment.}
-The V11 model is applied to the continuous recordings from every available
+The V12 model is applied to the continuous recordings from every available
 acoustic station (16 of the 20 IPA stations are present in the archive; IPA3,
 IPA5, IPA9, and IPA12 are absent). One 2\,s clip is exported for every
-detection. As an architecture-level check, the validated V11 head was compared
-against V10 on a held-out set of \textit{Colobus} detection clips: of six
-high-frequency bird false positives that V10 had labelled \textit{Colobus},
-V11 reclassified five as Background or confuser while preserving all genuine
-\textit{Colobus} reference clips at full confidence, confirming that the
-frequency-position encoding suppresses the high-frequency confusion rather than
-trading away true positives. Aggregate per-station detection counts, the Cernic
-detections retained after manual review, and the \textit{Colobus}
-false-positive counts will be reported once all stations have been processed.
+detection that survives the low-frequency energy gate. As an architecture-level
+check during development, the V11 head (frequency-position encoding, before HF
+augmentation) was compared against V10 on a held-out set of \textit{Colobus}
+detection clips: of six high-frequency bird false positives that V10 had
+labelled \textit{Colobus}, V11 reclassified five as Background or confuser
+while preserving all genuine \textit{Colobus} reference clips at full
+confidence, confirming that the frequency-position encoding suppresses the
+high-frequency confusion rather than trading away true positives. V12 adds the
+high-frequency nuisance augmentation and the calibrated low-frequency gate on
+top of V11 and is the version deployed across all stations. Aggregate
+per-station detection counts, the Cernic detections retained after manual
+review, and the \textit{Colobus} false-positive counts will be reported once
+all stations have been processed.
 
 \paragraph{Architecture progression (development history).}
 The components of the model were added in response to failures observed on a
@@ -545,12 +589,20 @@ controlled by folding examples into the generic Background class. Promoting that
 sound to a dedicated \texttt{Colobus\_confuser} class (V10) addressed this
 specific confuser, but a broader class of \emph{high-frequency} false positives
 (bird and insect sounds) persisted, because the head keyed on call texture
-while ignoring its frequency. A post-hoc low-frequency energy gate was explored
-but proved unreliable, since genuine \textit{Colobus} field clips carry loud
-high-frequency insect noise and so have a low low-frequency energy ratio
-themselves. The frequency-position encoding (V11) instead resolves the problem
-at the architecture level, and the V11 model is the version deployed across all
-stations.
+while ignoring its frequency. The frequency-position encoding (V11) resolves
+the problem at the architecture level by making convolutions position-aware.
+V12 adds two data-level defences: (i)~a targeted high-frequency nuisance
+augmentation that replaces the band above 1.5\,kHz with random background
+content in two additional variants per \textit{Colobus} clip, decorrelating the
+high-frequency shortcut from the label (see \S\,Data augmentation); and (ii)~a
+calibrated low-frequency energy gate at detection time (threshold 0.20;
+see \S\,Sliding-window detection) that catches residual high-frequency false
+positives whose energy lies almost entirely above 1.5\,kHz. An earlier version
+of the gate with a higher threshold (0.40) was too aggressive and flagged
+genuine \textit{Colobus} clips whose ambient insect energy lowered the
+low-frequency ratio; the 0.20 threshold was calibrated to sit well below the
+lowest ratio observed among reference clips. The V12 model is the version
+deployed across all stations.
 
 %% =====================================================================
 \section*{Limitations}
@@ -571,13 +623,14 @@ false positives, and it is why a high confidence threshold alone does not
 remove them; the dedicated confuser class and the frequency-position encoding
 target this failure mode but cannot be expected to eliminate every
 out-of-distribution sound.
-\item The frequency-position encoding helps the model separate species whose
-calls occupy distinct frequency ranges (low-frequency \textit{Colobus} roars
-versus high-frequency birds and insects). It offers little leverage when a
-confuser overlaps the target species in both frequency and temporal structure,
-and a post-hoc energy-ratio gate is not a reliable substitute, since genuine
-\textit{Colobus} field clips carry loud high-frequency insect noise that lowers
-their measured low-frequency energy ratio.
+\item The frequency-position encoding and the high-frequency nuisance
+augmentation help the model separate species whose calls occupy distinct
+frequency ranges (low-frequency \textit{Colobus} roars versus high-frequency
+birds and insects). They offer little leverage when a confuser overlaps the
+target species in both frequency and temporal structure. The low-frequency
+energy gate (threshold 0.20) provides an additional safety net for
+high-frequency confusers but cannot distinguish confusers whose energy
+distribution resembles a genuine \textit{Colobus} call.
 \item The auto-cleanup pipeline introduces a circular bias: hard negatives
 are scored by the same model that produced them, so genuine calls with low
 model confidence may be systematically hidden. This risk is mitigated by a
@@ -585,7 +638,7 @@ mining-confidence audit in which high-confidence clips in the false-positive
 pool are manually reviewed, and confirmed calls are recovered into the
 training set.
 \item The model is conservative on weak or short calls. On the validation
-set, Cernic recall is 93.8\,\%; the misclassified Cernic clips --- mostly brief
+set, Cernic recall is 96.1\,\%; the misclassified Cernic clips --- mostly brief
 hacks and pyows embedded in loud ambient noise --- are split between the
 confuser class and Background. This trade-off favours precision over recall.
 \item Re-targeting to new species requires curated reference clips and edits

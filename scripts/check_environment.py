@@ -88,9 +88,9 @@ def check_config():
               f"(only needed for the detection stage)")
 
     # Production head reminder.
-    if config.MODEL_POOLING != 'temporal_freq':
+    if config.MODEL_POOLING != 'temporal_freqpos':
         print(f"  {WARN} MODEL_POOLING is '{config.MODEL_POOLING}'. "
-              f"Set PRIMATE_MODEL_POOLING=temporal_freq to reproduce V10.")
+              f"Set PRIMATE_MODEL_POOLING=temporal_freqpos to reproduce V12.")
 
     return errors
 
