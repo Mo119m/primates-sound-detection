@@ -1,16 +1,19 @@
 # Primate Vocalization Detection
 
 Automated detection of primate calls in long rainforest field recordings from
-Makokou, Gabon. The production model (**V11**) is a four-class classifier
+Makokou, Gabon. The production model (**V12**) is a four-class classifier
 — *Cernic* (**Cercopithecus nictitans**, putty-nosed monkey), **Colobus
 guereza**, a dedicated hard-negative *confuser* class, and *Background* — built
 on a VGG19 backbone with a **frequency-position-aware** temporal-frequency CRNN
-head (the `temporal_freqpos` head, 97.29% validation accuracy). A sliding-window
-detector turns the classifier into a detector over continuous audio, with two
-complementary false-positive controls: a frequency-coordinate (CoordConv)
-channel that lets the head reject high-frequency bird/insect sounds mistaken for
-*Colobus*, and a three-filter automatic cleanup pipeline whose confirmed false
-positives are recycled as hard negatives for iterative retraining.
+head (the `temporal_freqpos` head, 98.12% validation accuracy). A sliding-window
+detector turns the classifier into a detector over continuous audio, with three
+complementary false-positive controls for *Colobus*: a frequency-coordinate
+(CoordConv) channel that lets the head reject high-frequency bird/insect sounds,
+a **high-frequency nuisance augmentation** (V12) that breaks the model's
+shortcut of keying on incidental high-frequency texture, and a **calibrated
+low-frequency energy gate** (V12) that removes any residual high-frequency false
+positive at detection time. A three-filter automatic cleanup pipeline then
+recycles confirmed false positives as hard negatives for iterative retraining.
 
 > **Reproducing the published results?** Jump to [Reproducibility](#reproducibility).
 
@@ -63,7 +66,7 @@ Training uses a two-stage schedule:
 Load the trained model, then run detection. Two options:
 
 ```python
-# Always use load_trained_model() — the V11 model contains the custom
+# Always use load_trained_model() — the V11/V12 model contains the custom
 # FrequencyCoord layer, so raw tf.keras.models.load_model() fails with an
 # unknown-layer error.
 model_obj = model.load_trained_model('outputs/models/best_model.h5')
@@ -114,9 +117,10 @@ the corresponding `species/` folder (e.g. `species/CERNIC field_confirmed`).
 
 The model uses VGG19 (pretrained on ImageNet) as a feature extractor with a
 configurable pooling head. Set the head via the `MODEL_POOLING` config option
-or the `PRIMATE_MODEL_POOLING` environment variable. **The production V11 model
-uses `temporal_freqpos`**; the other heads are earlier iterations kept for
-provenance and ablation.
+or the `PRIMATE_MODEL_POOLING` environment variable. **The production V12 model
+uses `temporal_freqpos`** (the same head as V11; V12 adds high-frequency
+nuisance augmentation and a calibrated low-frequency gate on top — see below);
+the other heads are earlier iterations kept for provenance and ablation.
 
 | Head | Config value | Description |
 |---|---|---|
@@ -124,9 +128,9 @@ provenance and ablation.
 | Frequency-band | `freq_bands` | Split feature map into low/mid/high frequency bands, pool each separately (V6). |
 | Temporal | `temporal` | Pool frequency axis, then Conv1D over time. Preserves *when* energy occurs (V7). |
 | Temporal-frequency CRNN | `temporal_freq` | 4 frequency bands × per-band Conv1D → cross-band Conv1D → BiLSTM → GlobalMaxPool+GlobalAvgPool → Dense(512)→Dense(256). Preserves both *when* and *where* energy occurs (V8/V10). |
-| **Temporal-frequency CRNN + FrequencyCoord** | `temporal_freqpos` | Extends `temporal_freq` with a `FrequencyCoord` CoordConv layer (see below) that stamps absolute frequency position onto the feature map before the band split. **Production head (V11), 97.29% val accuracy.** |
+| **Temporal-frequency CRNN + FrequencyCoord** | `temporal_freqpos` | Extends `temporal_freq` with a `FrequencyCoord` CoordConv layer (see below) that stamps absolute frequency position onto the feature map before the band split. **Production head (V11/V12), 98.12% val accuracy.** |
 
-### FrequencyCoord layer (`temporal_freqpos`, V11)
+### FrequencyCoord layer (`temporal_freqpos`, V11/V12)
 
 VGG19's convolutions are translation-invariant along the frequency axis: a
 rhythmic, harmonically structured call texture produces almost the same features
@@ -144,26 +148,46 @@ Conv1D → BiLSTM pipeline. Every downstream feature is then tagged with the
 absolute frequency at which it occurs, so the model learns "this call texture
 **at low frequency** = *Colobus*" and rejects the same texture higher up.
 
-> **Loading caveat:** a V11 model contains the custom `FrequencyCoord` layer, so
-> it must be loaded with `model.load_trained_model(path)` (which passes the
-> required `custom_objects`), **not** raw `tf.keras.models.load_model(path)`.
+> **Loading caveat:** a V11/V12 model contains the custom `FrequencyCoord`
+> layer, so it must be loaded with `model.load_trained_model(path)` (which passes
+> the required `custom_objects`), **not** raw `tf.keras.models.load_model(path)`.
 
-#### V11 validation accuracy (4-class)
+#### V12 validation accuracy (4-class)
 
-| Class | Accuracy |
-|---|---|
-| Cernic | 93.82% |
-| Colobus_guereza | 98.96% |
-| Colobus_confuser | 97.38% |
-| Background | 97.53% |
-| **Overall** | **97.29%** |
+| Class | V12 | V11 |
+|---|---|---|
+| Cernic | 96.14% | 93.82% |
+| Colobus_guereza | 99.01% | 98.96% |
+| Colobus_confuser | 97.81% | 97.38% |
+| Background | 98.38% | 97.53% |
+| **Overall** | **98.12%** | **97.29%** |
 
-(V10, the `temporal_freq` head without frequency-position encoding, reached 96.14%.)
+V12 keeps the V11 `temporal_freqpos` architecture and adds the high-frequency
+nuisance augmentation (below). Breaking the high-frequency shortcut lifts every
+class, with the largest gain on Cernic recall (+2.3 points) because the model no
+longer confuses high-frequency Cernic texture with the confuser. (V10, the
+`temporal_freq` head without frequency-position encoding, reached 96.14%.)
+
+#### High-frequency nuisance augmentation (V12)
+
+The curated *Colobus* reference clips carry incidental high-frequency bird and
+insect energy that happens to correlate with the *Colobus* label, so the model
+can take a shortcut — keying on high-frequency texture instead of the
+low-frequency roar that is the true *Colobus* signature — and then mis-fire on
+forest insects in the field. To break this spurious correlation, training adds
+two extra variants per *Colobus* clip in which the mel-spectrogram band **above
+1.5 kHz is replaced with the high band of a random background clip**, leaving the
+low-frequency roar untouched (`augmentation.highfreq_nuisance`, gated by
+`config.COLOBUS_HF_AUG_*`). Swapping varied high-frequency content across
+examples decorrelates the high band from the label and forces the model to rely
+on the invariant roar. It is applied **only** to *Colobus_guereza* — Cernic
+calls genuinely occupy higher frequencies and must keep their high band intact.
 
 ### Four-class design and the confuser class
 
-V10 trains four classes — `Cernic`, `Colobus_guereza`, `Colobus_confuser`,
-`Background`. The four putty-nosed call types (putty-nose, hacks, keks, pyows)
+The model trains four classes — `Cernic`, `Colobus_guereza`, `Colobus_confuser`,
+`Background` (the confuser class was introduced in V10 and is retained through
+V12). The four putty-nosed call types (putty-nose, hacks, keks, pyows)
 plus recovered field-confirmed calls are pooled into a single **Cernic** class.
 The **`Colobus_confuser`** class is a *dedicated hard negative*: it collects the
 forest sounds the detector repeatedly mis-fired as *Colobus*. Giving it its own
@@ -172,17 +196,39 @@ explicitly instead of drowning a few hundred hard negatives in the generic
 Background class. At detection time the confuser is folded into the Background
 group (see `DETECTION_GROUPS` in `config.py`), so it never produces a detection.
 
-### Low-frequency spectral-energy gate (deprecated)
+### Low-frequency spectral-energy gate (V12, active)
 
-> **Superseded by the V11 frequency-position head.** An earlier post-hoc gate
-> kept a *Colobus* detection only if the fraction of spectral energy below a
-> 1500 Hz cutoff exceeded a threshold (default 0.40). It proved unreliable:
-> genuine *C. guereza* field recordings carry loud high-frequency insect
-> (cicada) noise, so their low-frequency energy ratio is itself low (often
-> 0.08–0.22) and the gate would wrongly reject real calls. The `temporal_freqpos`
-> head addresses the high-frequency confusion at the architecture level instead.
-> The gate code (`lowfreq_energy_ratio`, `apply_lowfreq_gate`, and
-> `scripts/apply_lowfreq_gate.py`) remains in the repo as an optional utility.
+A *Colobus* detection is kept only if the fraction of its spectral energy below
+the 1500 Hz cutoff (within the `FMIN`–`FMAX` band) is at least
+`LOWFREQ_GATE_THRESHOLD`; otherwise it is reclassified as Background. The gate
+runs inside `detect_in_long_audio` after NMS (`LOWFREQ_GATE_ENABLED = True`) and
+adds a `low_freq_ratio` column to every *Colobus* detection — a value that also
+**doubles as a ranking signal**: sorting by it surfaces genuine low-frequency
+roars (high ratio) and pushes insect false positives (near-zero ratio) to the
+bottom of the review queue.
+
+**Recalibration vs. the earlier gate.** An earlier version used a higher
+threshold (0.40) with an ad-hoc `<1 kHz / full-spectrum` energy metric, and it
+was too aggressive — genuine *C. guereza* clips with loud cicada noise could
+fall below 0.40 and be wrongly rejected. V12 recalibrates the gate with the
+**same metric the deployed code uses** (`detection.lowfreq_energy_ratio`) and a
+threshold of **0.20**, chosen to sit below the reference-clip 5th percentile and
+above the field false-positive 95th percentile:
+
+| Group | Statistic | Low-freq ratio |
+|---|---|---|
+| Field false positives (insects) | max | 0.092 |
+| Genuine *Colobus* clips | 5th percentile | 0.261 |
+| **Gate threshold** | | **0.20** |
+
+At 0.20 the gate cuts 100% of the measured false positives while keeping 97.6%
+of true positives (a clean 0.11-wide margin between the two distributions). The
+gate cannot create true positives — the model must still fire on a real roar
+first (that is the job of the high-frequency nuisance augmentation above) — but
+it reliably removes residual high-frequency false positives at detection time.
+The gate code lives in `detection.lowfreq_energy_ratio` / `apply_lowfreq_gate`,
+and `scripts/apply_lowfreq_gate.py` can apply it standalone to already-saved
+clips.
 
 ## Repository Structure
 
@@ -223,12 +269,16 @@ Convert audio waveforms to mel-spectrogram images for model input.
 | `audio_to_melspectrogram()` | Convert waveform to mel-spectrogram in dB scale |
 
 ### augmentation.py
-Data augmentation on mel-spectrograms to expand training data (7x multiplier).
+Data augmentation on mel-spectrograms to expand training data (7x multiplier;
+*Colobus_guereza* gets `COLOBUS_HF_AUG_COUNT` extra high-frequency-randomized
+variants on top).
 
 | Function | Description |
 |---|---|
 | `augment_dataset()` | Augment entire dataset, producing X, y arrays and metadata |
+| `augment_spectrogram()` | Augment one spectrogram (adds the V12 HF-nuisance variants for Colobus) |
 | `add_background_noise()` | Mix spectrogram with background noise at random SNR |
+| `highfreq_nuisance()` | Replace the band above the cutoff with random background high-frequency content (V12 Colobus shortcut-breaker) |
 | `time_chop()` | Randomly crop along time axis |
 | `freq_chop()` | Randomly crop along frequency axis |
 | `translate()` | Shift spectrogram in frequency |
@@ -239,10 +289,10 @@ VGG19-based transfer learning model with configurable pooling heads.
 | Function | Description |
 |---|---|
 | `build_model()` | Build VGG19 + configurable pooling head and compile |
-| `load_trained_model()` | Load a saved `.h5` model (passes `custom_objects` so V11 `temporal_freqpos` models load) |
+| `load_trained_model()` | Load a saved `.h5` model (passes `custom_objects` so V11/V12 `temporal_freqpos` models load) |
 | `unfreeze_base_model()` | Unfreeze last N VGG19 blocks for fine-tuning |
 | `get_callbacks()` | EarlyStopping, ModelCheckpoint, ReduceLROnPlateau |
-| `FrequencyCoord` | Custom Keras layer (CoordConv): appends a normalized frequency-coordinate channel to the VGG19 feature map, making the `temporal_freqpos` head position-aware (V11) |
+| `FrequencyCoord` | Custom Keras layer (CoordConv): appends a normalized frequency-coordinate channel to the VGG19 feature map, making the `temporal_freqpos` head position-aware (V11/V12) |
 
 ### train.py
 End-to-end training pipeline with two-stage schedule.
@@ -267,7 +317,8 @@ Sliding-window detection in long field recordings with probability grouping.
 | `sweep_thresholds()` | Apply multiple confidence thresholds to pre-computed predictions |
 | `apply_nms()` | Non-Maximum Suppression to remove overlapping detections |
 | `lowfreq_energy_ratio()` | Fraction of a clip's spectral energy below the low-frequency cutoff |
-| `apply_lowfreq_gate()` | Drop Colobus detections that fail the low-frequency gate |
+| `annotate_lowfreq_ratio()` | Add the `low_freq_ratio` column to Colobus detections (ranking signal) |
+| `apply_lowfreq_gate()` | Reclassify Colobus detections that fail the V12 low-frequency gate as Background |
 | `save_detections()` | Save detection results to CSV |
 
 ### auto_cleanup.py
@@ -343,12 +394,16 @@ All parameters live in `src/config.py`. Key settings:
 | `WINDOW_SIZE` / `WINDOW_STRIDE` | 2.0 / 1.0 s | Detection sliding window |
 | `N_MELS` | 128 | Mel-spectrogram frequency bins |
 | `FMIN` / `FMAX` | 20 / 8000 Hz | Frequency range |
-| `MODEL_POOLING` | `gap` (code default; set to `temporal_freqpos` for the V11 production model) | Pooling head: `gap`, `freq_bands`, `temporal`, `temporal_freq`, `temporal_freqpos` |
+| `MODEL_POOLING` | `gap` (code default; set to `temporal_freqpos` for the V11/V12 production model) | Pooling head: `gap`, `freq_bands`, `temporal`, `temporal_freq`, `temporal_freqpos` |
 | `BATCH_SIZE` | 32 | Training batch size |
 | `EPOCHS` | 50 | Max training epochs |
+| `COLOBUS_HF_AUG_CLASS` | `Colobus_guereza` | Class that receives the V12 high-frequency nuisance augmentation |
+| `COLOBUS_HF_CUTOFF_HZ` | 1500 Hz | Band above this is randomized in the HF augmentation |
+| `COLOBUS_HF_AUG_COUNT` | 2 | Extra HF-randomized variants generated per Colobus clip |
 | `DETECTION_CONFIDENCE_THRESHOLD` | 0.4 | Minimum confidence for detections |
+| `LOWFREQ_GATE_ENABLED` | `True` | Apply the V12 low-frequency gate inside `detect_in_long_audio` |
 | `LOWFREQ_GATE_CUTOFF` | 1500 Hz | Low-frequency gate boundary |
-| `LOWFREQ_GATE_THRESHOLD` | 0.40 | Minimum low-frequency energy fraction to keep a Colobus detection |
+| `LOWFREQ_GATE_THRESHOLD` | 0.20 | Minimum low-frequency energy fraction to keep a Colobus detection (calibrated) |
 | `TIME_FILTER_START` / `END` | 05:30 / 10:30 | Field recording time window |
 
 Override data paths via environment variables: `PRIMATE_DATA_ROOT`, `PRIMATE_AUDIO_ROOT`, `PRIMATE_LONG_AUDIO_ROOT`, `PRIMATE_IPA_ROOT`, `PRIMATE_OUTPUT_ROOT`.
@@ -419,7 +474,7 @@ Colab and run the cells in order — it walks through every step with checkpoint
    environment variables the notebook sets for you are:
    ```python
    os.environ['PRIMATE_DATA_ROOT']     = '/content/drive/MyDrive/primates-data'
-   os.environ['PRIMATE_MODEL_POOLING'] = 'temporal_freqpos'   # production V11 head
+   os.environ['PRIMATE_MODEL_POOLING'] = 'temporal_freqpos'   # production V11/V12 head
    ```
 4. **`config.print_config_summary()`** should report
    `Classes: 4 (Cernic, Colobus_guereza, Colobus_confuser, Background)`.
@@ -442,8 +497,9 @@ source edits.**
 3. Open **`main_pipeline_notebooks/main_local.ipynb`** and run the cells in order.
 
 The first cell finds the repo root, points `PRIMATE_DATA_ROOT` at `data/`, and
-selects the V11 head automatically. Outputs land in `data/outputs/`. The audio
-you drop in is git-ignored, so it never bloats your clone or gets committed.
+selects the V11/V12 head automatically. Outputs land in `data/outputs/`. The
+audio you drop in is git-ignored, so it never bloats your clone or gets
+committed.
 
 ### Alternative: data outside the repo (`.env`)
 
@@ -460,7 +516,7 @@ set -a; source .env; set +a     # load the variables into your shell
 `.env` sets two things that matter most:
 - `PRIMATE_DATA_ROOT` — the folder holding `species/`, `background/`,
   `field_recordings/`, `outputs/` (see [Data Layout](#data-layout)).
-- `PRIMATE_MODEL_POOLING=temporal_freqpos` — selects the production V11 head
+- `PRIMATE_MODEL_POOLING=temporal_freqpos` — selects the production V11/V12 head
   (the code default is `gap`).
 
 Verify with a one-shot check that packages import and the data folders are found:
@@ -490,18 +546,21 @@ with `python scripts/run_detection_ipa.py --station IPA1ST`.
 
 ## Reproducibility
 
-To reproduce the published **V11** four-class model and field results:
+To reproduce the published **V12** four-class model and field results:
 
 1. **Environment.** `pip install -r requirements-frozen.txt` for exact version
    match (Python 3.10, TensorFlow 2.15, Google Colab). Or
    `pip install -r requirements.txt` for flexible versions.
 
-2. **Select the production head.** The code default is `gap`; the published V11
+2. **Select the production head.** The code default is `gap`; the published V12
    model uses the frequency-position-aware temporal-frequency CRNN. Set it via
    environment variable so no source edit is needed:
    ```bash
    export PRIMATE_MODEL_POOLING=temporal_freqpos
    ```
+   The V12 high-frequency nuisance augmentation and low-frequency gate are
+   on by default (`COLOBUS_HF_AUG_COUNT=2`, `LOWFREQ_GATE_ENABLED=True`), so no
+   extra flags are needed.
 
 3. **Point the pipeline at your data.** Lay out `species/`, `background/`, and
    the field recordings as in [Data Layout](#data-layout), then set
@@ -511,18 +570,20 @@ To reproduce the published **V11** four-class model and field results:
 
 4. **Train.** `train.run_complete_training_pipeline()` writes `best_model.h5`
    to `outputs/models/`. Two-stage training on the human-verified, label-audited
-   clip pool reaches **97.29 %** validation accuracy (3471-clip stratified
+   clip pool reaches **98.12 %** validation accuracy (3471-clip stratified
    split), with near-zero confusion between the two primate classes.
 
 5. **Detect.** Run detection per station, e.g.
    `python scripts/run_detection_ipa.py --station IPA1ST`, which exports one
-   clip per detection. Load V11 with `model.load_trained_model(...)` (it passes
-   the `custom_objects` needed for the `FrequencyCoord` layer).
+   clip per detection that survives the low-frequency gate. Load V12 with
+   `model.load_trained_model(...)` (it passes the `custom_objects` needed for
+   the `FrequencyCoord` layer).
 
 6. **(Optional) Clean up and iterate.** Run the three-filter auto-cleanup,
    fold confirmed false positives back into Background, and retrain (Steps 4–5
    in [Main Workflow](#main-workflow)).
 
 Key parameters that fix the results — `SAMPLE_RATE`, `N_MELS`, `FMIN/FMAX`,
-`WINDOW_SIZE/STRIDE`, `DETECTION_CONFIDENCE_THRESHOLD`, `LOWFREQ_GATE_CUTOFF`,
-`LOWFREQ_GATE_THRESHOLD` — all live in `src/config.py`.
+`WINDOW_SIZE/STRIDE`, `DETECTION_CONFIDENCE_THRESHOLD`, `COLOBUS_HF_AUG_COUNT`,
+`COLOBUS_HF_CUTOFF_HZ`, `LOWFREQ_GATE_CUTOFF`, `LOWFREQ_GATE_THRESHOLD` — all
+live in `src/config.py`.
