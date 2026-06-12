@@ -10,7 +10,7 @@ import os
 import sys
 
 os.environ.setdefault("PRIMATE_DATA_ROOT", "/tmp/test_data")
-os.environ.setdefault("PRIMATE_MODEL_POOLING", "temporal_freq")
+os.environ.setdefault("PRIMATE_MODEL_POOLING", "temporal_freqpos")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import numpy as np  # noqa: E402
