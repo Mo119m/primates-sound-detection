@@ -278,7 +278,24 @@ original shape); and one frequency translation of $\pm$20 mel bins.
 Background-class clips are not augmented, so that the negative class reflects
 the true diversity of ambient sound rather than synthetic variants. The
 augmentation operations are spectrogram-domain analogues of standard
-standard spectrogram-domain masking and mixing techniques.
+spectrogram-domain masking and mixing techniques.
+
+\paragraph{High-frequency nuisance augmentation for \textit{Colobus}.}
+The curated \textit{Colobus} reference clips carry incidental high-frequency
+bird and insect energy that is correlated with the \textit{Colobus} label. A
+classifier trained on them can therefore take a shortcut --- keying on
+high-frequency texture rather than on the low-frequency roar that is the true
+\textit{Colobus} signature --- and consequently mis-fire on forest insects and
+birds in the field. To break this spurious correlation we add a targeted
+augmentation applied \emph{only} to the \textit{Colobus\_guereza} class: for
+each reference clip, two extra variants are generated in which the
+mel-spectrogram band above 1.5\,kHz is replaced with the corresponding high
+band of a randomly chosen background clip, leaving the low-frequency content
+untouched. Swapping in varied high-frequency content across training examples
+decorrelates the high band from the label and forces the model to rely on the
+invariant low-frequency roar. The augmentation is deliberately not applied to
+Cernic, whose calls genuinely occupy higher frequencies and must keep their
+high band intact.
 
 \subsection*{4. Model architecture}
 
