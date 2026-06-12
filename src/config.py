@@ -162,10 +162,10 @@ PRETRAINED_WEIGHTS = 'imagenet'
 #                   channel (CoordConv) fused into the feature map before the
 #                   band split, so each call texture is tagged with its absolute
 #                   frequency. Targets the Colobus(low)-vs-bird(high) confusion
-#                   that the position-blind band split leaves unresolved (V11)
+#                   that the position-blind band split leaves unresolved (V11/V12)
 # Overridable via the PRIMATE_MODEL_POOLING env var so the standard training
 # pipeline can switch heads without editing code. The code default is 'gap';
-# set PRIMATE_MODEL_POOLING=temporal_freqpos to reproduce the published V11
+# set PRIMATE_MODEL_POOLING=temporal_freqpos to reproduce the published V12
 # model (use temporal_freq for the earlier V10 model).
 MODEL_POOLING = os.environ.get('PRIMATE_MODEL_POOLING', 'gap')
 FREEZE_BASE_LAYERS = True  # Freeze VGG19 base layers initially
@@ -221,7 +221,7 @@ LOWFREQ_GATE_THRESHOLD = 0.20  # calibrated: FP max=0.092, Colobus p05=0.261;
 #   station so per-station detection counts are comparable in the paper.
 # WHEN TO TURN IT OFF (time_filter=False):
 #   Debugging / recovering missed calls / auditing one station's full-day
-#   behaviour (e.g. the per-station V11 spot-checks). Processes every recording.
+#   behaviour (e.g. per-station spot-checks). Processes every recording.
 #
 # Set either bound to None to disable filtering entirely.
 TIME_FILTER_START = "05:30"
