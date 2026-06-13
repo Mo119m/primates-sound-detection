@@ -22,6 +22,7 @@
 \usepackage{tabularx}
 \usepackage{booktabs}
 \usepackage{amssymb}
+\usepackage{graphicx}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \modulolinenumbers[5]
@@ -537,8 +538,19 @@ Background        & 8   & 4   & 7   & 1154 \\
 \end{tabular}
 \end{table}
 
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.65\linewidth]{confusion_matrix_v12.pdf}
+\caption{Row-normalised confusion matrix of the V12 model on the validation
+set ($n = 3717$). Diagonal cells show count and per-class accuracy; off-diagonal
+cells show misclassification counts. Cross-species confusion between Cernic and
+\textit{Colobus guereza} is exactly zero.}
+\label{fig:confusion}
+\end{figure}
+
 \noindent Overall accuracy is 98.12\,\% (loss 0.0994) across 3717 validation
-clips. Two features of the confusion matrix are central to the method. First,
+clips (Fig.~\ref{fig:confusion}). Two features of the confusion matrix are
+central to the method. First,
 cross-species confusion between the two primate classes is exactly zero: no
 Cernic clips are called \textit{Colobus} and no \textit{Colobus} clips are
 called Cernic (0 of 1629 primate clips). Second, the dedicated confuser class
