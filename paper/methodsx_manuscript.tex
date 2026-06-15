@@ -61,30 +61,26 @@ for detecting primate vocalizations in tropical-forest recordings}
 %% outline the method (no technical steps).
 \begin{abstract}
 Passive acoustic monitoring produces thousands of hours of tropical-forest
-audio that are infeasible to annotate by hand. We describe an end-to-end
-pipeline that detects two primate species, the putty-nosed monkey
-(\textit{Cercopithecus nictitans}) and \textit{Colobus guereza}, in long field
-recordings from Makokou, Gabon. Two-second mel-spectrogram windows are
-classified by a frequency-position-aware CRNN head on a VGG19 backbone, trained
-in two transfer-learning stages on human-verified clips. Two design choices
-target precision in real soundscapes. First, all putty-nosed call types are
-pooled into a single class during training, so presence is read directly from
-one output without summing softmax scores. Second, a dedicated hard-negative
-``confuser'' class absorbs a low-frequency forest sound that the detector
-otherwise mistakes for \textit{Colobus}. The model reaches 98\% validation
-accuracy with zero confusion between the two primate classes. At detection time
-the confuser class is folded into background, a low-frequency energy gate
-removes high-frequency false positives, and an automatic three-filter cleanup
-recycles confirmed false positives as hard negatives for iterative retraining.
+audio that are infeasible to annotate by hand. The practical obstacle is
+precision: a classifier trained on clean reference clips also fires on the
+many non-target forest sounds absent from training, so every detection must be
+checked by ear. We describe an end-to-end pipeline that detects two primate
+species, the putty-nosed monkey (\textit{Cercopithecus nictitans}) and
+\textit{Colobus guereza}, in long field recordings from Makokou, Gabon, while
+keeping manual listening close to zero. A transfer-learning classifier is
+paired with targeted controls that suppress each species' characteristic false
+positives and with an automatic cleanup loop that recycles confirmed errors
+back into training. The method reaches 98\% validation accuracy with zero
+confusion between the two primate species.
 
 \begin{itemize}
-\item A frequency-position-aware temporal-frequency CRNN head on a VGG19
-backbone for primate call detection with two-stage transfer learning.
-\item A frequency-coordinate (CoordConv) channel, a dedicated hard-negative
-``confuser'' class, and a targeted high-frequency nuisance augmentation that
-together suppress \textit{Colobus} false positives (notably high-frequency
-bird and insect sounds) without manual listening.
-\item An automatic three-filter cleanup pipeline that feeds confirmed false
+\item A two-stage transfer-learning classifier (VGG19 backbone with a
+frequency-position-aware recurrent head) for detecting primate calls in
+continuous field recordings.
+\item Three targeted controls (a dedicated hard-negative class, a
+frequency-position encoding, and a high-frequency nuisance augmentation) that
+suppress species-specific false positives without manual listening.
+\item An automatic three-filter cleanup loop that feeds confirmed false
 positives back as hard negatives for iterative retraining.
 \end{itemize}
 \end{abstract}
