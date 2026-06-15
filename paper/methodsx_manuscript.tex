@@ -38,8 +38,8 @@
 %% =====================================================================
 \begin{frontmatter}
 
-\title{A transfer-learning and automatic false-positive cleanup pipeline
-for detecting primate vocalizations in long tropical-forest recordings}
+\title{A transfer-learning pipeline with automatic false-positive cleanup
+for detecting primate vocalizations in tropical-forest recordings}
 
 \author[a]{Moshi Fu\corref{cor1}}
 \ead{mfu39@wisc.edu}
@@ -60,37 +60,30 @@ for detecting primate vocalizations in long tropical-forest recordings}
 %% ABSTRACT -- max. 200 words, ending with 1-3 bullet points that
 %% outline the method (no technical steps).
 \begin{abstract}
-Passive acoustic monitoring (PAM) produces thousands of hours of
-tropical-forest audio that are infeasible to annotate by hand. We describe an
-end-to-end pipeline that detects primate vocalizations --- the putty-nosed
-monkey (\textit{Cercopithecus nictitans}) and \textit{Colobus guereza} ---
-in long field recordings from Makokou, Gabon. A four-class model is built by
-pooling all putty-nosed call types into a single Cernic class at the training
-level (so no softmax summation is needed at detection time) and by adding a
-dedicated hard-negative ``confuser'' class for a forest sound that the detector
-repeatedly mistakes for \textit{Colobus}. Two-second audio windows --- with
-short clips embedded in real background noise and longer clips trimmed to their
-highest-energy window --- are converted to mel-spectrogram images and
-classified by a frequency-position-aware temporal-frequency CRNN head attached
-to a VGG19 backbone: an explicit frequency-coordinate channel is fused into the
-feature map so the head knows \emph{where} in frequency a call sits, after which
-the map is split into four frequency bands, processed by per-band and cross-band
-convolutions, and fed through a bidirectional LSTM to capture spectro-temporal
-structure. Two-stage training (frozen base then partial fine-tuning) on
-human-verified, label-audited clips reaches 98\% validation accuracy with
-near-zero confusion between the two primate classes. At detection time the
-confuser class is folded into the background group so it never produces a
-detection. An automatic three-filter cleanup additionally flags suspicious
-detections, and confirmed false positives are recycled as hard negatives for
-iterative retraining.
+Passive acoustic monitoring produces thousands of hours of tropical-forest
+audio that are infeasible to annotate by hand. We describe an end-to-end
+pipeline that detects two primate species, the putty-nosed monkey
+(\textit{Cercopithecus nictitans}) and \textit{Colobus guereza}, in long field
+recordings from Makokou, Gabon. Two-second mel-spectrogram windows are
+classified by a frequency-position-aware CRNN head on a VGG19 backbone, trained
+in two transfer-learning stages on human-verified clips. Two design choices
+target precision in real soundscapes. First, all putty-nosed call types are
+pooled into a single class during training, so presence is read directly from
+one output without summing softmax scores. Second, a dedicated hard-negative
+``confuser'' class absorbs a low-frequency forest sound that the detector
+otherwise mistakes for \textit{Colobus}. The model reaches 98\% validation
+accuracy with zero confusion between the two primate classes. At detection time
+the confuser class is folded into background, a low-frequency energy gate
+removes high-frequency false positives, and an automatic three-filter cleanup
+recycles confirmed false positives as hard negatives for iterative retraining.
 
 \begin{itemize}
 \item A frequency-position-aware temporal-frequency CRNN head on a VGG19
 backbone for primate call detection with two-stage transfer learning.
 \item A frequency-coordinate (CoordConv) channel, a dedicated hard-negative
 ``confuser'' class, and a targeted high-frequency nuisance augmentation that
-together suppress \textit{Colobus} false positives --- in particular
-high-frequency bird and insect sounds --- without manual listening.
+together suppress \textit{Colobus} false positives (notably high-frequency
+bird and insect sounds) without manual listening.
 \item An automatic three-filter cleanup pipeline that feeds confirmed false
 positives back as hard negatives for iterative retraining.
 \end{itemize}
