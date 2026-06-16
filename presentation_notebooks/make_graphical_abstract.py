@@ -61,11 +61,11 @@ ax.add_patch(Rectangle((0.5, 0.5), 99.0, 39.0, fill=False,
 
 # ── header ─────────────────────────────────────────────────────────────────
 ax.text(50, 37.0,
-        "Detecting primate vocalizations in long tropical-forest recordings",
-        ha="center", va="center", fontsize=15.5, color=INK)
+        "Transfer-learning detection of primate vocalizations in "
+        "tropical-forest recordings",
+        ha="center", va="center", fontsize=14.5, color=INK)
 ax.text(50, 33.9,
-        "A transfer-learning classifier with an automatic false-positive "
-        "cleanup loop",
+        "with an automatic false-positive cleanup loop",
         ha="center", va="center", fontsize=10.0, color=SUBINK, style="italic")
 # Hairline rule under the header.
 ax.plot([10, 90], [31.6, 31.6], color=FRAME, linewidth=0.9, zorder=1)
@@ -138,8 +138,8 @@ ax.text(50, 5.6,
 # ── footer: headline result ────────────────────────────────────────────────
 ax.plot([18, 82], [3.1, 3.1], color=FRAME, linewidth=0.8, zorder=1)
 ax.text(50, 1.85,
-        "98.12 % validation accuracy · near-zero confusion between "
-        "the two primate classes · minimal manual listening",
+        "98.12 % validation accuracy · zero confusion between "
+        "the two primate species · minimal manual listening",
         ha="center", va="center", fontsize=8.4, color=SUBINK)
 
 plt.subplots_adjust(left=0.0, right=1.0, top=1.0, bottom=0.0)
