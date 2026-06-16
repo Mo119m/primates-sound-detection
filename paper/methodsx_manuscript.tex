@@ -65,13 +65,14 @@ audio that are infeasible to annotate by hand. The practical obstacle is
 precision: a classifier trained on clean reference clips also fires on the
 many non-target forest sounds absent from training, so every detection must be
 checked by ear. We describe an end-to-end pipeline that detects two primate
-species, the putty-nosed monkey (\textit{Cercopithecus nictitans}) and
-\textit{Colobus guereza}, in long field recordings from Makokou, Gabon, while
-keeping manual listening close to zero. A transfer-learning classifier is
-paired with targeted controls that suppress each species' characteristic false
-positives and with an automatic cleanup loop that recycles confirmed errors
-back into training. The method reaches 98\% validation accuracy with zero
-confusion between the two primate species.
+species, \textit{Cercopithecus nictitans} and \textit{Colobus guereza}, in
+long field recordings from Makokou, Gabon, while keeping manual listening close
+to zero. The classifier couples a VGG19 backbone with a frequency-position-aware
+recurrent head that encodes where in frequency a call sits, and pairs it with
+targeted controls that suppress each species' characteristic false positives
+and an automatic cleanup loop that recycles confirmed errors back into training.
+The method reaches 98\% validation accuracy with zero confusion between the two
+primate species.
 
 \begin{itemize}
 \item A two-stage transfer-learning classifier (VGG19 backbone with a
