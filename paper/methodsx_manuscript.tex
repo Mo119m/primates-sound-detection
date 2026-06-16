@@ -485,8 +485,26 @@ independent check on the \textit{Colobus} false-positive rate.
 \paragraph{Validation-set performance (V12 model).}
 The four-class V12 model --- the frequency-position-aware head with
 high-frequency nuisance augmentation --- was evaluated on a stratified
-validation split. Table~\ref{tab:val} summarizes per-class results and
+validation split. The model was trained in two stages
+(Fig.~\ref{fig:training}): a frozen-base stage that trains only the
+classifier head, followed by a fine-tuning stage in which the last two VGG19
+blocks are unfrozen. Both stages use early stopping and learning-rate
+reduction on a validation-accuracy plateau; the deployed checkpoint is the
+epoch with the highest validation accuracy (98.12\,\%).
+Table~\ref{tab:val} summarizes per-class results and
 Table~\ref{tab:confusion} gives the full confusion matrix.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{training_curves_v12.pdf}
+\caption{Two-stage training history of the V12 model: training and validation
+accuracy (left) and loss (right) per epoch. The dashed line marks the
+transition from frozen-base head training (Stage~1) to fine-tuning of the last
+two VGG19 blocks (Stage~2). The deployed model is the best-validation-accuracy
+checkpoint (98.12\,\%).}
+\label{fig:training}
+\end{figure}
+
 
 \begin{table}[h]
 \centering
