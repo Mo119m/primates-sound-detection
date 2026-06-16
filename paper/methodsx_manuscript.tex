@@ -64,27 +64,26 @@ tropical-forest recordings with automatic false-positive cleanup}
 Passive acoustic monitoring is a key tool for tracking vocal animals and
 informing their conservation \textbf{[Santi --- please review / expand this
 conservation-significance framing]}, but it produces thousands of hours of
-audio that cannot be annotated by hand. The obstacle is precision: a classifier trained on
-clean reference clips also fires on the many non-target forest sounds absent
-from training, so every detection must be checked by ear. We describe an
-end-to-end pipeline that detects two primate species, \textit{Cercopithecus
-nictitans} and \textit{Colobus guereza}, in long recordings from Makokou,
-Gabon, while keeping manual listening near zero. The classifier couples a
-VGG19 backbone with a frequency-position-aware recurrent head that encodes
-where in frequency a call sits, with targeted controls that suppress each
-species' characteristic false positives and an automatic cleanup loop that
-recycles confirmed errors into training. It reaches 98\% validation accuracy
-with zero confusion between them, and transfers to new species by swapping in
-reference clips.
+audio that cannot be annotated by hand. The obstacle is precision: a classifier
+trained on clean reference clips also fires on the many non-target forest
+sounds (birds, insects, wind) absent from training, so every detection must be
+checked by ear. We describe a pipeline that detects two primate species,
+\textit{Cercopithecus nictitans} and \textit{Colobus guereza}, in long
+recordings from Makokou, Gabon, while keeping manual listening near zero. Audio
+is converted to mel-spectrograms and classified by a VGG19 transfer-learning
+model with a frequency-position-aware CRNN head, designed so that forest birds
+and insects are not mistaken for the target primate; sliding-window detection
+is followed by an automatic cleanup that flags false positives and recycles
+them into training. The model reaches 98\% validation accuracy with zero
+confusion between the two species.
 
 \begin{itemize}
-\item A two-stage transfer-learning classifier for detecting primate calls in
-continuous field recordings.
-\item Three targeted controls (a dedicated hard-negative class, a
-frequency-position encoding, and a high-frequency nuisance augmentation) that
-suppress species-specific false positives without manual listening.
-\item An automatic three-filter cleanup loop that feeds confirmed false
-positives back as hard negatives for iterative retraining.
+\item A VGG19 transfer-learning model with a frequency-position-aware CRNN
+head, hardened against forest-noise false positives.
+\item An automatic three-filter cleanup of field detections, with no manual
+listening.
+\item A complete, reusable pipeline that recycles confirmed errors into
+retraining and re-targets to new species by swapping in reference clips.
 \end{itemize}
 \end{abstract}
 
