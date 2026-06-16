@@ -65,17 +65,17 @@ Passive acoustic monitoring is a key tool for tracking vocal animals and
 informing their conservation \textbf{[Santi --- please review / expand this
 conservation-significance framing]}, but it produces thousands of hours of
 audio that cannot be annotated by hand. The obstacle is precision: a classifier
-trained on clean reference clips also fires on the many non-target forest
+trained on clean reference clips also fires on non-target forest
 sounds (birds, insects, wind) absent from training, so every detection must be
 checked by ear. We describe a pipeline that detects two primate species,
 \textit{Cercopithecus nictitans} and \textit{Colobus guereza}, in long
 recordings from Makokou, Gabon, while keeping manual listening near zero. Audio
 is converted to mel-spectrograms and classified by a VGG19 transfer-learning
-model with a frequency-position-aware CRNN head, designed so that forest birds
-and insects are not mistaken for the target primate; sliding-window detection
-is followed by an automatic cleanup that flags false positives and recycles
-them into training. The model reaches 98\% validation accuracy with zero
-confusion between the two species.
+model with a frequency-position-aware convolutional recurrent neural network
+(CRNN) head, designed so that forest birds and insects are not mistaken for the
+target primate. Sliding-window detection is then followed by an automatic
+cleanup that flags false positives and recycles them into training. The model
+reaches 98\% validation accuracy with zero confusion between the two species.
 
 \begin{itemize}
 \item A VGG19 transfer-learning model with a frequency-position-aware CRNN
