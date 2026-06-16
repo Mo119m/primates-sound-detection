@@ -116,12 +116,15 @@ mining (iterative feedback loop).
 \toprule
 Subject area & Agricultural and Biological Sciences \\
 More specific subject area & Bioacoustics; passive acoustic monitoring;
-conservation biology \\
+deep learning; conservation biology \\
 Name of your method & CRNN Primate-Call Detector \\
 Name and reference of original method & Transfer learning with the VGG19
-architecture \cite{simonyan2015}; out-of-distribution detection via the
-Mahalanobis distance \cite{lee2018}; audio event tagging with YAMNet trained
-on AudioSet \cite{gemmeke2017,hershey2017} \\
+architecture (Simonyan \& Zisserman, 2015) \cite{simonyan2015}; frequency-position
+encoding adapted from CoordConv (Liu et al., 2018) \cite{liu2018}; spectrogram
+data augmentation adapted from a rainforest-CNN pipeline (Sun et al., 2022)
+\cite{sun2022}; out-of-distribution detection via the Mahalanobis distance
+(Lee et al., 2018) \cite{lee2018}; audio event tagging with YAMNet trained on
+AudioSet (Gemmeke et al., 2017; Hershey et al., 2017) \cite{gemmeke2017,hershey2017} \\
 Resource availability & Code:
 \url{https://github.com/mo119m/primates-sound-detection} --- Python 3,
 TensorFlow 2, librosa, scikit-learn, OpenCV, soundfile; the YAMNet filter
@@ -264,9 +267,9 @@ uniformly from $-5$ to 10\,dB; one time-axis crop and one frequency-axis crop
 (each removing 10--30\,\% from a randomly chosen edge, then resized back to the
 original shape); and one frequency translation of $\pm$20 mel bins.
 Background-class clips are not augmented, so that the negative class reflects
-the true diversity of ambient sound rather than synthetic variants. The
-augmentation operations are spectrogram-domain analogues of standard
-spectrogram-domain masking and mixing techniques.
+the true diversity of ambient sound rather than synthetic variants. These
+spectrogram-domain operations are adapted from the rainforest-CNN
+data-augmentation pipeline of Sun et al.\ \cite{sun2022}.
 
 \paragraph{High-frequency nuisance augmentation for \textit{Colobus}.}
 The curated \textit{Colobus} reference clips carry incidental high-frequency
