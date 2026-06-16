@@ -60,23 +60,23 @@ tropical-forest recordings with automatic false-positive cleanup}
 %% ABSTRACT -- max. 200 words, ending with 1-3 bullet points that
 %% outline the method (no technical steps).
 \begin{abstract}
-Passive acoustic monitoring produces thousands of hours of tropical-forest
-audio that are infeasible to annotate by hand. The practical obstacle is
-precision: a classifier trained on clean reference clips also fires on the
-many non-target forest sounds absent from training, so every detection must be
-checked by ear. We describe an end-to-end pipeline that detects two primate
-species, \textit{Cercopithecus nictitans} and \textit{Colobus guereza}, in
-long field recordings from Makokou, Gabon, while keeping manual listening close
-to zero. The classifier couples a VGG19 backbone with a frequency-position-aware
-recurrent head that encodes where in frequency a call sits, and pairs it with
-targeted controls that suppress each species' characteristic false positives
-and an automatic cleanup loop that recycles confirmed errors back into training.
-The method reaches 98\% validation accuracy with zero confusion between the two
-primate species.
+Passive acoustic monitoring is a key tool for tracking vocal animals and
+informing their conservation, but it produces thousands of hours of audio that
+cannot be annotated by hand. The obstacle is precision: a classifier trained on
+clean reference clips also fires on the many non-target forest sounds absent
+from training, so every detection must be checked by ear. We describe an
+end-to-end pipeline that detects two primate species, \textit{Cercopithecus
+nictitans} and \textit{Colobus guereza}, in long recordings from Makokou,
+Gabon, while keeping manual listening near zero. The classifier couples a
+VGG19 backbone with a frequency-position-aware recurrent head that encodes
+where in frequency a call sits, with targeted controls that suppress each
+species' characteristic false positives and an automatic cleanup loop that
+recycles confirmed errors into training. It reaches 98\% validation accuracy
+with zero confusion between them, and transfers to new species by swapping in
+reference clips.
 
 \begin{itemize}
-\item A two-stage transfer-learning classifier (VGG19 backbone with a
-frequency-position-aware recurrent head) for detecting primate calls in
+\item A two-stage transfer-learning classifier for detecting primate calls in
 continuous field recordings.
 \item Three targeted controls (a dedicated hard-negative class, a
 frequency-position encoding, and a high-frequency nuisance augmentation) that
