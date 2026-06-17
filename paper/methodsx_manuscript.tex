@@ -414,10 +414,13 @@ CRNN head is trained. The optimizer is Adam with an initial learning rate of
 $1 \times 10^{-4}$, and the loss is sparse categorical cross-entropy.
 
 \paragraph{Stage 2 --- Partial fine-tuning.}
-The last two convolutional blocks of VGG19 (\texttt{block4} and
-\texttt{block5}) are unfrozen while earlier blocks remain frozen to preserve
-low-level features. The learning rate is reduced to $1 \times 10^{-5}$ to
-avoid catastrophic forgetting.
+Because the VGG19 base is truncated at \texttt{block4\_conv4}
+(Section~4), its trainable portion spans blocks 1--4. The last two of these
+blocks --- the \texttt{block3} and \texttt{block4} convolutional layers --- are
+unfrozen, while \texttt{block1} and \texttt{block2} remain frozen to preserve
+low-level features; this makes $\approx$12.3\,M parameters trainable. The
+learning rate is reduced to $1 \times 10^{-5}$ to avoid catastrophic
+forgetting.
 
 \paragraph{Shared training settings.}
 Both stages use the augmented dataset split 80/20 into training and validation
