@@ -292,7 +292,8 @@ two feature distributions comparable.
 
 To expand the reference set and make the classifier robust to field
 conditions, each target-class spectrogram is expanded into seven training
-examples (a 7$\times$ multiplier): one unaltered copy; three copies mixed with
+examples (a 7$\times$ multiplier; Fig.~\ref{fig:augmentation}A): one unaltered
+copy; three copies mixed with
 randomly chosen background spectrograms at a signal-to-noise ratio drawn
 uniformly from $-5$ to 10\,dB; one time-axis crop and one frequency-axis crop
 (each removing 10--30\,\% from a randomly chosen edge, then resized back to the
@@ -315,9 +316,23 @@ mel-spectrogram band above 1.5\,kHz is replaced with the corresponding high
 band of a randomly chosen background clip, leaving the low-frequency content
 untouched. Swapping in varied high-frequency content across training examples
 decorrelates the high band from the label and forces the model to rely on the
-invariant low-frequency roar. The augmentation is deliberately not applied to
-Cernic, whose calls genuinely occupy higher frequencies and must keep their
-high band intact.
+invariant low-frequency roar (Fig.~\ref{fig:augmentation}B). The augmentation
+is deliberately not applied to Cernic, whose calls genuinely occupy higher
+frequencies and must keep their high band intact.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{augmentation_v12.pdf}
+\caption{Spectrogram data augmentation. (A)~Standard augmentation expands each
+target-class clip into seven variants (one original, three background mixes at
+$-5$ to 10\,dB SNR, a time crop, a frequency crop, and a $\pm$20-mel-bin
+frequency shift). (B)~High-frequency nuisance augmentation adds two further
+variants for \textit{Colobus guereza} only: the mel band above 1.5\,kHz is
+replaced with the high band of a random background clip while the
+low-frequency roar is kept, decorrelating high-frequency texture from the
+\textit{Colobus} label.}
+\label{fig:augmentation}
+\end{figure}
 
 \subsection*{4. Model architecture}
 
