@@ -338,8 +338,8 @@ low-frequency roar is kept, decorrelating high-frequency texture from the
 
 The classifier couples a VGG19 convolutional backbone \cite{simonyan2015}
 pretrained on ImageNet \cite{deng2009} with a custom temporal-frequency CRNN
-head designed to exploit both the spectral location and the temporal rhythm of
-primate calls. The motivation is that Colobus roars concentrate energy around
+head (Fig.~\ref{fig:architecture}) designed to exploit both the spectral
+location and the temporal rhythm of primate calls. The motivation is that Colobus roars concentrate energy around
 $\sim$512\,Hz, putty-nosed calls around $\sim$1\,kHz, and common confusers
 (birds, insects) above $\sim$2\,kHz; encoding \emph{where} in frequency the
 energy sits and \emph{when} it occurs lets the model discriminate species that
@@ -388,6 +388,20 @@ retains both peak activation and average energy. This vector passes through
 two dense layers (512 units, ReLU, dropout 0.5; then 256 units, ReLU, dropout
 0.5) and a final four-way softmax output (Cernic, Colobus\_guereza,
 Colobus\_confuser, Background).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.72\linewidth]{model_architecture_v12.pdf}
+\caption{Model architecture. A VGG19 backbone (the \texttt{block4\_conv4}
+feature map) is augmented with a frequency-coordinate (CoordConv) channel, then
+split into four mel-frequency bands processed by per-band and cross-band 1-D
+convolutions, summarized by a bidirectional LSTM with combined global max- and
+average-pooling, and classified by two dense layers and a four-way softmax. The
+frequency-position encoding and the per-band split are the components added to
+suppress \textit{Colobus} false positives. Output tensor shapes are shown on
+the right.}
+\label{fig:architecture}
+\end{figure}
 
 \subsection*{5. Model training}
 
