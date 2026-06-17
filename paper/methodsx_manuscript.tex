@@ -379,7 +379,7 @@ same padding) + batch normalization + ReLU layer that allows the network to
 learn interactions between frequency bands.
 
 The resulting 28\,$\times$\,256 sequence is fed into a bidirectional LSTM with
-128 units per direction (return sequences enabled, recurrent dropout 0.3),
+128 units per direction (return sequences enabled, input dropout 0.3),
 which captures temporal dependencies such as the rhythmic hack--hack or
 pyow--hack patterns characteristic of putty-nosed calling bouts. The LSTM
 output sequence is summarized by concatenating global max pooling and global
