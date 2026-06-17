@@ -104,7 +104,7 @@ ax.text(LX - 2, band_y, "per-band\nConv1D(128, 3)", ha="right", va="center",
 box(46.5, 7.0, "Concatenate + cross-band\nConv1D(256, 3) + BN + ReLU",
     shape="28×512 → 28×256")
 varrow(43.0, 40.3)
-box(36.5, 7.0, "Bidirectional LSTM (128 × 2)\nrecurrent dropout 0.3",
+box(36.5, 7.0, "Bidirectional LSTM (128 × 2)\ninput dropout 0.3",
     shape="28×256")
 varrow(33.0, 30.3)
 box(27.0, 6.0, "Global max-pool + average-pool", shape="512")
