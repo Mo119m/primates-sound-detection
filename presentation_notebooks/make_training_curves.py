@@ -23,6 +23,8 @@ mpl.rcParams["font.family"] = "serif"
 mpl.rcParams["font.serif"] = _SERIF_PREF
 mpl.rcParams["mathtext.fontset"] = "stix"
 mpl.rcParams["axes.unicode_minus"] = False
+mpl.rcParams["pdf.fonttype"] = 42  # embed TrueType (avoid Type 3; Elsevier requirement)
+mpl.rcParams["ps.fonttype"] = 42
 
 OUT = Path(__file__).parent / "figures"
 OUT.mkdir(parents=True, exist_ok=True)
