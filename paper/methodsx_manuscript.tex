@@ -285,7 +285,7 @@ range, and is expressed in decibels relative to its per-clip maximum. The
 spectrogram is min--max normalized to [0, 255], resized to
 224\,$\times$\,224 with bilinear interpolation, replicated across three
 channels to form an RGB image, and finally scaled to [0, 1] for input to the
-network. Using the same conversion at training and detection time keeps the
+network. Using the same spectrogram conversion at training and detection time keeps the
 two feature distributions comparable.
 
 \subsection*{3. Data augmentation}
