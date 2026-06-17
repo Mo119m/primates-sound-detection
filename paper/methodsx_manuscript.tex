@@ -460,12 +460,14 @@ After NMS, a frequency-domain safety net is applied to each remaining
 Genuine \textit{Colobus} roars concentrate most of their energy in the low band
 (ratio $\geq$\,0.20), whereas the high-frequency bird and insect sounds that
 the classifier occasionally mis-fires on carry almost all energy above 1.5\,kHz
-(ratio $\ll$\,0.20). Detections falling below the threshold are reclassified as
-Background. The threshold was calibrated against the curated \textit{Colobus}
+(ratio $\ll$\,0.20). Detections falling below the threshold are dropped from
+the detection list (i.e.\ treated as non-target Background). The threshold was
+calibrated against the curated \textit{Colobus}
 reference clips to ensure that no genuine call is rejected: the lowest
 observed low-frequency ratio among reference clips is well above 0.20,
-providing a safe margin. The gate is recorded in the output CSV so that
-downstream analysis can audit which detections were removed and why.
+providing a safe margin. The low-frequency ratio is also written as a column
+in the output CSV for every retained detection, so detections can be ranked or
+re-inspected by it.
 
 Per-file detections (start time, end time, species, confidence) are written to
 CSV, and the 2\,s waveform of every detection is exported as a clip so that
