@@ -52,15 +52,15 @@ ax.text(50, 97, "Spectrogram data augmentation",
 # ══════════════════════════════════════════════════════════════════════════
 ax.text(4, 89, "(A)  Standard augmentation",
         ha="left", va="center", fontsize=11.5, color=INK)
-ax.text(4, 84.7, "7$\\times$ per reference clip, all target classes",
+ax.text(4, 84.7, "7× per reference clip, all target classes",
         ha="left", va="center", fontsize=9, color=INK, style="italic")
 
 cards = [
-    ("Original", "pass through", "$\\times$1"),
-    ("Background mix", "SNR $-5$ to 10 dB", "$\\times$3"),
-    ("Time crop", "10–30 % of time axis", "$\\times$1"),
-    ("Frequency crop", "10–30 % of mel axis", "$\\times$1"),
-    ("Frequency shift", "$\\pm$20 mel bins", "$\\times$1"),
+    ("Original", "pass through", "×1"),
+    ("Background mix", "SNR −5 to 10 dB", "×3"),
+    ("Time crop", "10–30 % of time axis", "×1"),
+    ("Frequency crop", "10–30 % of mel axis", "×1"),
+    ("Frequency shift", "±20 mel bins", "×1"),
 ]
 n = len(cards)
 gap = 1.8
@@ -90,7 +90,7 @@ ax.plot([4, 96], [54, 54], color=FRAME, linewidth=0.6, zorder=1)
 # ══════════════════════════════════════════════════════════════════════════
 ax.text(4, 49, "(B)  High-frequency nuisance augmentation",
         ha="left", va="center", fontsize=11.5, color=INK)
-ax.text(4, 44.7, "+2$\\times$ per reference clip, Colobus guereza only",
+ax.text(4, 44.7, "+2× per reference clip, Colobus guereza only",
         ha="left", va="center", fontsize=9, color=INK, style="italic")
 
 SPEC_Y, SPEC_H = 8, 30
@@ -144,7 +144,7 @@ ax.text(ax2 + aw + 2, yb2 + 0.5 * (yd2 - yb2),
         fontsize=7.6, color=INK, linespacing=1.2)
 
 ax.text(50, 2.6,
-        "Decorrelates high-frequency texture from the $\\mathit{Colobus}$ "
+        "Decorrelates high-frequency texture from the Colobus "
         "label; not applied to Cernic, whose calls occupy higher frequencies.",
         ha="center", va="center", fontsize=7.8, color=INK)
 

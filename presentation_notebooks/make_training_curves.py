@@ -99,7 +99,7 @@ axA.plot(x1, s1_val, color=VAL, linewidth=1.6, label="Validation")
 axA.plot(x2, s2_val, color=VAL, linewidth=1.6)
 axA.scatter([best_global], [best_val], s=34, facecolor="white",
             edgecolor=VAL, linewidth=1.4, zorder=5)
-axA.annotate(f"best val {best_val*100:.2f}\\%",
+axA.annotate(f"best val {best_val*100:.2f}%",
              xy=(best_global, best_val), xytext=(best_global - 17, 0.905),
              fontsize=8.5, color=INK,
              arrowprops=dict(arrowstyle="-", color=SUBINK, linewidth=0.8))
