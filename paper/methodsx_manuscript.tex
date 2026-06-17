@@ -102,7 +102,7 @@ None.
 
 %% =====================================================================
 \section*{Graphical abstract}
-Submitted as a separate file (\texttt{graphical\_abstract.pdf}). The figure
+Submitted as a separate file. The figure
 summarises the six-stage pipeline: reference clips $\rightarrow$
 mel-spectrogram \& augmentation $\rightarrow$ VGG19 frequency-position CRNN
 classifier $\rightarrow$ sliding-window detection with low-frequency gate
@@ -128,7 +128,7 @@ data augmentation adapted from a rainforest-CNN pipeline (Sun et al., 2022)
 (Lee et al., 2018) \cite{lee2018}; audio event tagging with YAMNet trained on
 AudioSet (Gemmeke et al., 2017; Hershey et al., 2017) \cite{gemmeke2017,hershey2017} \\
 Resource availability & Code:
-\url{https://github.com/mo119m/primates-sound-detection} --- Python 3,
+\url{https://github.com/mo119m/primates-sound-detection}. Python 3,
 TensorFlow 2, librosa, scikit-learn, OpenCV, soundfile; the YAMNet filter
 additionally needs tensorflow-hub and resampy. [Add a data DOI/repository
 here if you deposit the reference clips.] \\
@@ -152,8 +152,8 @@ on clean, isolated reference clips.
 The difficulty in practice is precision rather than recall. A model trained on
 curated clips of a target call will reliably fire on those calls, but when it
 is run over continuous field recordings it also fires on the many non-target
-sounds that dominate a rainforest soundscape --- insects, birds, wind, rain,
-and the calls of non-target animals --- none of which are well represented in
+sounds that dominate a rainforest soundscape (insects, birds, wind, rain,
+and the calls of non-target animals), none of which are well represented in
 the original training set. The result is a detector with a high false-positive
 rate, and verifying every detection by hand reintroduces exactly the
 manual-listening bottleneck that automation was meant to remove.
@@ -182,13 +182,13 @@ new reference clips and editing a single configuration file.
 %% =====================================================================
 \section*{Method details}
 
-The pipeline has five stages --- preprocessing, training, detection, automatic
-cleanup, and iterative retraining --- augmented by three targeted
+The pipeline has five stages (preprocessing, training, detection, automatic
+cleanup, and iterative retraining), augmented by three targeted
 false-positive controls for \textit{Colobus}: a frequency-position-aware
 classifier head that encodes \emph{where} in frequency a call sits, a
 dedicated hard-negative ``confuser'' class learned during training, and a
 calibrated low-frequency energy gate applied at detection time. All paths,
-species definitions, and hyperparameters live in a single \texttt{config.py} so
+species definitions, and hyperparameters live in a single configuration file so
 the workflow can be re-targeted to new species or sites without touching the
 code.
 
@@ -207,14 +207,14 @@ confirm the final pipeline setting and reconcile this paragraph.]}
 The model is trained on short reference clips organized into four classes
 (Table~\ref{tab:traindata}):
 \begin{itemize}
-\item \textbf{Cernic} --- all putty-nosed monkey call types (putty-nose, hack,
+\item \textbf{Cernic}: all putty-nosed monkey call types (putty-nose, hack,
 kek, pyow) pooled into a single class. Five source folders (one per call type
-plus a \texttt{field\_confirmed} folder of recovered field calls) are mapped to
-the single ``Cernic'' label via \texttt{config.SPECIES\_FOLDERS}, so that
+plus a folder of recovered field calls) are mapped to
+the single ``Cernic'' label, so that
 merging happens at training time and the model directly outputs a unified
 putty-nosed decision;
-\item \textbf{Colobus\_guereza} --- \textit{Colobus guereza} reference calls;
-\item \textbf{Colobus\_confuser} --- a dedicated hard-negative class containing
+\item \textbf{Colobus\_guereza}: \textit{Colobus guereza} reference calls;
+\item \textbf{Colobus\_confuser}: a dedicated hard-negative class containing
 the forest sounds that earlier model versions repeatedly mis-fired as
 \textit{Colobus}, mined from field detections across the development stations
 and human-reviewed so that no genuine target call is included.
@@ -224,7 +224,7 @@ hundred hard negatives inside the much larger generic Background class; at
 detection time the class is folded back into the background group (see
 the detection-grouping and hard-negative-mining stages below) so it never
 produces a detection;
-\item \textbf{Background} --- a pooled negative class assembled from ambient
+\item \textbf{Background}: a pooled negative class assembled from ambient
 forest noise, calls of non-target animals present at the site (e.g.\
 \textit{Cercocebus torquatus}, \textit{Pan troglodytes}), and previously
 misclassified clips recycled through the hard-negative mining loop.
@@ -256,16 +256,16 @@ train/validation split (Section~5) expand them into the per-class validation
 totals reported later in Table~\ref{tab:val}.
 
 \noindent All training clips underwent human verification. Because the
-Background class is loaded as a single pooled negative --- with no internal
-sub-labels --- any genuine target call accidentally present in a false-positive
+Background class is loaded as a single pooled negative (with no internal
+sub-labels), any genuine target call accidentally present in a false-positive
 folder would teach the model to suppress that call. We therefore conducted a
 manual label-quality audit of the auto-flagged false-positive pool: clips
 confirmed by ear to be real putty-nosed calls were removed from the negative
 pool (to prevent Cernic contamination) and, when unambiguous, recovered into
-the dedicated \texttt{field\_confirmed} Cernic folder; the \textit{Colobus}
+the Cernic class; the \textit{Colobus}
 false positives were moved out of the generic pool into the new
-\texttt{Colobus\_confuser} class. Content-duplicate clips --- the same field
-detection stored more than once by different mining passes --- were removed by
+Colobus\_confuser class. Content-duplicate clips (the same field
+detection stored more than once by different mining passes) were removed by
 hashing before training.
 
 \subsection*{2. Audio preprocessing and mel-spectrogram representation}
@@ -277,8 +277,7 @@ segment of real background noise randomly selected from the Background pool;
 this eliminates the silence shortcut that zero-padding would introduce and
 forces the model to distinguish the call from genuine ambient sound. Clips
 longer than 2\,s (e.g.\ putty-nosed 5\,s field recordings) are trimmed to the
-deterministic 2\,s window with the highest short-time energy
-(\texttt{find\_loudest\_window}), ensuring that the segment reviewed by a
+deterministic 2\,s window with the highest short-time energy, ensuring that the segment reviewed by a
 human annotator is identical to the segment used for training. Each 2\,s
 waveform is converted to a mel-spectrogram with librosa \cite{mcfee2015} using
 a 2048-sample FFT, 512-sample hop, 128 mel bands, and a 20--8000\,Hz analysis
@@ -307,9 +306,9 @@ data-augmentation pipeline of Sun et al.\ \cite{sun2022}.
 \paragraph{High-frequency nuisance augmentation for \textit{Colobus}.}
 The curated \textit{Colobus} reference clips carry incidental high-frequency
 bird and insect energy that is correlated with the \textit{Colobus} label. A
-classifier trained on them can therefore take a shortcut --- keying on
+classifier trained on them can therefore take a shortcut (keying on
 high-frequency texture rather than on the low-frequency roar that is the true
-\textit{Colobus} signature --- and consequently mis-fire on forest insects and
+\textit{Colobus} signature) and consequently mis-fire on forest insects and
 birds in the field. To break this spurious correlation we add a targeted
 augmentation applied \emph{only} to the \textit{Colobus\_guereza} class: for
 each reference clip, two extra variants are generated in which the
@@ -346,7 +345,7 @@ $\sim$512\,Hz, putty-nosed calls around $\sim$1\,kHz, and common confusers
 energy sits and \emph{when} it occurs lets the model discriminate species that
 a global pooling layer would conflate.
 
-The feature map from \texttt{block4\_conv4} of VGG19 (spatial size
+The feature map from block4\_conv4 of VGG19 (spatial size
 28\,$\times$\,28, 512 channels) is extracted before the final VGG19 block.
 
 \paragraph{Frequency-position encoding.}
@@ -355,7 +354,7 @@ frequency: a rhythmic, harmonically structured call texture produces almost the
 same feature response whether it sits low in the spectrogram (a \textit{Colobus}
 roar) or high (a bird trill or insect chorus). A head that pools or convolves
 these features therefore keys on the call \emph{texture} while discarding
-\emph{where} in frequency it occurred --- exactly the cue a human uses to tell a
+\emph{where} in frequency it occurred, exactly the cue a human uses to tell a
 low roar from a high bird call. To restore this information we append an
 explicit frequency-coordinate channel to the feature map: a normalized
 ``CoordConv'' channel \cite{liu2018} whose value runs from 0 at the lowest
@@ -371,9 +370,9 @@ feature map is then split into four equal bands (each 7 bins), so that
 each band covers a contiguous portion of the mel-frequency range. Within each
 band, the frequency dimension is collapsed (average pooling over the 7 bins),
 yielding a time-$\times$-channel sequence of shape 28\,$\times$\,128. Each
-band is then processed by its own one-dimensional convolutional stream ---
+band is then processed by its own one-dimensional convolutional stream:
 Conv1D(128 filters, kernel size 3, same padding) followed by batch
-normalization and ReLU --- producing four sequences of shape
+normalization and ReLU, producing four sequences of shape
 28\,$\times$\,128. These are concatenated along the channel axis
 (28\,$\times$\,512) and passed through a cross-band Conv1D(256, kernel 3,
 same padding) + batch normalization + ReLU layer that allows the network to
@@ -393,7 +392,7 @@ Colobus\_confuser, Background).
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.72\linewidth]{model_architecture_v12.pdf}
-\caption{Model architecture. A VGG19 backbone (the \texttt{block4\_conv4}
+\caption{Model architecture. A VGG19 backbone (the block4\_conv4
 feature map) is augmented with a frequency-coordinate (CoordConv) channel, then
 split into four mel-frequency bands processed by per-band and cross-band 1-D
 convolutions, summarized by a bidirectional LSTM with combined global max- and
@@ -409,16 +408,16 @@ the right.}
 Training proceeds in two stages, following a standard transfer-learning
 protocol of head training followed by partial fine-tuning.
 
-\paragraph{Stage 1 --- Head training.}
+\paragraph{Stage 1: Head training.}
 The entire VGG19 convolutional base is frozen and only the temporal-frequency
 CRNN head is trained. The optimizer is Adam with an initial learning rate of
 $1 \times 10^{-4}$, and the loss is sparse categorical cross-entropy.
 
-\paragraph{Stage 2 --- Partial fine-tuning.}
-Because the VGG19 base is truncated at \texttt{block4\_conv4}
+\paragraph{Stage 2: Partial fine-tuning.}
+Because the VGG19 base is truncated at block4\_conv4
 (Section~4), its trainable portion spans blocks 1--4. The last two of these
-blocks --- the \texttt{block3} and \texttt{block4} convolutional layers --- are
-unfrozen, while \texttt{block1} and \texttt{block2} remain frozen to preserve
+blocks (the block3 and block4 convolutional layers) are
+unfrozen, while block1 and block2 remain frozen to preserve
 low-level features; this makes $\approx$12.3\,M parameters trainable. The
 learning rate is reduced to $1 \times 10^{-5}$ to avoid catastrophic
 forgetting.
@@ -432,7 +431,7 @@ frequency) compensate for the larger Background class. Training runs for up to
 early stopping on validation loss (patience 10, best weights restored),
 model checkpointing on best validation accuracy, and learning-rate reduction
 on plateau (factor 0.5, patience 5, floor $1 \times 10^{-7}$). The best
-checkpoint is saved as \texttt{best\_model\_v12.h5}. Training concludes with a
+checkpoint is saved. Training concludes with a
 per-class accuracy report and a confusion matrix on the validation set.
 
 \subsection*{6. Sliding-window detection}
@@ -441,12 +440,12 @@ A trained model is applied to each long recording with a 2.0\,s window
 advanced in 1.0\,s steps (50\,\% overlap); a final window is anchored at the
 end of the file so trailing audio is not dropped. Every window is converted to
 a mel-spectrogram image and classified. The four softmax classes are first
-collapsed onto detection \emph{groups} through \texttt{DETECTION\_GROUPS}: the
+collapsed onto detection \emph{groups}: the
 putty-nosed call types are already merged into Cernic at training time, so
 Cernic and Colobus\_guereza map to themselves, while the Colobus\_confuser
 class is routed into the Background group. Summing the confuser probability
 into Background means a window the model calls ``confuser'' is excluded from
-detections exactly like Background, and --- equally important --- the confuser
+detections exactly like Background, and, equally important, the confuser
 probability is kept \emph{out} of the Colobus\_guereza group, so a genuine
 \textit{Colobus} window is no longer inflated by confuser energy. The window is
 assigned to its highest-scoring group and is kept as a detection if that group
@@ -515,7 +514,7 @@ A detection is considered \textbf{clean} only when no filter flags it,
 \textbf{suspicious} when at least one filter flags it, and a \textbf{strong
 false positive} when at least two filters agree. Clean and suspicious
 detections are written to separate CSVs (the suspicious file carries a
-human-readable \texttt{flag\_reason} column), and strong false positives are
+human-readable flag-reason column), and strong false positives are
 exported as labelled WAV clips for the next stage.
 
 \subsection*{8. Iterative hard-negative mining}
@@ -532,7 +531,7 @@ When one species' false positives are dominated by a single, recurring
 confuser rather than a diffuse mix of sounds, folding them into the generic
 Background class is not enough: a few hundred hard negatives are easily diluted
 among several thousand background clips. In that case we promote the confuser
-to its own softmax class (here, \texttt{Colobus\_confuser}) and route it back
+to its own softmax class (here, Colobus\_confuser) and route it back
 into the Background group only at detection time. This gives the optimizer an
 explicit boundary to fit while leaving the detection behaviour unchanged, and
 is the approach used for the low-frequency \textit{Colobus} confuser in the
@@ -551,8 +550,8 @@ the continuous field recordings, where the biology of the site provides an
 independent check on the \textit{Colobus} false-positive rate.
 
 \paragraph{Validation-set performance (V12 model).}
-The four-class V12 model --- the frequency-position-aware head with
-high-frequency nuisance augmentation --- was evaluated on a stratified
+The four-class V12 model (the frequency-position-aware head with
+high-frequency nuisance augmentation) was evaluated on a stratified
 validation split. The model was trained in two stages
 (Fig.~\ref{fig:training}): a frozen-base stage that trains only the
 classifier head, followed by a fine-tuning stage in which the last two VGG19
@@ -668,7 +667,7 @@ head, V8) restored Cernic recall while keeping false positives low. The
 remaining problem was specific to \textit{Colobus}: a recurring low-frequency
 forest sound was repeatedly mis-fired as \textit{Colobus} and was not
 controlled by folding examples into the generic Background class. Promoting that
-sound to a dedicated \texttt{Colobus\_confuser} class (V10) addressed this
+sound to a dedicated Colobus\_confuser class (V10) addressed this
 specific confuser, but a broader class of \emph{high-frequency} false positives
 (bird and insect sounds) persisted, because the head keyed on call texture
 while ignoring its frequency. The frequency-position encoding (V11) resolves
@@ -720,8 +719,8 @@ mining-confidence audit in which high-confidence clips in the false-positive
 pool are manually reviewed, and confirmed calls are recovered into the
 training set.
 \item The model is conservative on weak or short calls. On the validation
-set, Cernic recall is 96.1\,\%; the misclassified Cernic clips --- mostly brief
-hacks and pyows embedded in loud ambient noise --- are split between the
+set, Cernic recall is 96.1\,\%; the misclassified Cernic clips (mostly brief
+hacks and pyows embedded in loud ambient noise) are split between the
 confuser class and Background. This trade-off favours precision over recall.
 \item Re-targeting to new species requires curated reference clips and edits
 to the configuration; performance on rare or quiet calls with few reference
@@ -803,7 +802,7 @@ at {[repository]} under DOI {[DOI]}.]
 \section*{Supplementary material and/or additional information [OPTIONAL]}
 
 [Optional. List any supplementary files here, e.g.\ example reference clips,
-the \texttt{config.py} used, or sample detection CSVs. Delete this section if
+the configuration used, or sample detection CSVs. Delete this section if
 not used.]
 
 %% =====================================================================
