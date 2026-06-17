@@ -22,7 +22,7 @@
 \usepackage{tabularx}
 \usepackage{booktabs}
 \usepackage{amssymb}
-\usepackage{graphicx}
+\usepackage[final]{graphicx}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \modulolinenumbers[5]
@@ -315,7 +315,7 @@ invariant low-frequency roar (Fig.~\ref{fig:augmentation}B). The augmentation
 is deliberately not applied to Cernic, whose calls genuinely occupy higher
 frequencies and must keep their high band intact.
 
-\begin{figure}[h]
+\begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{augmentation_v12.pdf}
 \caption{Spectrogram data augmentation. (A)~Standard augmentation expands each
@@ -384,7 +384,7 @@ two dense layers (512 units, ReLU, dropout 0.5; then 256 units, ReLU, dropout
 0.5) and a final four-way softmax output (Cernic, Colobus\_guereza,
 Colobus\_confuser, Background).
 
-\begin{figure}[h]
+\begin{figure}[!htbp]
 \centering
 \includegraphics[width=0.72\linewidth]{model_architecture_v12.pdf}
 \caption{Model architecture. A VGG19 backbone (the block4\_conv4
@@ -556,7 +556,7 @@ epoch with the highest validation accuracy (98.12\,\%).
 Table~\ref{tab:val} summarizes per-class results and
 Table~\ref{tab:confusion} gives the full confusion matrix.
 
-\begin{figure}[h]
+\begin{figure}[!htbp]
 \centering
 \includegraphics[width=\linewidth]{training_curves_v12.pdf}
 \caption{Two-stage training history of the V12 model: training and validation
@@ -605,7 +605,7 @@ Background        & 8   & 4   & 7   & 1154 \\
 \end{tabular}
 \end{table}
 
-\begin{figure}[h]
+\begin{figure}[!htbp]
 \centering
 \includegraphics[width=0.65\linewidth]{confusion_matrix_v12.pdf}
 \caption{Row-normalised confusion matrix of the V12 model on the validation
