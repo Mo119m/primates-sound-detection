@@ -635,26 +635,26 @@ augmentation indirectly benefits Cernic by freeing the model from the
 high-frequency shortcut that previously caused Cernic--confuser confusion.
 
 \paragraph{Field deployment.}
-The V12 model is applied to the continuous recordings from every available
-acoustic station (16 of the 20 IPA stations are present in the archive; IPA3,
-IPA5, IPA9, and IPA12 are absent). One 2\,s clip is exported for every
-detection that survives the low-frequency energy gate. As an architecture-level
-check during development, the V11 head (frequency-position encoding, before HF
-augmentation) was compared against V10 on a held-out set of \textit{Colobus}
-detection clips: of six high-frequency bird false positives that V10 had
-labelled \textit{Colobus}, V11 reclassified five as Background or confuser
-while preserving all genuine \textit{Colobus} reference clips at full
-confidence, confirming that the frequency-position encoding suppresses the
-high-frequency confusion rather than trading away true positives. V12 adds the
-high-frequency nuisance augmentation and the calibrated low-frequency gate on
-top of V11 and is the version deployed across all stations. Aggregate
-per-station detection counts, the Cernic detections retained after manual
-review, and the \textit{Colobus} false-positive counts will be reported once
-all stations have been processed.
+The V12 model is run on the continuous recordings from all available acoustic
+stations; one 2\,s clip is exported for every detection that survives the
+low-frequency energy gate. As an architecture-level check during development,
+the V11 head (frequency-position encoding, before HF augmentation) was compared
+against V10 on a set of \textit{Colobus} detection clips: of six high-frequency
+bird false positives that V10 had labelled \textit{Colobus}, V11 reclassified
+five as Background or confuser while preserving all genuine \textit{Colobus}
+reference clips at full confidence, confirming that the frequency-position
+encoding suppresses the high-frequency confusion rather than trading away true
+positives. V12 adds the high-frequency nuisance augmentation and the calibrated
+low-frequency gate on top of V11 and is the version deployed across all
+stations.
+\textbf{[TODO: the number of stations and recordings processed, the aggregate
+and per-station detection counts, the Cernic detections retained after manual
+review, and the \textit{Colobus} false-positive counts, to be filled in once
+processing completes.]}
 
 \paragraph{Architecture progression (development history).}
-The components of the model were added in response to failures observed on a
-development station (IPA19ST) during earlier, three-class iterations. A
+The components of the model were added in response to failures observed on the
+development recordings during earlier, three-class iterations. A
 frequency-band pooling head (V6) fired on essentially every loud non-target
 sound; adding a temporal CRNN head with Conv1D and a bidirectional LSTM (V7)
 sharply cut false positives but also suppressed real calls; splitting the
