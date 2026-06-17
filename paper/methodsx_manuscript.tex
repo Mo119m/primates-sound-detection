@@ -425,10 +425,10 @@ sets with stratification by class and a fixed random seed for
 reproducibility. Balanced class weights (inversely proportional to class
 frequency) compensate for the larger Background class. Training runs for up to
 50 epochs per stage with a batch size of 32, governed by three callbacks:
-early stopping on validation accuracy (patience 10, best weights restored),
+early stopping on validation loss (patience 10, best weights restored),
 model checkpointing on best validation accuracy, and learning-rate reduction
 on plateau (factor 0.5, patience 5, floor $1 \times 10^{-7}$). The best
-checkpoint is saved as \texttt{best\_model.h5}. Training concludes with a
+checkpoint is saved as \texttt{best\_model\_v12.h5}. Training concludes with a
 per-class accuracy report and a confusion matrix on the validation set.
 
 \subsection*{6. Sliding-window detection}
