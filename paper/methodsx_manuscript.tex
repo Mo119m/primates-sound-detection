@@ -203,20 +203,20 @@ timestamp in each filename) are processed; this removes large stretches of
 audio in which the species are unlikely to call and reduces both compute and
 false positives.
 
-The model is trained on short reference clips organized into four classes:
+The model is trained on short reference clips organized into four classes
+(Table~\ref{tab:traindata}):
 \begin{itemize}
 \item \textbf{Cernic} --- all putty-nosed monkey call types (putty-nose, hack,
 kek, pyow) pooled into a single class. Five source folders (one per call type
 plus a \texttt{field\_confirmed} folder of recovered field calls) are mapped to
 the single ``Cernic'' label via \texttt{config.SPECIES\_FOLDERS}, so that
 merging happens at training time and the model directly outputs a unified
-putty-nosed decision (putty-nose 25, hack 101, kek 124, pyow 101,
-field-confirmed 19; 370 clips total);
-\item \textbf{Colobus\_guereza} --- \textit{Colobus guereza} calls (617 clips);
+putty-nosed decision;
+\item \textbf{Colobus\_guereza} --- \textit{Colobus guereza} reference calls;
 \item \textbf{Colobus\_confuser} --- a dedicated hard-negative class containing
 the forest sounds that earlier model versions repeatedly mis-fired as
 \textit{Colobus}, mined from field detections across the development stations
-and human-reviewed so that no genuine target call is included (654 clips).
+and human-reviewed so that no genuine target call is included.
 Giving the confuser its own softmax output forces the model to learn the
 \textit{Colobus}-vs-confuser boundary explicitly instead of diluting these few
 hundred hard negatives inside the much larger generic Background class; at
@@ -226,9 +226,33 @@ produces a detection;
 \item \textbf{Background} --- a pooled negative class assembled from ambient
 forest noise, calls of non-target animals present at the site (e.g.\
 \textit{Cercocebus torquatus}, \textit{Pan troglodytes}), and previously
-misclassified clips recycled through the hard-negative mining loop
-(approximately 5{,}900 clips total).
+misclassified clips recycled through the hard-negative mining loop.
 \end{itemize}
+
+\begin{table}[h]
+\centering
+\caption{Training-data composition: human-verified reference clips per class,
+before augmentation.}
+\label{tab:traindata}
+\begin{tabularx}{\linewidth}{lrX}
+\toprule
+Class & Clips & Composition \\
+\midrule
+Cernic            & 370          & putty-nose 25, hack 101, kek 124, pyow 101,
+                                   field-confirmed 19 \\
+Colobus\_guereza  & 617          & \textit{Colobus guereza} reference calls \\
+Colobus\_confuser & 654          & field hard-negatives, human-reviewed \\
+Background        & $\sim$5{,}900 & ambient noise, non-target animals,
+                                   recycled false positives \\
+\midrule
+\textbf{Total}    & $\sim$7{,}541 & \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent These are raw clip counts. Augmentation (Section~3) and the
+train/validation split (Section~5) expand them into the per-class validation
+totals reported later in Table~\ref{tab:val}.
 
 \noindent All training clips underwent human verification. Because the
 Background class is loaded as a single pooled negative --- with no internal
