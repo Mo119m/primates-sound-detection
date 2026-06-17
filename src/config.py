@@ -169,7 +169,9 @@ PRETRAINED_WEIGHTS = 'imagenet'
 # model (use temporal_freq for the earlier V10 model).
 MODEL_POOLING = os.environ.get('PRIMATE_MODEL_POOLING', 'gap')
 FREEZE_BASE_LAYERS = True  # Freeze VGG19 base layers initially
-UNFREEZE_LAST_N_BLOCKS = 1  # Fine-tune last N blocks later (optional)
+UNFREEZE_LAST_N_BLOCKS = 2  # Stage-2 fine-tuning unfreezes the last 2 blocks
+                            # of the block4_conv4-truncated base (block3, block4);
+                            # this is the value used for the published V11/V12 model.
 
 # Training hyperparameters
 BATCH_SIZE = 32
