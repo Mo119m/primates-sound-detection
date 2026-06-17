@@ -196,12 +196,13 @@ code.
 
 Field recordings are continuous WAV files collected at fixed acoustic stations
 (denoted IPA1ST, IPA2ST, \dots; one subfolder per recording date) in
-rainforest near Makokou, Gabon. Because the target species are diurnal and
-most vocally active in the morning, only recordings whose start time falls
-within a configurable window (default 05:30--10:30 local time, parsed from the
-timestamp in each filename) are processed; this removes large stretches of
-audio in which the species are unlikely to call and reduces both compute and
-false positives.
+rainforest near Makokou, Gabon. An optional time-of-day filter can restrict
+processing to recordings whose start time falls within a configurable morning
+window (default 05:30--10:30 local time, parsed from the filename timestamp),
+when the diurnal target species are most vocally active, reducing both compute
+and false positives.
+\textbf{[TODO: the latest detection run did not apply this time-of-day filter;
+confirm the final pipeline setting and reconcile this paragraph.]}
 
 The model is trained on short reference clips organized into four classes
 (Table~\ref{tab:traindata}):
