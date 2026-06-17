@@ -276,7 +276,7 @@ segment of real background noise randomly selected from the Background pool;
 this eliminates the silence shortcut that zero-padding would introduce and
 forces the model to distinguish the call from genuine ambient sound. Clips
 longer than 2\,s (e.g.\ putty-nosed 5\,s field recordings) are trimmed to the
-deterministic 2\,s window with the highest RMS energy
+deterministic 2\,s window with the highest short-time energy
 (\texttt{find\_loudest\_window}), ensuring that the segment reviewed by a
 human annotator is identical to the segment used for training. Each 2\,s
 waveform is converted to a mel-spectrogram with librosa \cite{mcfee2015} using
