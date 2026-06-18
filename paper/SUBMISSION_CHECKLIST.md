@@ -18,6 +18,10 @@ as they are done. (This file is a working note, not part of the manuscript.)
 - [ ] **Time-of-day filter** (`§1`, `[TODO]`): confirm whether the final
       detection run used the 05:30–10:30 filter, and reconcile the wording
 - [ ] Per-station detection counts in Method validation (pending local run)
+- [ ] Citation for the putty-nosed call types (hack/kek/pyow) — get the
+      published reference from the species expert and add it (Background)
+- [ ] Confirm whether the time-of-day filter is applied in the final run
+      (§1 has a "[to be confirmed]" note)
 
 ## Figures / artwork (MethodsX requirements)
 - [ ] **Rename figures for separate upload**: `Figure_1.pdf … Figure_4.pdf`
