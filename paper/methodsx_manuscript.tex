@@ -196,9 +196,8 @@ rainforest near Makokou, Gabon. An optional time-of-day filter can restrict
 processing to recordings whose start time falls within a configurable morning
 window (default 05:30--10:30 local time, parsed from the filename timestamp),
 when the diurnal target species are most vocally active, reducing both compute
-and false positives.
-\textbf{[TODO: the latest detection run did not apply this time-of-day filter;
-confirm the final pipeline setting and reconcile this paragraph.]}
+and false positives. In the runs reported here this filter was not applied
+\textbf{[to be confirmed before submission]}.
 
 The model is trained on short reference clips organized into four classes
 (Table~\ref{tab:traindata}):
@@ -726,8 +725,8 @@ calibration is less effective.
 \item The temporal-isolation filter assumes bout-calling; genuinely isolated
 or rare calls can be flagged, and very dense calling can mask true isolation.
 \item A fixed 2\,s analysis window may truncate or split long vocalizations
-(e.g.\ \textit{Colobus} roars), and the time-of-day filter (05:30--10:30) is
-site- and species-specific and must be adjusted elsewhere.
+(e.g.\ \textit{Colobus} roars), and the optional time-of-day filter, if
+enabled, is site- and species-specific and must be adjusted elsewhere.
 \item The method yields detections, not calibrated abundance or density
 estimates; converting counts to ecological metrics requires additional
 assumptions.
