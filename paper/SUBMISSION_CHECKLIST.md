@@ -11,17 +11,21 @@ as they are done. (This file is a working note, not part of the manuscript.)
 - [ ] Ethics statement: permit `[number]` / `[authority]` — or delete that
       bracket if no permit applies (passive recording)
 - [ ] Acknowledgments: field teams / funding (or keep the "no funding" line)
-- [ ] Resource availability (Specifications table): data DOI/repository, or
-      remove the `[Add a data DOI...]` bracket if data stays private
+- [ ] Data deposit decision — the data DOI/repository placeholder appears in
+      **two** places: the Specifications table (`[Add a data DOI...]`) **and**
+      the Data availability section (`[repository]` / `[DOI]`). Fill both if
+      depositing the reference clips, or delete both brackets if data stays
+      private.
 - [ ] **Santi placeholders** (bold `[Santi ...]`): Background conservation/IUCN
       paragraph + Abstract conservation-significance framing
-- [ ] **Time-of-day filter** (`§1`, `[TODO]`): confirm whether the final
-      detection run used the 05:30–10:30 filter, and reconcile the wording
-- [ ] Per-station detection counts in Method validation (pending local run)
+- [ ] **Time-of-day filter** (§1, bold `[to be confirmed before submission]`):
+      confirm whether the final detection run used the 05:30–10:30 filter, then
+      finalise the §1 wording and the matching Limitations bullet
+- [ ] Per-station detection counts (Method validation, bold `[TODO ...]` in
+      Field deployment) — pending the full run
 - [ ] Citation for the putty-nosed call types (hack/kek/pyow) — get the
-      published reference from the species expert and add it (Background)
-- [ ] Confirm whether the time-of-day filter is applied in the final run
-      (§1 has a "[to be confirmed]" note)
+      published reference from the species expert and add it (Background, bold
+      `[cite the putty-nosed call-type source ...]`)
 
 ## Figures / artwork (MethodsX requirements)
 - [ ] **Rename figures for separate upload**: `Figure_1.pdf … Figure_4.pdf`
@@ -41,6 +45,8 @@ as they are done. (This file is a working note, not part of the manuscript.)
 - [ ] For the review manuscript, switch `\documentclass[final,3p,times]` →
       `[review,3p,times]` (double-spaced, line-numbered) if the journal asks.
 - [ ] Delete the comment header (lines marked "TODO before submitting").
+- [ ] Delete the "Supplementary material [OPTIONAL]" section if unused (or fill
+      it in).
 - [ ] Compile twice with pdfLaTeX so `\cite` references resolve.
 
 ## Decisions already settled (for reference)
