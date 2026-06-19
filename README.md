@@ -451,7 +451,7 @@ pip install -r requirements.txt
 ```
 
 For exact reproducibility (Python 3.10 / Google Colab environment matching the
-published results with TensorFlow 2.15), use the frozen requirements instead:
+published results), use the frozen requirements instead:
 
 ```bash
 pip install -r requirements-frozen.txt
@@ -459,6 +459,11 @@ pip install -r requirements-frozen.txt
 
 All dependencies including `tensorflow-hub` and `resampy` (needed for the YAMNet
 auto-cleanup filter) are included in both requirements files.
+
+> **Keras 3 / TensorFlow >= 2.16 is required** to load `best_model_v12.h5`
+> (it is serialised by Keras 3). On a fresh conda/Anaconda machine, create the
+> environment with conda for the Python interpreter only and install the stack
+> with pip — never `conda install tensorflow`. See [`SETUP.md`](SETUP.md).
 
 ## Running on Colab
 
@@ -549,8 +554,9 @@ with `python scripts/run_detection_ipa.py --station IPA1ST`.
 To reproduce the published **V12** four-class model and field results:
 
 1. **Environment.** `pip install -r requirements-frozen.txt` for exact version
-   match (Python 3.10, TensorFlow 2.15, Google Colab). Or
-   `pip install -r requirements.txt` for flexible versions.
+   match (Python 3.10, Keras 3 / TensorFlow >= 2.16, Google Colab). Or
+   `pip install -r requirements.txt` for flexible versions. See
+   [`SETUP.md`](SETUP.md) for the conda recipe on fresh machines.
 
 2. **Select the production head.** The code default is `gap`; the published V12
    model uses the frequency-position-aware temporal-frequency CRNN. Set it via

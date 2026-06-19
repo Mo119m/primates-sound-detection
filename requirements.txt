@@ -1,4 +1,5 @@
-tensorflow>=2.10.0
+# Keras 3 is required to load best_model_v12.h5 (serialised by TF >= 2.16).
+tensorflow>=2.16.0
 librosa>=0.10.0
 soundfile>=0.12.0
 scikit-learn>=1.2.0
