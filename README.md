@@ -457,8 +457,9 @@ published results), use the frozen requirements instead:
 pip install -r requirements-frozen.txt
 ```
 
-All dependencies including `tensorflow-hub` and `resampy` (needed for the YAMNet
-auto-cleanup filter) are included in both requirements files.
+`tensorflow-hub` (needed for the YAMNet auto-cleanup filter) is included in both
+requirements files. `resampy` is not required — librosa resamples with `soxr`
+by default.
 
 > **Keras 3 / TensorFlow >= 2.16 is required** to load `best_model_v12.h5`
 > (it is serialised by Keras 3). On a fresh conda/Anaconda machine, create the
@@ -547,7 +548,7 @@ with `python scripts/run_detection_ipa.py --station IPA1ST`.
 - scikit-learn
 - pandas, numpy, matplotlib
 - soundfile
-- tensorflow-hub, resampy (YAMNet auto-cleanup filter)
+- tensorflow-hub (YAMNet auto-cleanup filter)
 
 ## Reproducibility
 

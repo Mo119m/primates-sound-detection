@@ -8,6 +8,6 @@ matplotlib>=3.6.0
 numpy>=1.23.0
 opencv-python>=4.7.0
 
-# Optional: required only for the YAMNet filter in auto_cleanup.py
+# Required only for the YAMNet filter in auto_cleanup.py
 tensorflow-hub>=0.13.0
-resampy>=0.4.0
+# resampy is not required: librosa>=0.10 resamples with soxr by default.
