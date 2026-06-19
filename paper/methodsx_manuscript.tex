@@ -66,7 +66,7 @@ Passive acoustic monitoring is a key tool for tracking vocal animals and
 informing their conservation \textbf{[Santi --- please review / expand this
 conservation-significance framing]}, but it produces thousands of hours of
 audio that cannot be annotated by hand. The obstacle is precision: a classifier
-trained on clean reference clips also fires on non-target forest
+trained on curated reference clips also fires on non-target forest
 sounds (birds, insects, wind) absent from training, so every detection must be
 checked by ear. We describe a pipeline that detects two primate species,
 \textit{Cercopithecus nictitans} and \textit{Colobus guereza}, in long
@@ -144,7 +144,7 @@ networks applied to spectrogram ``images'' have become the dominant approach
 for automatically detecting species-specific calls, and transfer learning from
 large image or audio corpora lets such detectors be trained from comparatively
 few annotated examples \cite{sun2022}. These approaches work well
-on clean, isolated reference clips.
+on curated, isolated reference clips.
 
 The difficulty in practice is precision rather than recall. A model trained on
 curated clips of a target call will reliably fire on those calls, but when it
@@ -484,7 +484,7 @@ and a pooled, ridge-regularized inverse covariance are estimated from the
 original (non-augmented) training clips \cite{lee2018}. For each detection the
 Mahalanobis distance to its candidate class cluster is computed. A real call
 lies close to its training cluster, whereas an unfamiliar sound does not.
-Because field clips are systematically noisier than clean training clips,
+Because field clips are systematically noisier than the curated training clips,
 thresholds calibrated on training data flag almost everything; we therefore
 calibrate the cutoff on the \textbf{detection distances themselves}, flagging,
 per species, the detections beyond the 95th percentile of the observed
