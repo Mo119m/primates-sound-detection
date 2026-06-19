@@ -15,6 +15,12 @@ low-frequency energy gate** (V12) that removes any residual high-frequency false
 positive at detection time. A three-filter automatic cleanup pipeline then
 recycles confirmed false positives as hard negatives for iterative retraining.
 
+> **Just want to run it on your own computer?** → Follow [`SETUP.md`](SETUP.md)
+> to install the environment (one time), then open
+> `main_pipeline_notebooks/main_local.ipynb` and run the cells top to bottom.
+> The notebook walks you through every step; `data/README.md` says which folder
+> each audio file goes in. You do **not** need to read the developer sections below.
+>
 > **Reproducing the published results?** Jump to [Reproducibility](#reproducibility).
 
 ## Main Workflow
