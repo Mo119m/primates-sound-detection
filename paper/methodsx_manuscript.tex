@@ -75,8 +75,9 @@ is converted to mel-spectrograms and classified by a VGG19 transfer-learning
 model with a frequency-position-aware convolutional recurrent neural network
 (CRNN) head, designed so that forest birds and insects are not mistaken for the
 target primate. Sliding-window detection is then followed by an automatic
-cleanup that flags false positives and recycles them into training. The model
-reaches 98\% validation accuracy with zero confusion between the two species.
+cleanup that flags false positives and recycles them into training. The
+classifier reaches 98\% validation accuracy, with zero confusion between the
+two species.
 
 \begin{itemize}
 \item A VGG19 transfer-learning model with a frequency-position-aware CRNN
@@ -155,7 +156,7 @@ rate, and verifying every detection by hand reintroduces exactly the
 manual-listening bottleneck that automation was meant to remove.
 
 This method addresses that problem for two primate species recorded at
-Makokou, Gabon: the putty-nosed monkey (\textit{Cercopithecus nictitans}),
+Makokou, Gabon: \textit{Cercopithecus nictitans},
 whose repertoire includes acoustically distinct ``hack'', ``kek'', and
 ``pyow'' call types \textbf{[cite the putty-nosed call-type source --- confirm
 the reference with the species expert]}, and \textit{Colobus guereza}.
