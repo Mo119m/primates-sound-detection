@@ -5,7 +5,7 @@ Checks, in order:
   1. Required Python packages import.
   2. The PRIMATE_* environment variables / resolved config paths.
   3. That the data directories exist (species/, background/, field_recordings).
-  4. That the production pooling head is selected for the V10 model.
+  4. That the production pooling head is selected for the V12 model.
 
 Run from the repo root after setting your environment variables, e.g.:
 
@@ -31,7 +31,7 @@ def check_packages():
     """Required and optional package imports."""
     required = ['numpy', 'pandas', 'librosa', 'soundfile', 'sklearn',
                 'matplotlib', 'cv2', 'tensorflow']
-    optional = ['tensorflow_hub', 'resampy']  # YAMNet auto-cleanup filter
+    optional = ['tensorflow_hub']  # needed only for the YAMNet auto-cleanup filter
     errors = 0
 
     print("Packages")
@@ -40,7 +40,7 @@ def check_packages():
             importlib.import_module(pkg)
             print(f"  {OK} {pkg}")
         except ImportError:
-            print(f"  {FAIL} {pkg} -- pip install -r requirements.txt")
+            print(f"  {FAIL} {pkg} -- pip install -r requirements-frozen.txt (see SETUP.md)")
             errors += 1
     for pkg in optional:
         try:

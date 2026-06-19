@@ -15,6 +15,12 @@ low-frequency energy gate** (V12) that removes any residual high-frequency false
 positive at detection time. A three-filter automatic cleanup pipeline then
 recycles confirmed false positives as hard negatives for iterative retraining.
 
+> **Just want to run it on your own computer?** → Follow [`SETUP.md`](SETUP.md)
+> to install the environment (one time), then open
+> `main_pipeline_notebooks/main_local.ipynb` and run the cells top to bottom.
+> The notebook walks you through every step; `data/README.md` says which folder
+> each audio file goes in. You do **not** need to read the developer sections below.
+>
 > **Reproducing the published results?** Jump to [Reproducibility](#reproducibility).
 
 ## Main Workflow
@@ -451,14 +457,20 @@ pip install -r requirements.txt
 ```
 
 For exact reproducibility (Python 3.10 / Google Colab environment matching the
-published results with TensorFlow 2.15), use the frozen requirements instead:
+published results), use the frozen requirements instead:
 
 ```bash
 pip install -r requirements-frozen.txt
 ```
 
-All dependencies including `tensorflow-hub` and `resampy` (needed for the YAMNet
-auto-cleanup filter) are included in both requirements files.
+`tensorflow-hub` (needed for the YAMNet auto-cleanup filter) is included in both
+requirements files. `resampy` is not required — librosa resamples with `soxr`
+by default.
+
+> **Keras 3 / TensorFlow >= 2.16 is required** to load `best_model_v12.h5`
+> (it is serialised by Keras 3). On a fresh conda/Anaconda machine, create the
+> environment with conda for the Python interpreter only and install the stack
+> with pip — never `conda install tensorflow`. See [`SETUP.md`](SETUP.md).
 
 ## Running on Colab
 
@@ -542,15 +554,16 @@ with `python scripts/run_detection_ipa.py --station IPA1ST`.
 - scikit-learn
 - pandas, numpy, matplotlib
 - soundfile
-- tensorflow-hub, resampy (YAMNet auto-cleanup filter)
+- tensorflow-hub (YAMNet auto-cleanup filter)
 
 ## Reproducibility
 
 To reproduce the published **V12** four-class model and field results:
 
 1. **Environment.** `pip install -r requirements-frozen.txt` for exact version
-   match (Python 3.10, TensorFlow 2.15, Google Colab). Or
-   `pip install -r requirements.txt` for flexible versions.
+   match (Python 3.10, Keras 3 / TensorFlow >= 2.16, Google Colab). Or
+   `pip install -r requirements.txt` for flexible versions. See
+   [`SETUP.md`](SETUP.md) for the conda recipe on fresh machines.
 
 2. **Select the production head.** The code default is `gap`; the published V12
    model uses the frequency-position-aware temporal-frequency CRNN. Set it via

@@ -10,8 +10,8 @@ Produces, under <output>/:
     suspicious_detections.csv  - flagged, with a flag_reason column
     auto_flagged_fp/<reason>/   - >=2-flag clips to fold into Background
 
-Requires tensorflow-hub + resampy for the YAMNet filter:
-    pip install tensorflow-hub resampy
+Requires tensorflow-hub for the YAMNet filter:
+    pip install tensorflow-hub
 """
 
 import argparse
