@@ -7,12 +7,12 @@ or **Terminal** (macOS/Linux).
 ## 1. Create and activate the environment
 
 ```bash
-conda create -n primates python=3.10 -y
+conda create -n primates python=3.12 -y
 conda activate primates
 ```
 
 Your prompt should now start with `(primates)`. Keep it active for all the
-commands below.
+commands below. (Python 3.12 matches the training environment exactly.)
 
 ## 2. Get the code
 
