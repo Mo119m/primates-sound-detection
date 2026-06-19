@@ -40,7 +40,7 @@ pip install jupyter
 python -c "import tensorflow as tf, keras; print('TF', tf.__version__, '| Keras', keras.__version__)"
 ```
 
-Expected: `TF 2.17.0 | Keras 3.x`. (If Keras shows 2.x, you have the wrong
+Expected: `TF 2.20.0 | Keras 3.13.2`. (If Keras shows 2.x, you have the wrong
 TensorFlow — reinstall with step 3.)
 
 ## 5. Run the notebook

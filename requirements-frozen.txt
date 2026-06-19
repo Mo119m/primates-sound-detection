@@ -6,18 +6,15 @@
 # Keras 2 (TensorFlow <= 2.15) fails with:
 #   "Unrecognized keyword arguments passed to InputLayer: ['batch_shape', 'optional']"
 #
-# CONFIRM the exact TensorFlow version on the training machine and match it here:
-#   python -c "import tensorflow as tf, keras; print(tf.__version__, keras.__version__)"
-# The pin below is a known-good Keras-3 release; change the patch version if the
-# training machine reports a different one.
-#
-# Tested on Python 3.10 / 3.11 (Google Colab, single GPU).
+# Pinned to the Google Colab environment that trained best_model_v12.h5:
+# the checkpoint stores keras_version = 3.13.2, saved under TensorFlow 2.20.0.
 #
 # INSTALL: do NOT use `conda install tensorflow` (that channel ships an old
 # Keras-2 build and clashes with pip wheels). Create a clean conda env with
 # Python only, then `pip install -r requirements-frozen.txt`. See SETUP.md.
 
-tensorflow==2.17.0
+tensorflow==2.20.0
+keras==3.13.2
 librosa==0.10.2
 soundfile==0.12.1
 scikit-learn==1.4.2
