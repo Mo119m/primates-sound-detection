@@ -1,17 +1,23 @@
-# Exact pinned versions for reproducibility.
-# These versions are tested together in Google Colab (Python 3.10, single GPU)
-# and match the environment used to produce the published results.
+# Exact versions of the Google Colab environment that trained
+# best_model_v12.h5 (captured from `importlib.metadata` on that machine).
+# The checkpoint stores keras_version = 3.13.2, saved under TensorFlow 2.20.0.
 #
-# For flexible installation (e.g. a different Python version), use
-# requirements.txt instead, which specifies minimum versions only.
+# INSTALL: do NOT use `conda install tensorflow` (that channel ships an old
+# Keras-2 build and clashes with pip wheels). Create a clean conda env with
+# Python only, then `pip install -r requirements-frozen.txt`. See SETUP.md.
 
-tensorflow==2.15.0
-librosa==0.10.2
-soundfile==0.12.1
-scikit-learn==1.4.2
+tensorflow==2.20.0
+keras==3.13.2
+numpy==2.0.2
+librosa==0.11.0
+soundfile==0.14.0
+scikit-learn==1.6.1
 pandas==2.2.2
-matplotlib==3.8.0
-numpy==1.26.4
-opencv-python==4.10.0.84
+matplotlib==3.10.0
+opencv-python==4.13.0.92
 tensorflow-hub==0.16.1
-resampy==0.4.3
+
+# resampy is NOT required: librosa>=0.10 resamples with soxr (a librosa
+# dependency) by default, and the training environment had no resampy
+# installed. Uncomment only if you set a resampy-based res_type yourself.
+# resampy==0.4.3
