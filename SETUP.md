@@ -55,6 +55,46 @@ in **cell 2**, then run the cells top to bottom.
 
 ---
 
+## Optional: GPU acceleration
+
+The pipeline works on CPU out of the box. If your machine has a supported GPU,
+you can speed up training and detection significantly.
+
+### macOS — Apple Silicon (M1 / M2 / M3 / M4)
+
+```bash
+conda activate primates
+pip install tensorflow-metal
+```
+
+That's it. Restart Jupyter and the notebook's GPU-check cell will show your GPU.
+
+### Linux — NVIDIA GPU
+
+```bash
+conda activate primates
+pip install tensorflow[and-cuda]
+```
+
+This replaces the CPU-only TensorFlow with a version that bundles CUDA/cuDNN.
+
+### Windows — NVIDIA GPU
+
+TensorFlow on native Windows has been CPU-only since version 2.11. Two options:
+
+1. **WSL2 (recommended)**: Install [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install)
+   with Ubuntu, then follow the **Linux** instructions above inside WSL.
+2. **CPU is fine**: For loading a pre-trained model and running detection, CPU
+   is fast enough. GPU mainly helps during training (`FORCE_RETRAIN = True`).
+
+### No GPU? No problem
+
+Inference (loading model → detecting in audio) runs fine on CPU. A 10-minute
+WAV file takes roughly 20–30 seconds on a modern laptop CPU. Training from
+scratch is slower (~1–2 hours vs ~15 min on GPU) but is a one-time cost.
+
+---
+
 ## Coming back later
 
 After the first-time setup, every session is just:
