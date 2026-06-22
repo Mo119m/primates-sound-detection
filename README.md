@@ -8,7 +8,7 @@ on a VGG19 backbone with a **frequency-position-aware** temporal-frequency CRNN
 head (`temporal_freqpos`, 98.12% validation accuracy).
 
 > **Just want to run it?** → Follow [`SETUP.md`](SETUP.md) to install the
-> environment (one time), then open
+> environment (one time), download the pretrained model (see below), then open
 > `main_pipeline_notebooks/main_local.ipynb` and run the cells top to bottom.
 > See [`data/README.md`](data/README.md) for which folder each audio file goes in.
 >
@@ -18,6 +18,23 @@ head (`temporal_freqpos`, 98.12% validation accuracy).
 > **Want to auto-clean false positives after detection?** → Open
 > `auto_cleanup_local.ipynb` (local) or `auto_cleanup_false_positives.ipynb`
 > (Colab) and run the cells.
+
+## Pretrained Model
+
+The production V12 model (`best_model_v12.h5`, ~80 MB) is required for
+detection. It is not included in the repository due to file size.
+
+**Download:** <!-- TODO: replace with actual link -->
+> The pretrained model will be available at: [link to be added]
+>
+> After downloading, place the file at:
+> ```
+> data/outputs/models/best_model_v12.h5
+> ```
+
+If you prefer to train from scratch instead, run `main_local.ipynb` with
+`FORCE_RETRAIN = True` in Step 3 (requires labelled training clips in
+`data/species/`).
 
 ---
 

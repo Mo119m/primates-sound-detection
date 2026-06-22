@@ -102,7 +102,32 @@ environment).
 
 ---
 
-## Step 5 — Verify
+## Step 5 — Download the pretrained model
+
+The trained V12 model (`best_model_v12.h5`) is not included in the repository
+due to file size. Download it and place it at:
+
+```
+data/outputs/models/best_model_v12.h5
+```
+
+<!-- TODO: replace with actual download link -->
+> **Download link:** [to be added — check the README for the latest link]
+
+Create the folder if it doesn't exist yet:
+
+```
+mkdir -p data/outputs/models
+```
+
+(On Windows: just create the folders manually in File Explorer.)
+
+> If you want to train from scratch instead of using the pretrained model,
+> skip this step — the notebook will train automatically when no model is found.
+
+---
+
+## Step 6 — Verify
 
 ```
 python -c "import tensorflow as tf, keras; print('TF', tf.__version__, '| Keras', keras.__version__)"
@@ -115,7 +140,7 @@ environment — run `conda activate primates` and try again.
 
 ---
 
-## Step 6 — Run the notebook
+## Step 7 — Run the notebook
 
 ```
 jupyter notebook
