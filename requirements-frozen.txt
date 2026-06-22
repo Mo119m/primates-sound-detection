@@ -1,21 +1,23 @@
-# Exact versions of the Google Colab environment that trained
-# best_model_v12.h5 (captured from `importlib.metadata` on that machine).
-# The checkpoint stores keras_version = 3.13.2, saved under TensorFlow 2.20.0.
+# Versions for the primate detection pipeline. The model (best_model_v12.h5)
+# was trained on TF 2.20.0 / Keras 3.13.2 (Colab), but any TF >=2.16 with
+# Keras 3 can load it. Ranges are used so the same file works on Windows,
+# macOS (Apple Silicon), and Linux — not every TF release is available on
+# every platform.
 #
 # INSTALL: do NOT use `conda install tensorflow` (that channel ships an old
 # Keras-2 build and clashes with pip wheels). Create a clean conda env with
 # Python only, then `pip install -r requirements-frozen.txt`. See SETUP.md.
 
-tensorflow==2.20.0
-keras==3.13.2
-numpy==2.0.2
-librosa==0.11.0
-soundfile==0.14.0
-scikit-learn==1.6.1
-pandas==2.2.2
-matplotlib==3.10.0
-opencv-python==4.13.0.92
-tensorflow-hub==0.16.1
+tensorflow>=2.16.0
+keras>=3.0.0
+numpy>=2.0.0,<3
+librosa>=0.10.0,<1
+soundfile>=0.12.0
+scikit-learn>=1.4.0,<2
+pandas>=2.1.0,<3
+matplotlib>=3.8.0,<4
+opencv-python>=4.8.0
+tensorflow-hub>=0.16.0
 
 # resampy is NOT required: librosa>=0.10 resamples with soxr (a librosa
 # dependency) by default, and the training environment had no resampy
