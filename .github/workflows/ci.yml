@@ -1,0 +1,39 @@
+name: CI
+
+# Runs the test suite on every push and pull request so changes that break
+# the pipeline are caught automatically.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      # The test suite (config / preprocessing / detection) deliberately does
+      # NOT require TensorFlow, so we install only the lightweight scientific
+      # stack here. This keeps CI fast (no multi-hundred-MB TF download) while
+      # still validating the audio→spectrogram→detection logic end to end.
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy pandas scikit-learn librosa soundfile opencv-python-headless pytest
+
+      - name: Run tests
+        run: pytest tests/ -v
