@@ -66,28 +66,20 @@ the activate did not work — see the troubleshooting note in Step 1 above.
 
 ---
 
-## Step 3 — Download the code
-
-**Option A** — Download ZIP from GitHub:
+## Step 3 — Download the code and open in VS Code
 
 1. Go to the repository page on GitHub.
 2. Click the green **Code** button → **Download ZIP**.
-3. Unzip it to your Desktop (or wherever you like).
-4. **Important**: the ZIP creates a nested folder. In your terminal, `cd` into
-   the **inner** folder (the one that contains `requirements-frozen.txt`):
-   ```
-   cd Desktop\primates-sound-detection-main\primates-sound-detection-main
-   ```
-   Run `dir` (Windows) or `ls` (macOS/Linux) — you should see
-   `requirements-frozen.txt`, `src/`, `data/`, etc. If you don't, `cd` one
-   level deeper.
+3. Unzip it. The ZIP creates a nested folder — open the **inner** folder
+   (the one that contains `requirements-frozen.txt`, `src/`, `data/`, etc.).
+4. In VS Code: **File → Open Folder** → select that inner folder.
+5. Open the VS Code terminal: **Terminal → New Terminal** (or press Ctrl + `).
 
-**Option B** — Use git (if you have it installed):
+Your terminal should now show the project folder path. All commands below
+assume you are running them in this VS Code terminal.
 
-```
-git clone https://github.com/mo119m/primates-sound-detection.git
-cd primates-sound-detection
-```
+> Alternatively, if you have git: `git clone https://github.com/mo119m/primates-sound-detection.git`
+> then open that folder in VS Code.
 
 ---
 
@@ -137,11 +129,10 @@ machine in **Step 1** of the notebook, then run the cells top to bottom.
 
 ## Coming back later
 
-Every time you want to run the notebook again:
+Open the project folder in VS Code, then in the terminal:
 
 ```
 conda activate primates
-cd <path-to-the-project-folder>
 jupyter notebook
 ```
 
