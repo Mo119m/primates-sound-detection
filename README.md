@@ -364,8 +364,9 @@ Visualization and analysis utilities.
 | `mine_field_negatives.py` | Mine confirmed false positives from dev-station field recordings as distribution-matched hard negatives |
 | `filter_recordings_by_time.py` | Copy only recordings within a time-of-day window (pre-upload filter) |
 | `analyze_detections.py` | Per-species detection analysis and threshold suggestion helpers |
-| `train_v7_temporal.py` | Train with the temporal (V7) pooling head |
-| `train_v8_temporal_freq.py` | Train with the temporal-frequency CRNN (V8) pooling head |
+| `train_v12.py` | **Train the production V12 model** (`temporal_freqpos` head + high-frequency nuisance augmentation) |
+| `train_v7_temporal.py` | Train with the temporal (V7) pooling head (earlier iteration, kept for ablation) |
+| `train_v8_temporal_freq.py` | Train with the temporal-frequency CRNN (V8) pooling head (earlier iteration, kept for ablation) |
 | `tune_threshold.py` | Sweep detection confidence thresholds and report precision/recall |
 | `visualize_fp_vs_tp.py` | Side-by-side spectrogram comparison of true vs. false positives |
 | `fetch_colobus_library.py` | Download Colobus guereza reference calls from online sound libraries |
@@ -378,9 +379,10 @@ Visualization and analysis utilities.
 | Notebook | Description |
 |---|---|
 | `main_local.ipynb` | **Local run** — drop data into `data/`, run end-to-end with zero path config (start here for local) |
+| `auto_cleanup_local.ipynb` | **Local auto-cleanup** — sort detections into clean vs. suspicious with no manual listening (run after `main_local.ipynb`) |
 | `run_in_colab.ipynb` | Full pipeline on Google Colab: mount Drive, train, detect (start here for Colab) |
-| `main_pipeline_updated.ipynb` | Detailed step-by-step training and evaluation |
-| `auto_cleanup_false_positives.ipynb` | Run auto-cleanup interactively with visualization |
+| `auto_cleanup_false_positives.ipynb` | Auto-cleanup on Google Colab (Colab counterpart of `auto_cleanup_local.ipynb`) |
+| `main_pipeline_updated.ipynb` | Detailed step-by-step training and evaluation (legacy walkthrough) |
 
 ### Presentation (`presentation_notebooks/`)
 
@@ -460,7 +462,7 @@ cd primates-sound-detection
 pip install -r requirements.txt
 ```
 
-For exact reproducibility (Python 3.10 / Google Colab environment matching the
+For exact reproducibility (Python 3.12 / Google Colab environment matching the
 published results), use the frozen requirements instead:
 
 ```bash
@@ -565,7 +567,7 @@ with `python scripts/run_detection_ipa.py --station IPA1ST`.
 To reproduce the published **V12** four-class model and field results:
 
 1. **Environment.** `pip install -r requirements-frozen.txt` for exact version
-   match (Python 3.10, Keras 3 / TensorFlow >= 2.16, Google Colab). Or
+   match (Python 3.12, Keras 3 / TensorFlow >= 2.16, Google Colab). Or
    `pip install -r requirements.txt` for flexible versions. See
    [`SETUP.md`](SETUP.md) for the conda recipe on fresh machines.
 
