@@ -542,16 +542,15 @@ source recordings have been deleted to save storage.
 
 The complete method is released as a self-contained repository
 (\url{https://github.com/mo119m/primates-sound-detection}) designed to be run by
-others, not only read. Two Jupyter notebooks reproduce the entire workflow on a
-local machine with no code editing: \texttt{main\_local.ipynb} runs
-preprocessing, training, and sliding-window detection end-to-end, and
-\texttt{auto\_cleanup\_local.ipynb} runs the three-filter false-positive cleanup
-of Section~7. Both notebooks locate the project automatically, detect and use a
-GPU if one is present (falling back to CPU otherwise), and load the published
-V12 model directly. A step-by-step \texttt{SETUP.md} takes a user from a fresh
-machine to a running notebook, and the Python dependencies are pinned so that
-the exact software environment used to train the released model can be recreated
-on Windows, macOS, or Linux.
+others, not only read. Its README provides complete, step-by-step documentation,
+and ready-to-run Jupyter notebooks reproduce the entire workflow --- preprocessing,
+training, sliding-window detection, and the three-filter false-positive cleanup
+of Section~7 --- with no code editing. Notebooks are provided for both running
+locally (on a personal machine, with automatic use of a GPU if present and a
+CPU fallback otherwise) and running in the cloud on Google Colab with a free
+GPU, so users can choose whichever suits their hardware. The Python dependencies
+are pinned so that the exact software environment used to train the released
+model can be recreated on Windows, macOS, or Linux.
 
 Crucially, the pipeline is \emph{configuration-driven}: all paths, class
 definitions, audio parameters, and hyperparameters live in a single
