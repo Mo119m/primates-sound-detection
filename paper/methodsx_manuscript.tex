@@ -125,7 +125,9 @@ data augmentation adapted from a rainforest-CNN pipeline (Sun et al., 2022)
 (Lee et al., 2018) \cite{lee2018}; audio event tagging with YAMNet trained on
 AudioSet (Gemmeke et al., 2017; Hershey et al., 2017) \cite{gemmeke2017,hershey2017} \\
 Resource availability & Code:
-\url{https://github.com/mo119m/primates-sound-detection}. Python 3,
+\url{https://github.com/mo119m/primates-sound-detection}, including
+ready-to-run Jupyter notebooks and a step-by-step \texttt{SETUP.md}, with
+pinned dependencies for an exactly reproducible environment. Python 3,
 TensorFlow 2, librosa, scikit-learn, OpenCV, soundfile; the YAMNet filter
 additionally needs tensorflow-hub. [Add a data DOI/repository
 here if you deposit the reference clips.] \\
@@ -535,6 +537,34 @@ is the approach used for the low-frequency \textit{Colobus} confuser in the
 current model. Because every field detection clip is exported during detection,
 this hard-negative mining can be repeated from the saved clips even after the
 source recordings have been deleted to save storage.
+
+\subsection*{9. Reproducibility and reuse on new species or sites}
+
+The complete method is released as a self-contained repository
+(\url{https://github.com/mo119m/primates-sound-detection}) designed to be run by
+others, not only read. Two Jupyter notebooks reproduce the entire workflow on a
+local machine with no code editing: \texttt{main\_local.ipynb} runs
+preprocessing, training, and sliding-window detection end-to-end, and
+\texttt{auto\_cleanup\_local.ipynb} runs the three-filter false-positive cleanup
+of Section~7. Both notebooks locate the project automatically, detect and use a
+GPU if one is present (falling back to CPU otherwise), and load the published
+V12 model directly. A step-by-step \texttt{SETUP.md} takes a user from a fresh
+machine to a running notebook, and the Python dependencies are pinned so that
+the exact software environment used to train the released model can be recreated
+on Windows, macOS, or Linux.
+
+Crucially, the pipeline is \emph{configuration-driven}: all paths, class
+definitions, audio parameters, and hyperparameters live in a single
+\texttt{config.py}. Re-targeting the method to a different species or field site
+requires no change to the source code. A user drops their own labelled reference
+clips into the \texttt{data/} folders, lists the new class names in the
+\texttt{SPECIES\_FOLDERS} and \texttt{BACKGROUND\_FOLDERS} dictionaries, and
+re-runs the same notebook; the number of output classes, class weighting, and
+the detection grouping all follow automatically from that configuration. The
+frequency-position head, confuser-class mechanism, and three-filter cleanup are
+generic and apply unchanged to any new target call. In this way the repository
+functions both as an exact reproduction of the results reported here and as a
+reusable template for new passive-acoustic-monitoring problems.
 
 %% =====================================================================
 %% METHOD VALIDATION -- data that validate the method (no Results/Discussion).
