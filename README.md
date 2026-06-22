@@ -21,6 +21,10 @@ recycles confirmed false positives as hard negatives for iterative retraining.
 > The notebook walks you through every step; `data/README.md` says which folder
 > each audio file goes in. You do **not** need to read the developer sections below.
 >
+> **Want to auto-clean false positives after detection?** → Open
+> `main_pipeline_notebooks/auto_cleanup_local.ipynb` and run the cells. It sorts
+> your detections into *clean* vs *suspicious* with no manual listening.
+>
 > **Reproducing the published results?** Jump to [Reproducibility](#reproducibility).
 
 ## Main Workflow
