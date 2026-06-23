@@ -133,7 +133,10 @@ mkdir -p data/outputs/models
 python -c "import tensorflow as tf, keras; print('TF', tf.__version__, '| Keras', keras.__version__)"
 ```
 
-Expected output: `TF 2.20.0 | Keras 3.13.2`
+Expected output: something like `TF 2.20.0 | Keras 3.13.2`. The exact version
+depends on your operating system (macOS may install TensorFlow 2.16.x instead
+of 2.20.0) — **any TensorFlow 2.16 or newer with Keras 3 is fine** and can
+load the model.
 
 If it says `No module named 'tensorflow'`, you are not in the conda
 environment — run `conda activate primates` and try again.
