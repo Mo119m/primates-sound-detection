@@ -11,11 +11,10 @@ as they are done. (This file is a working note, not part of the manuscript.)
 - [ ] Ethics statement: permit `[number]` / `[authority]` — or delete that
       bracket if no permit applies (passive recording)
 - [ ] Acknowledgments: field teams / funding (or keep the "no funding" line)
-- [ ] Data deposit decision — the data DOI/repository placeholder appears in
-      **two** places: the Specifications table (`[Add a data DOI...]`) **and**
-      the Data availability section (`[repository]` / `[DOI]`). Fill both if
-      depositing the reference clips, or delete both brackets if data stays
-      private.
+- [x] Data deposit decision — **settled: data stays private** (model weights and
+      reference clips available from the corresponding author on request). Both
+      placeholders removed: Specifications table and Data availability section now
+      state this consistently. No DOI needed.
 - [ ] **Santi placeholders** (bold `[Santi ...]`): Background conservation/IUCN
       paragraph + Abstract conservation-significance framing
 - [ ] **Time-of-day filter** (§1, bold `[to be confirmed before submission]`):
@@ -39,9 +38,11 @@ as they are done. (This file is a working note, not part of the manuscript.)
       re-upload the latest versions).
 
 ## Formatting / declarations
-- [ ] Add the **Generative-AI use** disclosure statement (new section before
-      References) — required because AI tools assisted manuscript/figure/code
-      preparation. See the MethodsX Guide ("Declaration of generative AI use").
+- [~] **Generative-AI use** disclosure — section added before References with the
+      official template wording. **Still TODO:** fill in `[tool/service name and
+      version]`, or delete the section if AI was used only for basic
+      grammar/spell checking. See the MethodsX Guide ("Declaration of generative
+      AI use").
 - [ ] For the review manuscript, switch `\documentclass[final,3p,times]` →
       `[review,3p,times]` (double-spaced, line-numbered) if the journal asks.
 - [ ] Delete the comment header (lines marked "TODO before submitting").
