@@ -197,11 +197,7 @@ code.
 
 Field recordings are continuous WAV files collected at fixed acoustic stations
 (denoted IPA1ST, IPA2ST, \dots; one subfolder per recording date) in
-rainforest near Makokou, Gabon. An optional time-of-day filter can restrict
-processing to recordings whose start time falls within a configurable morning
-window (default 05:30--10:30 local time, parsed from the filename timestamp),
-when the diurnal target species are most vocally active, reducing both compute
-and false positives. In the runs reported here this filter was not applied.
+rainforest near Makokou, Gabon.
 
 The model is trained on short reference clips organized into four classes
 (Table~\ref{tab:traindata}):
@@ -756,8 +752,7 @@ calibration is less effective.
 \item The temporal-isolation filter assumes bout-calling; genuinely isolated
 or rare calls can be flagged, and very dense calling can mask true isolation.
 \item A fixed 2\,s analysis window may truncate or split long vocalizations
-(e.g.\ \textit{Colobus} roars), and the optional time-of-day filter, if
-enabled, is site- and species-specific and must be adjusted elsewhere.
+(e.g.\ \textit{Colobus} roars).
 \item The method yields detections, not calibrated abundance or density
 estimates; converting counts to ecological metrics requires additional
 assumptions.
