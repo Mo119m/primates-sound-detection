@@ -186,7 +186,7 @@ new reference clips and editing a single configuration file.
 The pipeline has five stages (preprocessing, training, detection, automatic
 cleanup, and iterative retraining), augmented by three targeted
 false-positive controls for \textit{Colobus}: a frequency-position-aware
-classifier head that encodes \emph{where} in frequency a call sits, a
+classifier head that encodes where in frequency a call sits, a
 dedicated hard-negative ``confuser'' class learned during training, and a
 calibrated low-frequency energy gate applied at detection time. All paths,
 species definitions, and hyperparameters live in a single configuration file so
@@ -201,8 +201,7 @@ rainforest near Makokou, Gabon. An optional time-of-day filter can restrict
 processing to recordings whose start time falls within a configurable morning
 window (default 05:30--10:30 local time, parsed from the filename timestamp),
 when the diurnal target species are most vocally active, reducing both compute
-and false positives. In the runs reported here this filter was not applied
-\textbf{[to be confirmed before submission]}.
+and false positives. In the runs reported here this filter was not applied.
 
 The model is trained on short reference clips organized into four classes
 (Table~\ref{tab:traindata}):
@@ -310,7 +309,7 @@ classifier trained on them can therefore take a shortcut (keying on
 high-frequency texture rather than on the low-frequency roar that is the true
 \textit{Colobus} signature) and consequently mis-fire on forest insects and
 birds in the field. To break this spurious correlation we add a targeted
-augmentation applied \emph{only} to the \textit{Colobus\_guereza} class: for
+augmentation applied only to the \textit{Colobus\_guereza} class: for
 each reference clip, two extra variants are generated in which the
 mel-spectrogram band above 1.5\,kHz is replaced with the corresponding high
 band of a randomly chosen background clip, leaving the low-frequency content
@@ -341,8 +340,8 @@ pretrained on ImageNet \cite{deng2009} with a custom temporal-frequency CRNN
 head (Fig.~\ref{fig:architecture}) designed to exploit both the spectral
 location and the temporal rhythm of primate calls. The motivation is that Colobus roars concentrate energy around
 $\sim$512\,Hz, putty-nosed calls around $\sim$1\,kHz, and common confusers
-(birds, insects) above $\sim$2\,kHz; encoding \emph{where} in frequency the
-energy sits and \emph{when} it occurs lets the model discriminate species that
+(birds, insects) above $\sim$2\,kHz; encoding where in frequency the
+energy sits and when it occurs lets the model discriminate species that
 a global pooling layer would conflate.
 
 The feature map from block4\_conv4 of VGG19 (spatial size
@@ -353,8 +352,8 @@ VGG19's convolutions are translation-invariant along both image axes, including
 frequency: a rhythmic, harmonically structured call texture produces almost the
 same feature response whether it sits low in the spectrogram (a \textit{Colobus}
 roar) or high (a bird trill or insect chorus). A head that pools or convolves
-these features therefore keys on the call \emph{texture} while discarding
-\emph{where} in frequency it occurred, exactly the cue a human uses to tell a
+these features therefore keys on the call texture while discarding
+where in frequency it occurred, exactly the cue a human uses to tell a
 low roar from a high bird call. To restore this information we append an
 explicit frequency-coordinate channel to the feature map: a normalized
 ``CoordConv'' channel \cite{liu2018} whose value runs from 0 at the lowest
@@ -440,13 +439,13 @@ A trained model is applied to each long recording with a 2.0\,s window
 advanced in 1.0\,s steps (50\,\% overlap); a final window is anchored at the
 end of the file so trailing audio is not dropped. Every window is converted to
 a mel-spectrogram image and classified. The four softmax classes are first
-collapsed onto detection \emph{groups}: the
+collapsed onto detection groups: the
 putty-nosed call types are already merged into Cernic at training time, so
 Cernic and Colobus\_guereza map to themselves, while the Colobus\_confuser
 class is routed into the Background group. Summing the confuser probability
 into Background means a window the model calls ``confuser'' is excluded from
 detections exactly like Background, and, equally important, the confuser
-probability is kept \emph{out} of the Colobus\_guereza group, so a genuine
+probability is kept out of the Colobus\_guereza group, so a genuine
 \textit{Colobus} window is no longer inflated by confuser energy. The window is
 assigned to its highest-scoring group and is kept as a detection if that group
 is not Background and its confidence meets a threshold (default 0.4).
@@ -502,7 +501,7 @@ is one of a curated set of non-primate sounds (birds, insects, frogs, wind,
 rain, water, mechanical and human sounds, etc.); generic classes consistent
 with a primate call (e.g.\ ``Animal'', ``Wild animals'') are deliberately left
 unflagged. Because AudioSet has no monkey-specific class, this filter is used
-only to \emph{reject} clips that are confidently something else, not to
+only to reject clips that are confidently something else, not to
 confirm primates.
 
 \paragraph{(c) Temporal-isolation filter}
@@ -553,7 +552,7 @@ GPU, so users can choose whichever suits their hardware. The Python dependencies
 are pinned so that the exact software environment used to train the released
 model can be recreated on Windows, macOS, or Linux.
 
-Crucially, the pipeline is \emph{configuration-driven}: all paths, class
+Crucially, the pipeline is configuration-driven: all paths, class
 definitions, audio parameters, and hyperparameters live in a single
 \texttt{config.py}. Re-targeting the method to a different species or field site
 requires no change to the source code. A user drops their own labelled reference
@@ -690,7 +689,7 @@ remaining problem was specific to \textit{Colobus}: a recurring low-frequency
 forest sound was repeatedly mis-fired as \textit{Colobus} and was not
 controlled by folding examples into the generic Background class. Promoting that
 sound to a dedicated Colobus\_confuser class addressed this
-specific confuser, but a broader class of \emph{high-frequency} false positives
+specific confuser, but a broader class of high-frequency false positives
 (bird and insect sounds) persisted, because the head keyed on call texture
 while ignoring its frequency. The frequency-position encoding resolves
 the problem at the architecture level by making convolutions position-aware.
