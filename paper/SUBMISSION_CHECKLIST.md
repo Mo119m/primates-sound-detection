@@ -17,9 +17,10 @@ as they are done. (This file is a working note, not part of the manuscript.)
       state this consistently. No DOI needed.
 - [ ] **Santi placeholders** (bold `[Santi ...]`): Background conservation/IUCN
       paragraph + Abstract conservation-significance framing
-- [x] **Time-of-day filter** — **settled: not used.** §1 now states plainly
-      "this filter was not applied" (placeholder removed). The Limitations bullet
-      describes the filter generically and needs no change.
+- [x] **Time-of-day filter** — **settled: not used, not mentioned.** The filter
+      description was removed entirely from §1 and the orphaned Limitations bullet
+      clause was cleaned up. (The option still exists in the code, just not in the
+      paper.)
 - [ ] Per-station detection counts (Method validation, bold `[TODO ...]` in
       Field deployment) — pending the full run
 - [ ] Citation for the putty-nosed call types (hack/kek/pyow) — get the
