@@ -100,6 +100,12 @@ If VS Code shows a popup asking "Would you like to create a virtual
 environment?" — click **Don't show again**. You already have one (the conda
 environment).
 
+> **`No module named 'pkg_resources'` when running auto-cleanup?** The YAMNet
+> filter imports `tensorflow_hub`, which needs `setuptools` (Python 3.12 no
+> longer bundles it). It is now in the requirements, but if you built your
+> environment earlier, just run `pip install setuptools` once and restart the
+> notebook kernel.
+
 ---
 
 ## Step 5 — Download the pretrained model
