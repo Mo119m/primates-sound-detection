@@ -101,9 +101,10 @@ environment?" — click **Don't show again**. You already have one (the conda
 environment).
 
 > **`No module named 'pkg_resources'` when running auto-cleanup?** The YAMNet
-> filter imports `tensorflow_hub`, which needs `setuptools` (Python 3.12 no
-> longer bundles it). It is now in the requirements, but if you built your
-> environment earlier, just run `pip install setuptools` once and restart the
+> filter imports `tensorflow_hub`, which needs `pkg_resources`. That module
+> shipped with `setuptools` until version 81 removed it, so a too-new setuptools
+> breaks the import. The requirements now cap it, but if you built your
+> environment earlier, run `pip install "setuptools<81"` once and restart the
 > notebook kernel.
 
 ---

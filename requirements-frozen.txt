@@ -16,9 +16,9 @@ pandas>=2.1.0,<3
 matplotlib>=3.8.0,<4
 opencv-python>=4.8.0
 tensorflow-hub>=0.16.0
-# tensorflow-hub imports pkg_resources (from setuptools); Python 3.12 no longer
-# bundles setuptools in a fresh env, so pin it explicitly for the YAMNet filter.
-setuptools>=65.0.0
+# tensorflow-hub imports pkg_resources, which shipped with setuptools until
+# setuptools 81 dropped it. Cap below 81 so pkg_resources is still available.
+setuptools>=65.0.0,<81
 
 # resampy is NOT required: librosa>=0.10 resamples with soxr (a librosa
 # dependency) by default, and the training environment had no resampy
