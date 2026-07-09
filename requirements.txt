@@ -10,7 +10,7 @@ opencv-python>=4.7.0
 
 # Required only for the YAMNet filter in auto_cleanup.py
 tensorflow-hub>=0.13.0
-# tensorflow-hub imports pkg_resources, which ships with setuptools.
-# Python 3.12 no longer bundles setuptools in a fresh env, so pin it explicitly.
-setuptools>=65.0.0
+# tensorflow-hub imports pkg_resources, which shipped with setuptools until
+# setuptools 81 dropped it. Cap below 81 so pkg_resources is still available.
+setuptools>=65.0.0,<81
 # resampy is not required: librosa>=0.10 resamples with soxr by default.
