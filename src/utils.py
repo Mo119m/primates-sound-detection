@@ -307,6 +307,58 @@ def extract_detected_audio_clips(audio_path: str,
     print(f"Saved {len(detections_df)} clips to: {output_dir}")
 
 
+def load_all_detections_from_disk(detection_dir: str = None) -> dict:
+    """
+    Rebuild the ``all_detections`` dict from the CSVs already written to disk.
+
+    ``detection.process_all_long_audio_files`` returns this dict *and* writes a
+    ``*_detections.csv`` per recording. Use this helper when the CSVs exist but
+    the in-memory dict does not — e.g. detection was run on another machine and
+    the CSV folders were copied over, so you want to run the export/cleanup
+    steps without re-running detection.
+
+    Keys mirror the in-memory convention: the recording's path relative to
+    ``detection_dir`` with the ``_detections`` suffix stripped and a ``.wav``
+    extension restored (e.g. ``"CL C3 SBL/rec.wav"``), so
+    :func:`extract_all_detected_clips` can locate the source recording under
+    ``config.LONG_AUDIO_ROOT``.
+
+    Args:
+        detection_dir: Folder holding the ``*_detections.csv`` files (searched
+            recursively). Defaults to ``config.DETECTION_OUTPUT_DIR``.
+
+    Returns:
+        Dict mapping relative recording path -> detections DataFrame (empty CSVs
+        are skipped).
+    """
+    import glob
+
+    if detection_dir is None:
+        detection_dir = config.DETECTION_OUTPUT_DIR
+
+    csv_files = sorted(glob.glob(os.path.join(detection_dir, '**', '*_detections.csv'),
+                                 recursive=True))
+    if not csv_files:
+        raise FileNotFoundError(
+            f'No *_detections.csv found under {detection_dir}. Run Step 4 '
+            '(detection) first, or point detection_dir at the copied CSVs.')
+
+    all_detections = {}
+    for csv_path in csv_files:
+        df = pd.read_csv(csv_path)
+        if len(df) == 0:
+            continue
+        rel = os.path.relpath(csv_path, detection_dir)
+        rel_dir = os.path.dirname(rel)
+        base = os.path.basename(csv_path)[:-len('_detections.csv')]
+        key = os.path.join(rel_dir, base + '.wav') if rel_dir else base + '.wav'
+        all_detections[key] = df
+
+    print(f'Loaded {len(all_detections)} recordings with detections from '
+          f'{detection_dir}')
+    return all_detections
+
+
 def extract_all_detected_clips(all_detections: dict,
                                output_dir: str = None,
                                padding: float = 0.5,
