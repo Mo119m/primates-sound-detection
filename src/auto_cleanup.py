@@ -269,14 +269,34 @@ def filter_mahalanobis(det_df, clips, feature_extractor, class_means, inv_cov,
 
 
 def filter_yamnet(det_df, clips, suspicious=None, verbose: bool = True) -> pd.DataFrame:
-    """Flag detections whose top YAMNet class is a known non-primate sound."""
-    import tensorflow as tf
-    import tensorflow_hub as hub
+    """Flag detections whose top YAMNet class is a known non-primate sound.
+
+    YAMNet needs ``tensorflow_hub`` (which imports ``pkg_resources`` from
+    setuptools) and a one-time model download from the internet. If either is
+    unavailable, this filter is skipped gracefully — every detection is left
+    unflagged and the other two filters still run — instead of crashing the
+    whole cleanup. Install ``setuptools<81`` (see SETUP.md) and reconnect to
+    re-enable it.
+    """
+    det_df = det_df.copy()
+    try:
+        import tensorflow as tf
+        import tensorflow_hub as hub
+
+        yamnet = hub.load('https://tfhub.dev/google/yamnet/1')
+        class_map_path = yamnet.class_map_path().numpy().decode('utf-8')
+        yam_classes = pd.read_csv(class_map_path)['display_name'].tolist()
+    except Exception as exc:  # noqa: BLE001 - import, download, or TF errors
+        print(f'  [skip] YAMNet filter unavailable ({type(exc).__name__}: {exc}).')
+        print('         Running without it — the other two filters still apply.')
+        print('         To enable it: pip install "setuptools<81" and reconnect '
+              '(see SETUP.md).')
+        det_df['yamnet_top'] = '(yamnet skipped)'
+        det_df['yamnet_score'] = 0.0
+        det_df['flag_yamnet'] = False
+        return det_df
 
     suspicious = suspicious or DEFAULT_SUSPICIOUS_YAMNET
-    yamnet = hub.load('https://tfhub.dev/google/yamnet/1')
-    class_map_path = yamnet.class_map_path().numpy().decode('utf-8')
-    yam_classes = pd.read_csv(class_map_path)['display_name'].tolist()
 
     top_class, top_score = [], []
     flags = np.zeros(len(det_df), dtype=bool)
