@@ -268,7 +268,8 @@ hashing before training.
 All audio is resampled to 44.1\,kHz and standardized to a fixed 2.0\,s
 duration. Clips shorter than the target (e.g.\ hack, kek, and pyow calls,
 typically $\sim$0.3\,s) are embedded at a random position within a 2\,s
-segment of real background noise randomly selected from the Background pool;
+segment of real background noise randomly selected from the Background pool,
+at a call-to-background signal-to-noise ratio drawn uniformly from 3--15\,dB;
 this eliminates the silence shortcut that zero-padding would introduce and
 forces the model to distinguish the call from genuine ambient sound. Clips
 longer than 2\,s (e.g.\ putty-nosed 5\,s field recordings) are trimmed to the
@@ -450,22 +451,26 @@ non-maximum suppression at an intersection-over-union threshold of 0.5.
 
 \paragraph{Low-frequency energy gate for \textit{Colobus}.}
 After NMS, a frequency-domain safety net is applied to each remaining
-\textit{Colobus} detection. The mel-spectrogram of the 2\,s clip is split at
-1.5\,kHz and the ratio of energy below the cutoff to total energy is computed.
-Genuine \textit{Colobus} roars concentrate most of their energy in the low band
-(ratio $\geq$\,0.20), whereas the high-frequency bird and insect sounds that
-the classifier occasionally mis-fires on carry almost all energy above 1.5\,kHz
-(ratio $\ll$\,0.20). Detections falling below the threshold are dropped from
-the detection list (i.e.\ treated as non-target Background). The threshold was
-calibrated against the curated \textit{Colobus}
-reference clips to ensure that no genuine call is rejected: the lowest
-observed low-frequency ratio among reference clips is well above 0.20,
-providing a safe margin. The low-frequency ratio is also written as a column
+\textit{Colobus} detection. A short-time Fourier power spectrum of the 2\,s
+clip is computed with the same FFT size and hop length as the mel front end,
+and within the 20--8000\,Hz analysis band the fraction of energy that falls
+below 1.5\,kHz is measured. Genuine \textit{Colobus} roars concentrate almost
+all of their energy in the low band and sit well above the gate threshold,
+whereas the high-frequency bird and insect sounds that the classifier
+occasionally mis-fires on carry almost all of their energy above 1.5\,kHz.
+Detections whose low-frequency ratio falls below the threshold (0.20) are
+dropped from the detection list (i.e.\ treated as non-target Background). The
+threshold was calibrated jointly on the curated \textit{Colobus} reference
+clips and the field false positives: it sits above the highest low-frequency
+ratio observed among the insect and bird false positives ($\sim$0.09) and below
+the fifth percentile of the reference clips ($\sim$0.26), so it removes
+essentially all of these false positives while retaining roughly 98\% of
+genuine reference clips. The low-frequency ratio is also written as a column
 in the output CSV for every retained detection, so detections can be ranked or
 re-inspected by it.
 
 Per-file detections (start time, end time, species, confidence) are written to
-CSV, and the 2\,s waveform of every detection is exported as a clip so that
+CSV, and a short waveform clip around every detection is exported so that
 review and downstream filtering do not require re-reading the long recordings.
 
 \subsection*{7. Automatic false-positive cleanup}
@@ -698,8 +703,9 @@ see \S\,Sliding-window detection) that catches residual high-frequency false
 positives whose energy lies almost entirely above 1.5\,kHz. An earlier version
 of the gate with a higher threshold (0.40) was too aggressive and flagged
 genuine \textit{Colobus} clips whose ambient insect energy lowered the
-low-frequency ratio; the 0.20 threshold was calibrated to sit well below the
-lowest ratio observed among reference clips.
+low-frequency ratio; the 0.20 threshold sits below the fifth percentile of the
+reference clips and above the field false-positive maximum, retaining the large
+majority of genuine calls while still removing the insect false positives.
 
 %% =====================================================================
 \section*{Limitations}

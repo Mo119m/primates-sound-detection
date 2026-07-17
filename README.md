@@ -64,18 +64,26 @@ config.print_config_summary()
 
 ### Step 2 — Train the model
 
-```python
-trained_model = train.run_complete_training_pipeline()
+To reproduce the exact **V12** production model, use the two-stage script:
+
+```bash
+python scripts/train_v12.py
 ```
 
-Two-stage schedule: frozen VGG19 base (LR 1e-4) → fine-tune last blocks (LR 1e-5).
-Saves `best_model.h5` to `outputs/models/`.
+Two-stage schedule with the `temporal_freqpos` head: frozen VGG19 base (LR 1e-4)
+→ fine-tune last two blocks (LR 1e-5). Saves `best_model_v12.h5` to
+`data/outputs/models/`.
+
+> The library one-liner `train.run_complete_training_pipeline()` runs a simpler
+> single-stage schedule and uses the default pooling head (`gap`). To build the
+> V12 head from it, set `PRIMATE_MODEL_POOLING=temporal_freqpos` first (the
+> notebooks already do this).
 
 ### Step 3 — Detect in field recordings
 
 ```python
 # Always use load_trained_model() — handles the custom FrequencyCoord layer.
-model_obj = model.load_trained_model('outputs/models/best_model_v12.h5')
+model_obj = model.load_trained_model('data/outputs/models/best_model_v12.h5')
 
 # One file:
 detections = detection.detect_in_long_audio(model_obj, '/path/to/recording.wav')
@@ -95,7 +103,7 @@ Three filters (Mahalanobis OOD, YAMNet cross-check, temporal isolation) sort
 detections into clean vs. suspicious, no manual listening needed.
 
 ```python
-result = auto_cleanup.run_auto_cleanup(detection_dir='outputs/detections/IPA1ST')
+result = auto_cleanup.run_auto_cleanup(detection_dir='data/outputs/detections/IPA1ST')
 result['clean_df']       # passed all filters
 result['suspicious_df']  # flagged, with flag_reason column
 ```
