@@ -39,11 +39,10 @@ as they are done. (This file is a working note, not part of the manuscript.)
       re-upload the latest versions).
 
 ## Formatting / declarations
-- [~] **Generative-AI use** disclosure — section added before References with the
-      official template wording. **Still TODO:** fill in `[tool/service name and
-      version]`, or delete the section if AI was used only for basic
-      grammar/spell checking. See the MethodsX Guide ("Declaration of generative
-      AI use").
+- [x] **Generative-AI use** disclosure — section added after Data availability
+      (official template structure), stating an AI assistant helped tidy the
+      code repository and edit the documentation/manuscript, with the authors
+      taking full responsibility. No tool version required for this scope.
 - [ ] For the review manuscript, switch `\documentclass[final,3p,times]` →
       `[review,3p,times]` (double-spaced, line-numbered) if the journal asks.
 - [ ] Delete the comment header (lines marked "TODO before submitting").
