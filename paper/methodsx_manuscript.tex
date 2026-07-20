@@ -710,45 +710,43 @@ majority of genuine calls while still removing the insect false positives.
 %% =====================================================================
 \section*{Limitations}
 
-\begin{itemize}
-\item The classifier is closed-set: every 2\,s window is assigned to one of the
-four trained classes, so a field sound unlike anything seen in training is
-forced into its nearest class and can receive a high softmax score even when it
-is not a genuine call. This is the root cause of the residual \textit{Colobus}
-false positives, and it is why a high confidence threshold alone does not
-remove them; the dedicated confuser class and the frequency-position encoding
-target this failure mode but cannot be expected to eliminate every
-out-of-distribution sound.
-\item The frequency-position encoding, the high-frequency nuisance
-augmentation, and the low-frequency energy gate all exploit the fact that the
-target species occupy distinct frequency ranges (low-frequency \textit{Colobus}
-roars versus high-frequency birds and insects). They offer little leverage
-against a confuser that overlaps the target in both frequency and temporal
-structure.
-\item The auto-cleanup pipeline introduces a circular bias: hard negatives
-are scored by the same model that produced them, so genuine calls with low
-model confidence may be systematically hidden. This is mitigated by a
-mining-confidence audit in which high-confidence clips in the false-positive
-pool are manually reviewed and confirmed calls are recovered into training.
-\item Each of the three cleanup filters rests on an assumption that can fail:
-the YAMNet cross-check only rejects clips it can confidently attribute to a
-non-primate AudioSet class (forest sounds outside that distribution may be
-mislabelled); the Mahalanobis filter assumes most detections for a species are
-genuine, so outliers are informative; and the temporal-isolation filter assumes
-bout-calling, so genuinely isolated calls can be flagged. All three are
-deliberately conservative.
-\item The model favours precision over recall, so it is conservative on weak or
-short calls: on the validation set Cernic recall is 96.1\,\%, with the
-misclassified clips (mostly brief hacks and pyows in loud ambient noise) split
-between the confuser class and Background. A fixed 2\,s analysis window can also
-truncate or split long vocalizations such as \textit{Colobus} roars.
-\item Re-targeting to a new species requires curated reference clips and edits
-to the configuration; performance on rare or quiet calls with few reference
-examples is not guaranteed.
-\item The method yields detections, not calibrated abundance or density
-estimates; converting counts to ecological metrics requires additional
-assumptions.
-\end{itemize}
+The classifier is closed-set: every 2\,s window is assigned to one of the four
+trained classes, so a field sound unlike anything seen in training is forced
+into its nearest class and can receive a high softmax score even when it is not
+a genuine call. This is the root cause of the residual \textit{Colobus} false
+positives, and it is why a high confidence threshold alone does not remove them;
+the dedicated confuser class and the frequency-position encoding target this
+failure mode but cannot be expected to eliminate every out-of-distribution
+sound. These frequency-based defences---the frequency-position encoding, the
+high-frequency nuisance augmentation, and the low-frequency energy gate---all
+exploit the fact that the target species occupy distinct frequency ranges
+(low-frequency \textit{Colobus} roars versus high-frequency birds and insects),
+and they therefore offer little leverage against a confuser that overlaps the
+target in both frequency and temporal structure.
+
+The automatic cleanup carries its own caveats. It introduces a circular bias,
+because hard negatives are scored by the same model that produced them, so
+genuine calls with low model confidence may be systematically hidden; this is
+mitigated by a mining-confidence audit in which high-confidence clips in the
+false-positive pool are manually reviewed and confirmed calls are recovered
+into training. Each of the three filters also rests on an assumption that can
+fail: the YAMNet cross-check only rejects clips it can confidently attribute to
+a non-primate AudioSet class, so forest sounds outside that distribution may be
+mislabelled; the Mahalanobis filter assumes that most detections for a species
+are genuine, so that outliers are informative; and the temporal-isolation
+filter assumes bout-calling, so genuinely isolated calls can be flagged. All
+three are deliberately conservative.
+
+Finally, the model favours precision over recall and is therefore conservative
+on weak or short calls: on the validation set Cernic recall is 96.1\,\%, with
+the misclassified clips (mostly brief hacks and pyows in loud ambient noise)
+split between the confuser class and Background, and the fixed 2\,s analysis
+window can truncate or split long vocalizations such as \textit{Colobus} roars.
+Re-targeting the pipeline to a new species requires curated reference clips and
+edits to the configuration, and performance on rare or quiet calls with few
+reference examples is not guaranteed. The method also yields detections rather
+than calibrated abundance or density estimates; converting detection counts to
+ecological metrics requires additional assumptions.
 
 %% =====================================================================
 %% ETHICS STATEMENTS -- keep only the statements relevant to your work.
