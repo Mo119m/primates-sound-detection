@@ -230,6 +230,7 @@ All paths, parameters, and species definitions in one place.
 | Notebook | Description |
 |---|---|
 | **`main_local.ipynb`** | Local run — drop data into `data/`, run end-to-end, zero config |
+| **`annotate_detections.ipynb`** | Local review UI — listen to each detection clip, label call / false-positive / unsure, and get the per-station tallies for the paper |
 | **`auto_cleanup_local.ipynb`** | Local auto-cleanup — sort detections into clean vs. suspicious |
 | `run_in_colab.ipynb` | Full pipeline on Google Colab (free GPU) |
 | `auto_cleanup_false_positives.ipynb` | Auto-cleanup on Google Colab |
