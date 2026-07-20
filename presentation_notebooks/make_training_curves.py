@@ -80,14 +80,14 @@ INK = "#1E2A32"
 SUBINK = "#5A6670"
 FRAME = "#CBC7BF"
 
-fig, (axA, axL) = plt.subplots(1, 2, figsize=(11, 4.2), dpi=300)
+fig, (axA, axL) = plt.subplots(1, 2, figsize=(9.4, 4.0), dpi=300)
 
 
 def style(ax):
     for s in ax.spines.values():
         s.set_color(FRAME)
         s.set_linewidth(0.8)
-    ax.tick_params(length=3, colors=SUBINK, labelsize=9)
+    ax.tick_params(length=3, colors=SUBINK, labelsize=12.2)
     ax.grid(True, color="#ECEAE4", linewidth=0.8, zorder=0)
     ax.set_axisbelow(True)
     ax.axvline(boundary, color=SUBINK, linestyle=(0, (4, 3)), linewidth=1.0,
@@ -103,14 +103,13 @@ axA.scatter([best_global], [best_val], s=34, facecolor="white",
             edgecolor=VAL, linewidth=1.4, zorder=5)
 axA.annotate(f"best val {best_val*100:.2f}%",
              xy=(best_global, best_val), xytext=(best_global - 17, 0.905),
-             fontsize=8.5, color=INK,
+             fontsize=11.5, color=INK,
              arrowprops=dict(arrowstyle="-", color=SUBINK, linewidth=0.8))
 style(axA)
-axA.set_xlabel("Epoch", fontsize=10.5, color=INK)
-axA.set_ylabel("Accuracy", fontsize=10.5, color=INK)
+axA.set_xlabel("Epoch", fontsize=14.2, color=INK)
+axA.set_ylabel("Accuracy", fontsize=14.2, color=INK)
 axA.set_ylim(0.68, 1.005)
-axA.legend(loc="lower right", fontsize=9, frameon=False)
-axA.set_title("Accuracy", fontsize=11.5, color=INK, pad=8)
+axA.legend(loc="lower right", fontsize=12.2, frameon=False)
 
 # ── loss panel ───────────────────────────────────────────────────────────
 axL.plot(x1, s1_loss, color=TRAIN, linewidth=1.6, label="Training")
@@ -118,20 +117,19 @@ axL.plot(x2, s2_loss, color=TRAIN, linewidth=1.6)
 axL.plot(x1, s1_vloss, color=VAL, linewidth=1.6, label="Validation")
 axL.plot(x2, s2_vloss, color=VAL, linewidth=1.6)
 style(axL)
-axL.set_xlabel("Epoch", fontsize=10.5, color=INK)
-axL.set_ylabel("Loss", fontsize=10.5, color=INK)
-axL.legend(loc="upper right", fontsize=9, frameon=False)
-axL.set_title("Loss", fontsize=11.5, color=INK, pad=8)
+axL.set_xlabel("Epoch", fontsize=14.2, color=INK)
+axL.set_ylabel("Loss", fontsize=14.2, color=INK)
+axL.legend(loc="upper right", fontsize=12.2, frameon=False)
 
 # Stage labels (placed above each panel region).
 for ax in (axA, axL):
     ymax = ax.get_ylim()[1]
     ax.text(n1 / 2, ymax, "Stage 1: head training",
-            ha="center", va="bottom", fontsize=8, color=SUBINK, style="italic")
+            ha="center", va="bottom", fontsize=10.8, color=SUBINK, style="italic")
     ax.text(n1 + n2 / 2, ymax, "Stage 2: fine-tuning",
-            ha="center", va="bottom", fontsize=8, color=SUBINK, style="italic")
+            ha="center", va="bottom", fontsize=10.8, color=SUBINK, style="italic")
 
-fig.suptitle("V12 two-stage training history", fontsize=12.5, color=INK,
+fig.suptitle("V12 two-stage training history", fontsize=16.9, color=INK,
              y=1.02)
 plt.tight_layout()
 
