@@ -673,10 +673,33 @@ encoding suppresses the high-frequency confusion rather than trading away true
 positives. The final (V12) model adds the high-frequency nuisance augmentation
 and the calibrated low-frequency gate on top of this encoding and is the
 version deployed across all stations.
-\textbf{[TODO: the number of stations and recordings processed, the aggregate
-and per-station detection counts, the Cernic detections retained after manual
-review, and the \textit{Colobus} false-positive counts, to be filled in once
-processing completes.]}
+%% ---------------------------------------------------------------------
+%% FIELD-DEPLOYMENT RESULTS -- fill the \textbf{[..]} blanks from the summary
+%% printed by main_pipeline_notebooks/annotate_detections.ipynb (Section 3).
+%% Mapping of each blank to the annotation summary:
+%%   stations processed / recordings / total detections -> "totals"
+%%   per-species detections, true (kept), false, precision -> "per species" table
+%%   per-station range or table -> per_station_summary.csv
+%% Delete the leading "[..]" markers once the numbers are in.
+%% ---------------------------------------------------------------------
+The final (V12) model was deployed across \textbf{[N]} acoustic stations,
+scanning \textbf{[N]} recordings and producing \textbf{[N]} detections in total
+(\textbf{[N]} \textit{Cercopithecus nictitans} and \textbf{[N]}
+\textit{Colobus guereza}). Every detection clip was verified by ear. Of the
+\textbf{[N]} \textit{Cercopithecus nictitans} detections, \textbf{[N]} were
+confirmed as genuine calls after manual review (precision \textbf{[N]}\,\%),
+the remainder being non-target forest sounds. Of the \textbf{[N]}
+\textit{Colobus guereza} detections, \textbf{[N]} were confirmed calls and
+\textbf{[N]} were false positives (precision \textbf{[N]}\,\%). Per-station
+detection counts ranged from \textbf{[N]} to \textbf{[N]}. At this precision,
+confirming the full set of detections required listening only to the
+\textbf{[N]} exported clips rather than the \textbf{[N]}\,h of raw recordings,
+the reduction in manual effort that motivates the method.
+%% Optional per-station table, built from per_station_summary.csv. If you add
+%% it, reference it above with (Table~\ref{tab:field}):
+%% \begin{table}[H]\centering
+%%   \caption{Per-station detections and confirmed calls.}\label{tab:field}
+%%   ... \end{table}
 
 \paragraph{Architecture progression (development history).}
 The components of the model were added in response to failures observed on the
