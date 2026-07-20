@@ -193,7 +193,7 @@ species definitions, and hyperparameters live in a single configuration file so
 the workflow can be re-targeted to new species or sites without touching the
 code.
 
-\subsection*{1. Study area, recordings, and reference clips}
+\subsection*{Study area, recordings, and reference clips}
 
 Field recordings are continuous WAV files collected at fixed acoustic stations
 (denoted IPA1ST, IPA2ST, \dots; one subfolder per recording date) in
@@ -246,8 +246,8 @@ Background        & $\sim$5{,}900 & ambient noise, non-target animals,
 \end{tabularx}
 \end{table}
 
-\noindent These are raw clip counts. Augmentation (Section~3) and the
-train/validation split (Section~5) expand them into the per-class validation
+\noindent These are raw clip counts. Augmentation (\S\,Data augmentation) and the
+train/validation split (\S\,Model training) expand them into the per-class validation
 totals reported later in Table~\ref{tab:val}.
 
 \noindent All training clips underwent human verification. Because the
@@ -263,7 +263,7 @@ Colobus\_confuser class. Content-duplicate clips (the same field
 detection stored more than once by different mining passes) were removed by
 hashing before training.
 
-\subsection*{2. Audio preprocessing and mel-spectrogram representation}
+\subsection*{Audio preprocessing and mel-spectrogram representation}
 
 All audio is resampled to 44.1\,kHz and standardized to a fixed 2.0\,s
 duration. Clips shorter than the target (e.g.\ hack, kek, and pyow calls,
@@ -284,7 +284,7 @@ channels to form an RGB image, and finally scaled to [0, 1] for input to the
 network. Using the same spectrogram conversion at training and detection time keeps the
 two feature distributions comparable.
 
-\subsection*{3. Data augmentation}
+\subsection*{Data augmentation}
 
 To expand the reference set and make the classifier robust to field
 conditions, each target-class spectrogram is expanded into seven training
@@ -330,7 +330,7 @@ low-frequency roar is kept, decorrelating high-frequency texture from the
 \label{fig:augmentation}
 \end{figure}
 
-\subsection*{4. Model architecture}
+\subsection*{Model architecture}
 
 The classifier couples a VGG19 convolutional backbone \cite{simonyan2015}
 pretrained on ImageNet \cite{deng2009} with a custom temporal-frequency CRNN
@@ -399,7 +399,7 @@ the right.}
 \label{fig:architecture}
 \end{figure}
 
-\subsection*{5. Model training}
+\subsection*{Model training}
 
 Training proceeds in two stages, following a standard transfer-learning
 protocol of head training followed by partial fine-tuning.
@@ -411,7 +411,7 @@ $1 \times 10^{-4}$, and the loss is sparse categorical cross-entropy.
 
 \paragraph{Stage 2: Partial fine-tuning.}
 Because the VGG19 base is truncated at block4\_conv4
-(Section~4), its trainable portion spans blocks 1--4. The last two of these
+(\S\,Model architecture), its trainable portion spans blocks 1--4. The last two of these
 blocks (the block3 and block4 convolutional layers) are
 unfrozen, while block1 and block2 remain frozen to preserve
 low-level features; this makes $\approx$12.3\,M parameters trainable. The
@@ -430,7 +430,7 @@ on plateau (factor 0.5, patience 5, floor $1 \times 10^{-7}$). The best
 checkpoint is saved. Training concludes with a
 per-class accuracy report and a confusion matrix on the validation set.
 
-\subsection*{6. Sliding-window detection}
+\subsection*{Sliding-window detection}
 
 A trained model is applied to each long recording with a 2.0\,s window
 advanced in 1.0\,s steps (50\,\% overlap); a final window is anchored at the
@@ -473,7 +473,7 @@ Per-file detections (start time, end time, species, confidence) are written to
 CSV, and a short waveform clip around every detection is exported so that
 review and downstream filtering do not require re-reading the long recordings.
 
-\subsection*{7. Automatic false-positive cleanup}
+\subsection*{Automatic false-positive cleanup}
 
 The detector's raw output contains many false positives from sounds absent
 from the training set. Three independent filters, each exploiting a different
@@ -517,7 +517,7 @@ detections are written to separate CSVs (the suspicious file carries a
 human-readable flag-reason column), and strong false positives are
 exported as labelled WAV clips for the next stage.
 
-\subsection*{8. Iterative hard-negative mining}
+\subsection*{Iterative hard-negative mining}
 
 The exported strong false positives are the sounds the detector most needs to
 learn to ignore. They are added to the Background class and the model is
@@ -539,14 +539,14 @@ current model. Because every field detection clip is exported during detection,
 this hard-negative mining can be repeated from the saved clips even after the
 source recordings have been deleted to save storage.
 
-\subsection*{9. Reproducibility and reuse on new species or sites}
+\subsection*{Reproducibility and reuse on new species or sites}
 
 The complete method is released as a self-contained repository
 (\url{https://github.com/mo119m/primates-sound-detection}) designed to be run by
 others, not only read. Its README provides complete, step-by-step documentation,
 and ready-to-run Jupyter notebooks reproduce the entire workflow --- preprocessing,
 training, sliding-window detection, and the three-filter false-positive cleanup
-of Section~7 --- with no code editing. Notebooks are provided for both running
+--- with no code editing. Notebooks are provided for both running
 locally (on a personal machine, with automatic use of a GPU if present and a
 CPU fallback otherwise) and running in the cloud on Google Colab with a free
 GPU, so users can choose whichever suits their hardware. The Python dependencies
