@@ -60,22 +60,22 @@ for i in range(4):
         color = "white" if pct > 60 else INK
         if i == j:
             ax.text(j, i - 0.12, f"{count}", ha="center", va="center",
-                    fontsize=14, fontweight="bold", color=color)
+                    fontsize=17.9, fontweight="bold", color=color)
             ax.text(j, i + 0.22, f"({pct:.1f}%)", ha="center", va="center",
-                    fontsize=8.5, color=color)
+                    fontsize=10.9, color=color)
         else:
             ax.text(j, i, f"{count}", ha="center", va="center",
-                    fontsize=11, color=color)
+                    fontsize=14.1, color=color)
 
 ax.set_xticks(range(4))
 ax.set_yticks(range(4))
-ax.set_xticklabels(CLASSES, fontsize=9.5, color=INK)
-ax.set_yticklabels(CLASSES, fontsize=9.5, color=INK)
-ax.set_xlabel("Predicted class", fontsize=11, color=INK, labelpad=8)
-ax.set_ylabel("True class", fontsize=11, color=INK, labelpad=8)
+ax.set_xticklabels(CLASSES, fontsize=12.2, color=INK)
+ax.set_yticklabels(CLASSES, fontsize=12.2, color=INK)
+ax.set_xlabel("Predicted class", fontsize=14.1, color=INK, labelpad=8)
+ax.set_ylabel("True class", fontsize=14.1, color=INK, labelpad=8)
 
 ax.set_title("V12 validation confusion matrix  (n = 3 717,  accuracy = 98.12%)",
-             fontsize=11.5, color=INK, pad=12)
+             fontsize=14.7, color=INK, pad=12)
 
 # Thin border
 for spine in ax.spines.values():
@@ -86,8 +86,8 @@ ax.tick_params(length=0)
 
 # Colorbar
 cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-cbar.set_label("Row-normalised (%)", fontsize=9, color=SUBINK)
-cbar.ax.tick_params(labelsize=8, colors=SUBINK)
+cbar.set_label("Row-normalised (%)", fontsize=11.5, color=SUBINK)
+cbar.ax.tick_params(labelsize=10.2, colors=SUBINK)
 cbar.outline.set_edgecolor("#CBC7BF")
 cbar.outline.set_linewidth(0.8)
 
