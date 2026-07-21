@@ -224,6 +224,7 @@ All paths, parameters, and species definitions in one place.
 | `mine_field_negatives.py` | Mine false positives from dev-station recordings as hard negatives |
 | `run_hard_negative_mining.py` | Extract medium-confidence predictions as candidate FPs |
 | `tune_threshold.py` | Sweep confidence thresholds and report precision/recall |
+| `summarize_review.py` | Aggregate the per-site manual-review CSVs (Kaleidoscope `MANUAL ID`) into per-station / per-species detection, confirmed-call, false-positive, and precision tallies for the paper |
 
 ## Notebooks (`main_pipeline_notebooks/`)
 
