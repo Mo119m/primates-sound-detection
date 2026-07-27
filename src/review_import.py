@@ -59,14 +59,18 @@ def load_review_csv(path, blank_is_confirmed=True):
     where verdict is 'call' (confirmed), 'false_positive', or 'unreviewed'.
     """
     df = pd.read_csv(path, dtype=str, keep_default_na=False)
-    # Be tolerant of column-name spacing/case.
-    cols = {c.strip().upper(): c for c in df.columns}
-    infile_col = cols.get("IN FILE") or cols.get("INFILE") or cols.get("FILE")
+    # Column headers vary between exports: case, spacing, and a trailing '*'
+    # that Kaleidoscope adds to some columns ('IN FILE' vs 'IN FILE*'). Compare
+    # on letters and digits only so every spelling maps to the same key.
+    cols = {re.sub(r"[^A-Z0-9]", "", c.upper()): c for c in df.columns}
+    infile_col = cols.get("INFILE") or cols.get("FILE")
     indir_col = cols.get("INDIR")
-    manual_col = cols.get("MANUAL ID") or cols.get("MANUALID")
+    manual_col = cols.get("MANUALID")
     if infile_col is None or manual_col is None:
-        raise ValueError(f"{path}: expected 'IN FILE' and 'MANUAL ID' columns; "
-                         f"found {list(df.columns)}")
+        missing = [n for n, c in (("IN FILE", infile_col),
+                                  ("MANUAL ID", manual_col)) if c is None]
+        raise ValueError(f"{path}: could not find the {' and '.join(missing)} "
+                         f"column(s). Found: {list(df.columns)}")
 
     rows = []
     for _, r in df.iterrows():

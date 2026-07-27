@@ -57,6 +57,21 @@ def test_blank_convention_flips_confirmed():
     assert yes["totals"]["false_positive"] == no["totals"]["false_positive"] == 1
 
 
+def test_tolerates_column_header_variants():
+    """Kaleidoscope writes 'IN FILE' in some exports and 'IN FILE*' in others."""
+    p = os.path.join(tempfile.mkdtemp(), "IPA13.csv")
+    with open(p, "w") as f:
+        f.write('"INDIR","FOLDER","IN FILE*","DURATION","MANUAL ID"\n')
+        f.write('"/x/Cernic/IPA13ST","20210222",'
+                '"Cernic__recC__00300s__conf0.7.wav","3",""\n')
+        f.write('"/x/Cernic/IPA13ST","20210222",'
+                '"Cernic__recC__00400s__conf0.6.wav","3","Noise"\n')
+    df = review_import.load_review_csv(p)
+    assert len(df) == 2
+    assert list(df["site"].unique()) == ["IPA13ST"]
+    assert list(df["verdict"]) == ["call", "false_positive"]
+
+
 def test_precision_and_named_tag_is_confirmed():
     indir = "/Users/x/Downloads/Colobus_guereza/IPA2ST"
     rows = [
