@@ -23,6 +23,7 @@ and the cleanup CSVs carry ``species``, ``source_file`` and ``start_time``.
 """
 import os
 import re
+import itertools
 import pandas as pd
 
 try:
@@ -174,6 +175,50 @@ def per_filter_analysis(matched_df):
                                   if kept_total else None),
         }
     return pd.DataFrame(rows).T
+
+
+def filter_combination_analysis(matched_df):
+    """
+    Score every subset of the filters, from the per-detection flags.
+
+    A detection is discarded when any filter in the subset fires, so each
+    subset's outcome is already determined by the flags recorded in a single
+    run -- the ablation needs no re-run of the model. Sorted by the resulting
+    precision, best first.
+    """
+    df = matched_df[matched_df["cleanup"].notna()]
+    present = [c for c in FLAG_COLUMNS
+               if c in df.columns and not df[c].isna().all()]
+    if not present:
+        return pd.DataFrame()
+
+    calls = df["verdict"] == "call"
+    n_calls = int(calls.sum())
+    n_fps = int((df["verdict"] == "false_positive").sum())
+    total = len(df)
+
+    rows = {}
+    for size in range(len(present) + 1):
+        for combo in itertools.combinations(present, size):
+            if combo:
+                flagged = df[list(combo)].fillna(False).astype(bool).any(axis=1)
+            else:
+                flagged = pd.Series(False, index=df.index)
+            kept = ~flagged
+            kept_calls = int((kept & calls).sum())
+            kept_total = int(kept.sum())
+            name = " + ".join(FLAG_LABELS[c] for c in combo) or "(no filter)"
+            rows[name] = {
+                "calls_kept": kept_calls,
+                "calls_lost": n_calls - kept_calls,
+                "fps_removed": n_fps - (kept_total - kept_calls),
+                "reviewed_after": kept_total,
+                "pct_removed": round(100 * (total - kept_total) / total, 1),
+                "precision": (round(kept_calls / kept_total, 4)
+                              if kept_total else None),
+            }
+    out = pd.DataFrame(rows).T
+    return out.sort_values("precision", ascending=False)
 
 
 def yamnet_class_analysis(matched_df, min_count=10):

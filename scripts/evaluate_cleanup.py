@@ -100,6 +100,13 @@ def main():
         pf.to_csv(os.path.join(out_dir, "cleanup_eval_per_filter.csv"))
     print(f"\nWrote cleanup_vs_review.csv to {out_dir}/")
 
+    fc = cleanup_eval.filter_combination_analysis(matched)
+    if len(fc):
+        print("\nEvery filter combination, from the same run's flags")
+        print("(no re-run needed; best precision first):")
+        print(fc.to_string())
+        fc.to_csv(os.path.join(out_dir, "cleanup_eval_combinations.csv"))
+
     yc = cleanup_eval.yamnet_class_analysis(matched)
     if len(yc):
         print("\nYAMNet by assigned AudioSet class (highest share of genuine")

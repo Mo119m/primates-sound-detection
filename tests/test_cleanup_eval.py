@@ -160,3 +160,31 @@ def test_per_filter_lift_separates_useful_from_harmful():
     assert pf.loc["yamnet", "calls_flagged"] == 3
     assert pf.loc["yamnet", "lift"] < 1
     assert pf.loc["yamnet", "precision_if_only"] < 0.5
+
+
+def test_filter_combinations_rank_by_precision():
+    """Every subset is derivable from one run's flags, and a subset containing
+    a harmful filter must rank below the same subset without it."""
+    rows, clean, susp = [], [], []
+    for i, s in enumerate([100, 200, 300, 400]):          # genuine calls
+        rows.append((f"Cernic__recA__{s:05d}s__conf0.9.wav", ""))
+        yam = i < 3                                       # yamnet flags 3 calls
+        entry = ("Cernic", "recA.wav", float(s), False, yam, False)
+        (susp if yam else clean).append(entry)
+    for i, s in enumerate([500, 600, 700, 800]):          # false positives
+        rows.append((f"Cernic__recA__{s:05d}s__conf0.9.wav", "Noise"))
+        mah = i < 3                                       # mahal flags 3 FPs
+        entry = ("Cernic", "recA.wav", float(s), mah, False, False)
+        (susp if mah else clean).append(entry)
+
+    matched, _ = cleanup_eval.run(_review_csv(rows),
+                                  _cleanup_dir_with_flags(clean, susp))
+    fc = cleanup_eval.filter_combination_analysis(matched)
+
+    assert len(fc) == 8                                   # 2^3 subsets
+    assert fc.index[0] == "mahalanobis"                   # best subset wins
+    # adding the harmful filter must not improve on mahalanobis alone
+    assert (fc.loc["mahalanobis + yamnet", "precision"]
+            < fc.loc["mahalanobis", "precision"])
+    # the no-filter row reproduces the raw precision
+    assert fc.loc["(no filter)", "precision"] == 0.5
