@@ -7,13 +7,25 @@ When adding new species or updating data, only need to modify this file.
 import os
 
 # DATA ROOT PATH
-# Defaults to the Google Drive layout used in the Colab notebooks, but can be
-# overridden via the PRIMATE_DATA_ROOT environment variable so the pipeline can
-# run locally or in CI without editing this file.
-DRIVE_ROOT = os.environ.get(
-    "PRIMATE_DATA_ROOT",
-    "/content/drive/MyDrive/primates-data",
-)
+# PRIMATE_DATA_ROOT wins when set. Otherwise pick the layout that matches where
+# we are running: the Google Drive folder in Colab, and the repository's own
+# data/ folder anywhere else, so a local clone works with no configuration.
+_COLAB_ROOT = "/content/drive/MyDrive/primates-data"
+_REPO_DATA = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+
+
+def _default_data_root() -> str:
+    env = os.environ.get("PRIMATE_DATA_ROOT")
+    if env:
+        return env
+    # /content/drive/MyDrive only exists once Drive is mounted in Colab.
+    if os.path.isdir("/content/drive/MyDrive"):
+        return _COLAB_ROOT
+    return _REPO_DATA
+
+
+DRIVE_ROOT = _default_data_root()
 # In the current Drive layout the species/ and background/ folders live
 # directly under DRIVE_ROOT, so AUDIO_ROOT == DRIVE_ROOT by default.
 AUDIO_ROOT = os.environ.get("PRIMATE_AUDIO_ROOT", DRIVE_ROOT)
