@@ -21,8 +21,16 @@ as they are done. (This file is a working note, not part of the manuscript.)
       description was removed entirely from §1 and the orphaned Limitations bullet
       clause was cleaned up. (The option still exists in the code, just not in the
       paper.)
-- [ ] Per-station detection counts (Method validation, bold `[TODO ...]` in
-      Field deployment) — pending the full run
+- [x] Per-station detection counts (Field deployment) — filled from the manual
+      review of all 16 stations: 6189 *C. nictitans* detections, 2535 confirmed,
+      41.0% precision, with the per-station table (`tab:field`). Regenerate with
+      `python scripts/summarize_review.py --dir reviews/`.
+- [ ] Cleanup effect (Field deployment, bold `[Automatic cleanup ...]`) — run
+      the auto-cleanup on this same detection set, then
+      `python scripts/evaluate_cleanup.py --review reviews/ --cleanup <dir>`
+- [ ] *Colobus guereza* field verification — detections exist but are not yet
+      manually reviewed. Either add them, or keep the current sentence scoping
+      the field results to *C. nictitans*.
 - [ ] Citation for the putty-nosed call types (hack/kek/pyow) — get the
       published reference from the species expert and add it (Background, bold
       `[cite the putty-nosed call-type source ...]`)

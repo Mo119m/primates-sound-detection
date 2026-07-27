@@ -32,6 +32,8 @@ FALSE_POSITIVE_TAGS = {"noise", "noize", "n", "false", "fp", "junk", "unknown",
 _FNAME_RE = re.compile(
     r"^(?P<species>.+?)__.*__(?P<start>\d+)s__conf(?P<conf>[0-9.]+)\.wav$"
 )
+# the recording portion, between the species prefix and the start-second field
+_REC_RE = re.compile(r"^.+?__(?P<recording>.+)__\d+s__conf[0-9.]+\.wav$")
 # Optional AudioMoth-style timestamp embedded in the recording part.
 _TS_RE = re.compile(r"(\d{8}T\d{6})")
 
@@ -94,9 +96,12 @@ def load_review_csv(path, blank_is_confirmed=True):
             # A non-empty, non-junk tag (e.g. a species code) = confirmed call.
             verdict = "call"
 
+        rm = _REC_RE.match(str(fname))
+        recording = rm.group("recording") if rm else ""
+
         rows.append({
             "file": fname, "site": site, "species": species,
-            "start_s": start_s, "confidence": conf,
+            "recording": recording, "start_s": start_s, "confidence": conf,
             "timestamp": timestamp, "manual_id": tag, "verdict": verdict,
         })
     return pd.DataFrame(rows)
@@ -156,6 +161,8 @@ def summarize(review_df):
 
     totals = {
         "sites": int(df["site"].nunique()) if len(df) else 0,
+        "recordings": (int(df.loc[df["recording"] != "", "recording"].nunique())
+                       if len(df) and "recording" in df.columns else 0),
         "species": int(df["species"].nunique()) if len(df) else 0,
         "detections": len(df),
         "confirmed": int((df["verdict"] == "call").sum()) if len(df) else 0,
@@ -173,6 +180,7 @@ def report_text(review_df):
     out = ["FIELD-DEPLOYMENT SUMMARY (from manual-review CSVs)",
            "=" * 50,
            f"Sites            : {t['sites']}",
+           f"Recordings       : {t['recordings']}",
            f"Total detections : {t['detections']}",
            f"Confirmed calls  : {t['confirmed']}",
            f"False positives  : {t['false_positive']}",
