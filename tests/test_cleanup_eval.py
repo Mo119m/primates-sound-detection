@@ -188,3 +188,59 @@ def test_filter_combinations_rank_by_precision():
             < fc.loc["mahalanobis", "precision"])
     # the no-filter row reproduces the raw precision
     assert fc.loc["(no filter)", "precision"] == 0.5
+
+
+def _cleanup_dir_full(clean_rows, susp_rows):
+    """rows: (species, source_file, start_time, mahal, yamnet, isolated,
+    yamnet_top, yamnet_score)."""
+    import tempfile as _t
+    d = _t.mkdtemp()
+    cols = ["species", "source_file", "start_time", "flag_mahal", "flag_yamnet",
+            "flag_isolated", "yamnet_top", "yamnet_score"]
+    pd.DataFrame(clean_rows, columns=cols).to_csv(
+        os.path.join(d, "clean_detections.csv"), index=False)
+    pd.DataFrame(susp_rows, columns=cols).to_csv(
+        os.path.join(d, "suspicious_detections.csv"), index=False)
+    return d
+
+
+def test_requiring_agreement_loses_fewer_calls():
+    """Demanding two filters agree must discard no more than a single flag
+    does, so it can never lose more genuine calls."""
+    rows, clean, susp = [], [], []
+    # a call flagged by one filter only -> survives a 2-vote rule
+    rows.append(("Cernic__recA__00100s__conf0.9.wav", ""))
+    susp.append(("Cernic", "recA.wav", 100.0, False, True, False, "Cricket", 0.2))
+    # an FP flagged by two filters -> discarded under either rule
+    rows.append(("Cernic__recA__00200s__conf0.9.wav", "Noise"))
+    susp.append(("Cernic", "recA.wav", 200.0, True, True, False, "Insect", 0.8))
+    # a clean call
+    rows.append(("Cernic__recA__00300s__conf0.9.wav", ""))
+    clean.append(("Cernic", "recA.wav", 300.0, False, False, False, "Animal", 0.4))
+
+    matched, _ = cleanup_eval.run(_review_csv(rows), _cleanup_dir_full(clean, susp))
+    va = cleanup_eval.vote_analysis(matched)
+
+    one, two = va.loc[">= 1 filter(s) agree"], va.loc[">= 2 filter(s) agree"]
+    assert one["calls_lost"] == 1 and two["calls_lost"] == 0
+    assert two["fps_removed"] == 1          # the 2-flag FP still goes
+    assert va.loc["no cleanup", "calls_lost"] == 0
+
+
+def test_yamnet_score_threshold_can_suppress_low_confidence_flags():
+    rows, clean, susp = [], [], []
+    # genuine call flagged by a low-confidence YAMNet guess
+    rows.append(("Cernic__recA__00100s__conf0.9.wav", ""))
+    susp.append(("Cernic", "recA.wav", 100.0, False, True, False, "Cricket", 0.15))
+    # false positive flagged by a confident YAMNet prediction
+    rows.append(("Cernic__recA__00200s__conf0.9.wav", "Noise"))
+    susp.append(("Cernic", "recA.wav", 200.0, False, True, False, "Insect", 0.85))
+
+    matched, _ = cleanup_eval.run(_review_csv(rows), _cleanup_dir_full(clean, susp))
+    ys = cleanup_eval.yamnet_score_sweep(matched, thresholds=(0.0, 0.5))
+
+    # trusting every prediction costs the genuine call
+    assert ys.loc["+ yamnet (score >= 0.0)", "calls_lost"] == 1
+    # requiring confidence keeps it while still removing the false positive
+    assert ys.loc["+ yamnet (score >= 0.5)", "calls_lost"] == 0
+    assert ys.loc["+ yamnet (score >= 0.5)", "fps_removed"] == 1

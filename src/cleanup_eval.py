@@ -110,7 +110,7 @@ def match(review_df, cleanup_df, start_tolerance=1):
 
     verdicts, reasons = [], []
     per_flag = {c: [] for c in FLAG_COLUMNS}
-    extra = {"yamnet_top": []}
+    extra = {"yamnet_top": [], "yamnet_score": []}
     for _, r in rev.iterrows():
         hit = None
         base = _key(r["species"], r["recording"], r["start_s"])
@@ -125,9 +125,9 @@ def match(review_df, cleanup_df, start_tolerance=1):
             per_flag[col].append(bool(hit[col]) if hit is not None
                                  and col in hit.index else None)
         # the AudioSet class YAMNet assigned, for the per-class breakdown
-        extra["yamnet_top"].append(
-            hit["yamnet_top"] if hit is not None and "yamnet_top" in hit.index
-            else None)
+        for col in ("yamnet_top", "yamnet_score"):
+            extra[col].append(hit[col] if hit is not None
+                              and col in hit.index else None)
 
     rev["cleanup"] = verdicts
     rev["flag_reason"] = reasons
@@ -219,6 +219,86 @@ def filter_combination_analysis(matched_df):
             }
     out = pd.DataFrame(rows).T
     return out.sort_values("precision", ascending=False)
+
+
+def _outcome(df, flagged, n_calls, n_fps, total):
+    """Shared tally for a boolean discard mask."""
+    kept = ~flagged
+    calls = df["verdict"] == "call"
+    kept_calls = int((kept & calls).sum())
+    kept_total = int(kept.sum())
+    return {
+        "calls_kept": kept_calls,
+        "calls_lost": n_calls - kept_calls,
+        "fps_removed": n_fps - (kept_total - kept_calls),
+        "reviewed_after": kept_total,
+        "pct_removed": round(100 * (total - kept_total) / total, 1),
+        "precision": round(kept_calls / kept_total, 4) if kept_total else None,
+    }
+
+
+def vote_analysis(matched_df):
+    """
+    Require agreement between filters before discarding a detection.
+
+    The pipeline currently discards on a single flag. Demanding two or three
+    filters agree trades away removals for safety: fewer false positives go, but
+    fewer genuine calls are lost with them. This reports each voting threshold
+    so the trade can be read off directly.
+    """
+    df = matched_df[matched_df["cleanup"].notna()]
+    present = [c for c in FLAG_COLUMNS
+               if c in df.columns and not df[c].isna().all()]
+    if not present:
+        return pd.DataFrame()
+
+    n_flags = df[present].fillna(False).astype(bool).sum(axis=1)
+    n_calls = int((df["verdict"] == "call").sum())
+    n_fps = int((df["verdict"] == "false_positive").sum())
+    total = len(df)
+
+    rows = {}
+    for k in range(1, len(present) + 1):
+        rows[f">= {k} filter(s) agree"] = _outcome(df, n_flags >= k, n_calls,
+                                                   n_fps, total)
+    rows["no cleanup"] = _outcome(df, pd.Series(False, index=df.index),
+                                  n_calls, n_fps, total)
+    return pd.DataFrame(rows).T
+
+
+def yamnet_score_sweep(matched_df, thresholds=(0.0, 0.1, 0.2, 0.3, 0.4, 0.5,
+                                               0.6, 0.7, 0.8)):
+    """
+    Require a minimum YAMNet confidence before its verdict is trusted.
+
+    YAMNet always returns a top class, so on unfamiliar forest audio it labels
+    every clip whether or not it recognises the sound; the pipeline acts on that
+    label regardless of the score behind it. Restricting the filter to
+    confident predictions is the natural way to give it an "unsure, do not
+    flag" option. Each row combines the other filters with YAMNet restricted to
+    predictions scoring at least the threshold.
+    """
+    df = matched_df[matched_df["cleanup"].notna()]
+    if "yamnet_score" not in df.columns or df["yamnet_score"].isna().all():
+        return pd.DataFrame()
+
+    others = [c for c in ("flag_mahal", "flag_isolated")
+              if c in df.columns and not df[c].isna().all()]
+    base = (df[others].fillna(False).astype(bool).any(axis=1) if others
+            else pd.Series(False, index=df.index))
+    yam = df["flag_yamnet"].fillna(False).astype(bool)
+    score = pd.to_numeric(df["yamnet_score"], errors="coerce").fillna(0.0)
+
+    n_calls = int((df["verdict"] == "call").sum())
+    n_fps = int((df["verdict"] == "false_positive").sum())
+    total = len(df)
+
+    rows = {"other filters only": _outcome(df, base, n_calls, n_fps, total)}
+    for t in thresholds:
+        flagged = base | (yam & (score >= t))
+        rows[f"+ yamnet (score >= {t:.1f})"] = _outcome(df, flagged, n_calls,
+                                                        n_fps, total)
+    return pd.DataFrame(rows).T
 
 
 def yamnet_class_analysis(matched_df, min_count=10):
