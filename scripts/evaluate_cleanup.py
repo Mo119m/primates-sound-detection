@@ -84,11 +84,20 @@ def main():
         print("\nPer species:")
         print(ev["per_species"].to_string())
 
+    pf = cleanup_eval.per_filter_analysis(matched)
+    if len(pf):
+        print("\nPer filter (lift = P(flag|false positive) / P(flag|call);")
+        print("            <= 1 means the filter discards real calls at least")
+        print("            as fast as noise and lowers precision):")
+        print(pf.to_string())
+
     out_dir = args.out or args.cleanup
     os.makedirs(out_dir, exist_ok=True)
     matched.to_csv(os.path.join(out_dir, "cleanup_vs_review.csv"), index=False)
     if len(ev["per_species"]):
         ev["per_species"].to_csv(os.path.join(out_dir, "cleanup_eval_per_species.csv"))
+    if len(pf):
+        pf.to_csv(os.path.join(out_dir, "cleanup_eval_per_filter.csv"))
     print(f"\nWrote cleanup_vs_review.csv to {out_dir}/")
 
     dis = cleanup_eval.disagreements(matched)

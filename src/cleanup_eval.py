@@ -36,6 +36,11 @@ _REC_RE = re.compile(r"^.+?__(?P<recording>.+)__\d+s__conf[0-9.]+\.wav$")
 CLEAN = "clean"            # cleanup kept it (no filter fired)
 SUSPICIOUS = "suspicious"  # cleanup flagged it (>=1 filter fired)
 
+# Per-filter flag columns written by auto_cleanup, and their display names.
+FLAG_COLUMNS = ["flag_mahal", "flag_yamnet", "flag_isolated"]
+FLAG_LABELS = {"flag_mahal": "mahalanobis", "flag_yamnet": "yamnet",
+               "flag_isolated": "temporal isolation"}
+
 
 def _recording_of(clip_filename):
     m = _REC_RE.match(str(clip_filename))
@@ -103,6 +108,7 @@ def match(review_df, cleanup_df, start_tolerance=1):
         index.setdefault(k, r)
 
     verdicts, reasons = [], []
+    per_flag = {c: [] for c in FLAG_COLUMNS}
     for _, r in rev.iterrows():
         hit = None
         base = _key(r["species"], r["recording"], r["start_s"])
@@ -113,10 +119,54 @@ def match(review_df, cleanup_df, start_tolerance=1):
                 break
         verdicts.append(hit["cleanup"] if hit is not None else None)
         reasons.append(hit.get("flag_reason", "") if hit is not None else "")
+        for col in FLAG_COLUMNS:
+            per_flag[col].append(bool(hit[col]) if hit is not None
+                                 and col in hit.index else None)
 
     rev["cleanup"] = verdicts
     rev["flag_reason"] = reasons
+    for col in FLAG_COLUMNS:
+        rev[col] = per_flag[col]
     return rev
+
+
+def per_filter_analysis(matched_df):
+    """
+    Score each filter on its own against the reviewer's labels.
+
+    A filter is only useful if it fires on false positives more often than on
+    genuine calls. ``lift`` is that ratio, P(flag | false positive) /
+    P(flag | call): above 1 the filter carries signal, at or below 1 it is
+    discarding real calls at least as fast as it removes noise, and using it
+    lowers precision. ``precision_if_only`` is the precision that would result
+    from applying this filter alone.
+    """
+    df = matched_df[matched_df["cleanup"].notna()]
+    calls = df[df["verdict"] == "call"]
+    fps = df[df["verdict"] == "false_positive"]
+    n_calls, n_fps = len(calls), len(fps)
+
+    rows = {}
+    for col, label in FLAG_LABELS.items():
+        if col not in df.columns or df[col].isna().all():
+            continue
+        c_flagged = int(calls[col].fillna(False).astype(bool).sum())
+        f_flagged = int(fps[col].fillna(False).astype(bool).sum())
+        p_call = c_flagged / n_calls if n_calls else 0.0
+        p_fp = f_flagged / n_fps if n_fps else 0.0
+        kept_calls = n_calls - c_flagged
+        kept_total = kept_calls + (n_fps - f_flagged)
+        rows[label] = {
+            "flagged_total": c_flagged + f_flagged,
+            "calls_flagged": c_flagged,
+            "fps_flagged": f_flagged,
+            "pct_of_calls": round(100 * p_call, 1),
+            "pct_of_fps": round(100 * p_fp, 1),
+            "lift": round(p_fp / p_call, 2) if p_call else None,
+            "precision_if_only": (round(kept_calls / kept_total, 4)
+                                  if kept_total else None),
+        }
+    return pd.DataFrame(rows).T
 
 
 def evaluate(matched_df):

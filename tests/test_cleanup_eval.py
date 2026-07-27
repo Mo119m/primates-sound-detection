@@ -116,3 +116,47 @@ def test_disagreements_are_typed_and_exclude_agreements():
     # the flag that caused the costly error is carried through for diagnosis
     wrong = dis[dis["disagreement"] == cleanup_eval.WRONGLY_FLAGGED].iloc[0]
     assert wrong["flag_reason"] == "yamnet:Bird"
+
+
+def _cleanup_dir_with_flags(clean_rows, susp_rows):
+    """rows: (species, source_file, start_time, mahal, yamnet, isolated)."""
+    import tempfile as _t
+    d = _t.mkdtemp()
+    cols = ["species", "source_file", "start_time",
+            "flag_mahal", "flag_yamnet", "flag_isolated"]
+    pd.DataFrame(clean_rows, columns=cols).to_csv(
+        os.path.join(d, "clean_detections.csv"), index=False)
+    pd.DataFrame(susp_rows, columns=cols).to_csv(
+        os.path.join(d, "suspicious_detections.csv"), index=False)
+    return d
+
+
+def test_per_filter_lift_separates_useful_from_harmful():
+    """A filter that fires mostly on false positives has lift > 1; one that
+    fires mostly on genuine calls has lift < 1 and lowers precision."""
+    rows, clean, susp = [], [], []
+    # 4 genuine calls: yamnet flags 3 of them, mahal flags none
+    for i, s in enumerate([100, 200, 300, 400]):
+        rows.append((f"Cernic__recA__{s:05d}s__conf0.9.wav", ""))
+        yam = i < 3
+        entry = ("Cernic", "recA.wav", float(s), False, yam, False)
+        (susp if yam else clean).append(entry)
+    # 4 false positives: mahal flags 3, yamnet flags 1
+    for i, s in enumerate([500, 600, 700, 800]):
+        rows.append((f"Cernic__recA__{s:05d}s__conf0.9.wav", "Noise"))
+        mah, yam = i < 3, i == 3
+        entry = ("Cernic", "recA.wav", float(s), mah, yam, False)
+        (susp if (mah or yam) else clean).append(entry)
+
+    matched, _ = cleanup_eval.run(_review_csv(rows),
+                                  _cleanup_dir_with_flags(clean, susp))
+    pf = cleanup_eval.per_filter_analysis(matched)
+
+    # mahalanobis: 3 of 4 FPs, 0 calls -> strongly useful
+    assert pf.loc["mahalanobis", "fps_flagged"] == 3
+    assert pf.loc["mahalanobis", "calls_flagged"] == 0
+    assert pf.loc["mahalanobis", "precision_if_only"] > 0.5
+    # yamnet: 3 of 4 calls, 1 FP -> harmful, lift below 1
+    assert pf.loc["yamnet", "calls_flagged"] == 3
+    assert pf.loc["yamnet", "lift"] < 1
+    assert pf.loc["yamnet", "precision_if_only"] < 0.5
