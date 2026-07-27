@@ -164,7 +164,8 @@ def load_detection_csvs(detection_dir=None) -> pd.DataFrame:
     per-station subfolders are included) and attach the resolved source-audio
     path for each detection.
     """
-    detection_dir = Path(detection_dir or config.DETECTION_OUTPUT_DIR)
+    detection_dir = Path(os.path.expanduser(
+        str(detection_dir or config.DETECTION_OUTPUT_DIR)))
     csv_files = sorted(detection_dir.rglob('*_detections.csv'))
     if not csv_files:
         raise FileNotFoundError(f'No detection CSVs under {detection_dir}')
@@ -216,8 +217,12 @@ def load_clips_from_dir(det_df: pd.DataFrame, clips_dir, padding: float = 0.5,
     """
     clip_len = int(round(config.WINDOW_SIZE * config.SAMPLE_RATE))
 
+    # Expand '~' explicitly: the shell does it, Python does not, so a pasted
+    # '~/...' path would otherwise match nothing.
+    clips_dir = os.path.expanduser(str(clips_dir))
+
     index = {}
-    for path in glob.glob(os.path.join(str(clips_dir), "**", "*.wav"),
+    for path in glob.glob(os.path.join(clips_dir, "**", "*.wav"),
                           recursive=True):
         m = _EXPORTED_CLIP_RE.match(os.path.basename(path))
         if m:
