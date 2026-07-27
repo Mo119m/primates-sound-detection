@@ -20,6 +20,8 @@ Use :func:`run_auto_cleanup` as the single entry point, or call the individual
 """
 
 import os
+import re
+import glob
 from pathlib import Path
 
 import numpy as np
@@ -187,6 +189,85 @@ def load_detection_csvs(detection_dir=None) -> pd.DataFrame:
     det_df = pd.concat(rows, ignore_index=True)
     det_df['det_id'] = np.arange(len(det_df))
     return det_df
+
+
+# <species>__<recording>__<start>s__conf<confidence>.wav, as written by
+# utils.extract_all_detected_clips.
+_EXPORTED_CLIP_RE = re.compile(
+    r"^(?P<species>.+?)__(?P<recording>.+)__(?P<start>\d+)s__conf[0-9.]+\.wav$")
+
+
+def load_clips_from_dir(det_df: pd.DataFrame, clips_dir, padding: float = 0.5,
+                        start_tolerance: int = 1, verbose: bool = True):
+    """
+    Take each detection's audio from the clips already exported for manual
+    review, instead of re-cutting it from the source recording.
+
+    ``utils.extract_all_detected_clips`` writes one WAV per detection, padded by
+    ``padding`` seconds on each side, so the analysis window can be recovered
+    from the clip alone -- the long recordings are not needed. Clips are matched
+    to detections on ``(species, recording, start second)``.
+
+    Args:
+        det_df: detection table (needs species, source_file, start_time).
+        clips_dir: folder written by extract_all_detected_clips.
+        padding: seconds of padding used at export (its default is 0.5).
+        start_tolerance: seconds of slack when matching a clip to a detection.
+    """
+    clip_len = int(round(config.WINDOW_SIZE * config.SAMPLE_RATE))
+
+    index = {}
+    for path in glob.glob(os.path.join(str(clips_dir), "**", "*.wav"),
+                          recursive=True):
+        m = _EXPORTED_CLIP_RE.match(os.path.basename(path))
+        if m:
+            index.setdefault((m.group("species"), m.group("recording"),
+                              int(m.group("start"))), path)
+    if verbose:
+        print(f"  indexed {len(index)} exported clips under {clips_dir}")
+
+    clips = []
+    missing_rows = 0
+    missing_files = set()
+    for row in det_df.itertuples():
+        recording = os.path.splitext(str(getattr(row, "source_file", "")))[0]
+        start_t = float(row.start_time)
+        base = (str(row.species), recording, int(round(start_t)))
+        path = None
+        for delta in [0] + [d for t in range(1, int(start_tolerance) + 1)
+                            for d in (-t, t)]:
+            path = index.get((base[0], base[1], base[2] + delta))
+            if path:
+                break
+
+        if not path:
+            missing_rows += 1
+            missing_files.add(f"{base[0]}__{base[1]}__{base[2]}s")
+            clips.append(np.zeros(clip_len, dtype=np.float32))
+            continue
+
+        y, _ = librosa.load(path, sr=config.SAMPLE_RATE, mono=True)
+        # The exporter cut from max(0, start - padding), so the analysis window
+        # begins min(start, padding) seconds into the clip.
+        offset = int(round(min(start_t, padding) * config.SAMPLE_RATE))
+        clip = y[offset:offset + clip_len]
+        if len(clip) < clip_len:
+            clip = np.pad(clip, (0, clip_len - len(clip)))
+        clips.append(clip)
+
+    if missing_rows:
+        examples = ", ".join(sorted(missing_files)[:3])
+        if missing_rows == len(det_df):
+            raise FileNotFoundError(
+                f"None of the {len(det_df)} detections matched an exported clip "
+                f"under {clips_dir!r}, so every clip would be silence. Check "
+                f"that this folder holds the clips for these detections. "
+                f"Missing e.g.: {examples}")
+        if verbose:
+            print(f"  WARNING: {missing_rows} of {len(det_df)} detections had no "
+                  f"exported clip and were replaced with silence; their verdicts "
+                  f"are not trustworthy. Missing e.g.: {examples}")
+    return clips
 
 
 def extract_clips(det_df: pd.DataFrame, verbose: bool = True):
@@ -443,6 +524,7 @@ def save_clips_by_species(det_df, clips, out_dir):
 # ORCHESTRATOR
 
 def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
+                     clips_dir=None, clips_padding: float = 0.5,
                      output_dir=None, fp_dir=None,
                      species_data=None, background_data=None,
                      percentile: int = 95, isolation_window_s: float = 30.0,
@@ -459,6 +541,12 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
         model_path: path to best_model.h5 (default: config.MODEL_SAVE_DIR).
         detection_dir: dir holding *_detections.csv (default:
             config.DETECTION_OUTPUT_DIR; searched recursively).
+        clips_dir: optional folder of clips already exported by
+            ``utils.extract_all_detected_clips``. When given, each detection's
+            audio is read from its exported clip instead of being re-cut from
+            the source recording, so the long recordings are not needed.
+        clips_padding: seconds of padding used when those clips were exported
+            (extract_all_detected_clips defaults to 0.5).
         output_dir: where to write per-run results (clean/suspicious CSVs).
             Default: config.OUTPUT_ROOT/auto_cleanup. Pass a per-station path
             when processing one IPA station at a time.
@@ -514,7 +602,13 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
     det_df = load_detection_csvs(detection_dir)
     if verbose:
         print(f'{len(det_df)} detections across {det_df["source_file"].nunique()} files')
-    clips = extract_clips(det_df)
+    if clips_dir:
+        # Reuse the clips already exported for manual review; the source
+        # recordings are then not needed at all.
+        clips = load_clips_from_dir(det_df, clips_dir, padding=clips_padding,
+                                    verbose=verbose)
+    else:
+        clips = extract_clips(det_df, verbose=verbose)
 
     det_df = filter_mahalanobis(det_df, clips, feature_extractor, class_means,
                                 inv_cov, class_thresholds, percentile=percentile,
