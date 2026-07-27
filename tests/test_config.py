@@ -76,3 +76,29 @@ def test_image_dimensions():
     assert config.IMG_HEIGHT == 224
     assert config.IMG_WIDTH == 224
     assert config.IMG_CHANNELS == 3
+
+
+# ------------------------------------------------------------------
+# Data-root resolution
+# ------------------------------------------------------------------
+
+def test_data_root_prefers_env_var(monkeypatch):
+    monkeypatch.setenv("PRIMATE_DATA_ROOT", "/tmp/some-root")
+    assert config._default_data_root() == "/tmp/some-root"
+
+
+def test_data_root_falls_back_to_repo_data_when_not_on_colab(monkeypatch):
+    """Off Colab and with no env var, use the repo's own data/ folder rather
+    than the Google Drive path (which would be unwritable locally)."""
+    monkeypatch.delenv("PRIMATE_DATA_ROOT", raising=False)
+    monkeypatch.setattr(config.os.path, "isdir", lambda p: False)
+    root = config._default_data_root()
+    assert root == config._REPO_DATA
+    assert not root.startswith("/content")
+
+
+def test_data_root_uses_drive_path_on_colab(monkeypatch):
+    monkeypatch.delenv("PRIMATE_DATA_ROOT", raising=False)
+    monkeypatch.setattr(config.os.path, "isdir",
+                        lambda p: p == "/content/drive/MyDrive")
+    assert config._default_data_root() == config._COLAB_ROOT
