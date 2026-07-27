@@ -109,6 +109,8 @@ def load_review_csv(path, blank_is_confirmed=True):
 
 def load_review_dir(path_or_glob, blank_is_confirmed=True):
     """Load and concatenate every review CSV under a folder or glob pattern."""
+    # '~' is expanded by the shell but not by Python, so do it here.
+    path_or_glob = os.path.expanduser(str(path_or_glob))
     if os.path.isdir(path_or_glob):
         files = sorted(glob.glob(os.path.join(path_or_glob, "**", "*.csv"),
                                  recursive=True))

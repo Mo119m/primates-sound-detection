@@ -52,6 +52,7 @@ def load_cleanup_output(cleanup_dir):
     ``auto_cleanup.run_auto_cleanup`` and return one DataFrame with a
     ``cleanup`` column ('clean' or 'suspicious').
     """
+    cleanup_dir = os.path.expanduser(str(cleanup_dir))
     clean_p = os.path.join(cleanup_dir, "clean_detections.csv")
     susp_p = os.path.join(cleanup_dir, "suspicious_detections.csv")
     frames = []
