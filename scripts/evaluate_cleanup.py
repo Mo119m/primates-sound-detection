@@ -24,6 +24,29 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import cleanup_eval  # noqa: E402
 
 
+def _copy_disagreement_clips(dis_df, clips_dir, out_dir):
+    """Copy each disagreed-on clip into out_dir/<disagreement>/<species>/."""
+    import glob
+    import shutil
+
+    clips_dir = os.path.expanduser(str(clips_dir))
+    index = {}
+    for path in glob.glob(os.path.join(clips_dir, "**", "*.wav"), recursive=True):
+        index.setdefault(os.path.basename(path), path)
+
+    copied = 0
+    for _, r in dis_df.iterrows():
+        src = index.get(str(r.get("file", "")))
+        if not src:
+            continue
+        dest_dir = os.path.join(out_dir, str(r["disagreement"]),
+                                str(r.get("species", "")))
+        os.makedirs(dest_dir, exist_ok=True)
+        shutil.copy2(src, os.path.join(dest_dir, os.path.basename(src)))
+        copied += 1
+    return copied
+
+
 def main():
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -40,6 +63,11 @@ def main():
                          "detection row (default: 1).")
     ap.add_argument("--out", default=None,
                     help="Directory for the output CSVs (default: --cleanup).")
+    ap.add_argument("--clips-dir", default=None,
+                    help="Folder of exported detection clips. When given, the "
+                         "clips the cleanup and the reviewer disagree on are "
+                         "copied into wrongly_flagged/ and missed/ so they can "
+                         "be listened to in bulk.")
     args = ap.parse_args()
 
     matched, ev = cleanup_eval.run(
@@ -62,6 +90,22 @@ def main():
     if len(ev["per_species"]):
         ev["per_species"].to_csv(os.path.join(out_dir, "cleanup_eval_per_species.csv"))
     print(f"\nWrote cleanup_vs_review.csv to {out_dir}/")
+
+    dis = cleanup_eval.disagreements(matched)
+    dis.to_csv(os.path.join(out_dir, "disagreements.csv"), index=False)
+    n_wrong = int((dis["disagreement"] == cleanup_eval.WRONGLY_FLAGGED).sum())
+    n_missed = int((dis["disagreement"] == cleanup_eval.MISSED).sum())
+    print(f"Wrote disagreements.csv  ({n_wrong} genuine calls the cleanup would "
+          f"discard, {n_missed} false positives it let through)")
+
+    if args.clips_dir:
+        n_copied = _copy_disagreement_clips(dis, args.clips_dir, out_dir)
+        print(f"Copied {n_copied} clips into {out_dir}/wrongly_flagged/ and "
+              f"{out_dir}/missed/ for listening.")
+        print("Listen to these to understand *why* the cleanup fails. Do not "
+              "revise the labels from this subset alone -- correcting only "
+              "where the cleanup disagreed biases the ground truth in its "
+              "favour.")
 
     if ev["unmatched"]:
         print(f"\nNOTE: {ev['unmatched']} reviewed detections had no matching "
