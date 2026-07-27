@@ -59,3 +59,7 @@ outputs/
 !/data/**/
 !/data/README.md
 !/data/**/.gitkeep
+
+# Manual-review tables (per-site Kaleidoscope exports). These are field data,
+# not code, and stay local -- scripts/summarize_review.py reads them from here.
+/reviews/
