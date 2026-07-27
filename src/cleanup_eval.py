@@ -188,6 +188,41 @@ def evaluate(matched_df):
             "fp_removed_by_filter": by_filter}
 
 
+# The two ways the cleanup and the reviewer can disagree.
+WRONGLY_FLAGGED = "wrongly_flagged"   # reviewer: call,  cleanup: suspicious
+MISSED = "missed"                     # reviewer: noise, cleanup: clean
+
+
+def disagreements(matched_df):
+    """
+    Rows where the cleanup and the reviewer disagree, tagged by which way.
+
+    ``wrongly_flagged`` is the expensive error: a genuine call the cleanup would
+    have discarded. ``missed`` is a false positive the cleanup let through.
+
+    Listening to these explains *why* the cleanup fails and what to mine as hard
+    negatives. Do not use it to revise the labels only where the cleanup
+    disagreed -- correcting errors in one direction only biases the ground truth
+    in the cleanup's favour and inflates the reported precision.
+    """
+    df = matched_df[matched_df["cleanup"].notna()].copy()
+    kind = []
+    for _, r in df.iterrows():
+        if r["verdict"] == "call" and r["cleanup"] == SUSPICIOUS:
+            kind.append(WRONGLY_FLAGGED)
+        elif r["verdict"] == "false_positive" and r["cleanup"] == CLEAN:
+            kind.append(MISSED)
+        else:
+            kind.append("")
+    df["disagreement"] = kind
+    out = df[df["disagreement"] != ""].copy()
+    cols = [c for c in ["disagreement", "species", "site", "recording", "start_s",
+                        "confidence", "verdict", "cleanup", "flag_reason", "file"]
+            if c in out.columns]
+    return out[cols].sort_values(["disagreement", "species", "site", "start_s"],
+                                 kind="stable").reset_index(drop=True)
+
+
 def report_text(matched_df):
     """Plain-text report of the cleanup's effect, ready for the manuscript."""
     e = evaluate(matched_df)
