@@ -107,8 +107,24 @@ def load_review_csv(path, blank_is_confirmed=True):
     return pd.DataFrame(rows)
 
 
+# Summary tables this pipeline writes. They often land next to the review CSVs,
+# so skip them when scanning a folder rather than trying to parse them as
+# reviews (they have no IN FILE / MANUAL ID columns).
+GENERATED_CSVS = {
+    "review_per_species.csv", "review_per_site.csv",
+    "review_confirmed_by_site.csv", "review_all_detections.csv",
+    "cleanup_vs_review.csv", "cleanup_eval_per_species.csv",
+    "per_species_summary.csv", "per_station_summary.csv",
+    "kept_calls_by_station.csv", "detection_labels.csv",
+}
+
+
 def load_review_dir(path_or_glob, blank_is_confirmed=True):
-    """Load and concatenate every review CSV under a folder or glob pattern."""
+    """Load and concatenate every review CSV under a folder or glob pattern.
+
+    Summary tables written by this pipeline are skipped, so re-running after a
+    summary has been saved into the same folder still works.
+    """
     # '~' is expanded by the shell but not by Python, so do it here.
     path_or_glob = os.path.expanduser(str(path_or_glob))
     if os.path.isdir(path_or_glob):
@@ -116,6 +132,7 @@ def load_review_dir(path_or_glob, blank_is_confirmed=True):
                                  recursive=True))
     else:
         files = sorted(glob.glob(path_or_glob))
+    files = [f for f in files if os.path.basename(f) not in GENERATED_CSVS]
     if not files:
         raise FileNotFoundError(f"No review CSVs matched {path_or_glob!r}")
     frames = [load_review_csv(f, blank_is_confirmed=blank_is_confirmed)

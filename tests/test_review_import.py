@@ -84,3 +84,17 @@ def test_precision_and_named_tag_is_confirmed():
     assert int(ps.loc["Colobus_guereza", "confirmed"]) == 2
     assert int(ps.loc["Colobus_guereza", "false_positive"]) == 1
     assert abs(float(ps.loc["Colobus_guereza", "precision"]) - (2 / 3)) < 1e-4
+
+
+def test_generated_summaries_are_skipped(tmp_path):
+    """Summary tables often land next to the review CSVs; scanning the folder
+    again must ignore them instead of failing to parse them as reviews."""
+    (tmp_path / "IPA1.csv").write_text(
+        '"INDIR","IN FILE","MANUAL ID"\n'
+        '"/x/Cernic/IPA1ST","Cernic__recA__00100s__conf0.9.wav",""\n')
+    # a previously written summary, with entirely different columns
+    (tmp_path / "review_confirmed_by_site.csv").write_text("site,Cernic\nIPA1ST,1\n")
+
+    df = review_import.load_review_dir(str(tmp_path))
+    assert len(df) == 1
+    assert df.iloc[0]["site"] == "IPA1ST"

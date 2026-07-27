@@ -50,7 +50,10 @@ def main():
     print("\nConfirmed calls per site x species:")
     print(s["confirmed_by_site"].to_string())
 
-    out_dir = args.out or (args.dir if args.dir else os.path.dirname(args.glob) or ".")
+    # Write into a subfolder so the summaries never sit alongside (and get
+    # rescanned with) the review CSVs themselves.
+    base = args.dir if args.dir else (os.path.dirname(args.glob) or ".")
+    out_dir = args.out or os.path.join(base, "summary")
     os.makedirs(out_dir, exist_ok=True)
     s["per_species"].to_csv(os.path.join(out_dir, "review_per_species.csv"))
     s["per_site"].to_csv(os.path.join(out_dir, "review_per_site.csv"))
