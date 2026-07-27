@@ -189,14 +189,23 @@ def load_detection_csvs(detection_dir=None) -> pd.DataFrame:
     return det_df
 
 
-def extract_clips(det_df: pd.DataFrame):
-    """Cut one ``WINDOW_SIZE`` clip per detection, caching each source file."""
+def extract_clips(det_df: pd.DataFrame, verbose: bool = True):
+    """Cut one ``WINDOW_SIZE`` clip per detection, caching each source file.
+
+    A detection whose source recording cannot be found yields a silent clip.
+    That silently corrupts every filter downstream, so the misses are counted
+    and reported, and an all-missing run is treated as a hard error.
+    """
     clip_len = int(round(config.WINDOW_SIZE * config.SAMPLE_RATE))
     cache = {}
     clips = []
+    missing_rows = 0
+    missing_files = set()
     for row in det_df.itertuples():
         path = row.source_path
         if not path or not os.path.exists(path):
+            missing_rows += 1
+            missing_files.add(getattr(row, 'source_file', path) or '(unknown)')
             clips.append(np.zeros(clip_len, dtype=np.float32))
             continue
         if path not in cache:
@@ -207,6 +216,20 @@ def extract_clips(det_df: pd.DataFrame):
         if len(clip) < clip_len:
             clip = np.pad(clip, (0, clip_len - len(clip)))
         clips.append(clip)
+
+    if missing_rows:
+        examples = ', '.join(sorted(missing_files)[:3])
+        if missing_rows == len(det_df):
+            raise FileNotFoundError(
+                f'None of the {len(det_df)} detections could be matched to a '
+                f'source recording, so every clip would be silence and the '
+                f'cleanup verdicts would be meaningless. Point '
+                f'LONG_AUDIO_ROOT (currently {config.LONG_AUDIO_ROOT!r}) at the '
+                f'recordings these detections came from. Missing e.g.: {examples}')
+        if verbose:
+            print(f'  WARNING: {missing_rows} of {len(det_df)} detections have '
+                  f'no source recording and were replaced with silence; their '
+                  f'verdicts are not trustworthy. Missing e.g.: {examples}')
     return clips
 
 
