@@ -674,32 +674,78 @@ positives. The final (V12) model adds the high-frequency nuisance augmentation
 and the calibrated low-frequency gate on top of this encoding and is the
 version deployed across all stations.
 %% ---------------------------------------------------------------------
-%% FIELD-DEPLOYMENT RESULTS -- fill the \textbf{[..]} blanks from the summary
-%% printed by main_pipeline_notebooks/annotate_detections.ipynb (Section 3).
-%% Mapping of each blank to the annotation summary:
-%%   stations processed / recordings / total detections -> "totals"
-%%   per-species detections, true (kept), false, precision -> "per species" table
-%%   per-station range or table -> per_station_summary.csv
-%% Delete the leading "[..]" markers once the numbers are in.
+%% FIELD-DEPLOYMENT RESULTS -- numbers from the per-station manual-review
+%% tables, aggregated by scripts/summarize_review.py. Regenerate with:
+%%   python scripts/summarize_review.py --dir reviews/
+%% The review covers C. nictitans only; see the scope sentence below.
 %% ---------------------------------------------------------------------
-The final (V12) model was deployed across \textbf{[N]} acoustic stations,
-scanning \textbf{[N]} recordings and producing \textbf{[N]} detections in total
-(\textbf{[N]} \textit{Cercopithecus nictitans} and \textbf{[N]}
-\textit{Colobus guereza}). Every detection clip was verified by ear. Of the
-\textbf{[N]} \textit{Cercopithecus nictitans} detections, \textbf{[N]} were
-confirmed as genuine calls after manual review (precision \textbf{[N]}\,\%),
-the remainder being non-target forest sounds. Of the \textbf{[N]}
-\textit{Colobus guereza} detections, \textbf{[N]} were confirmed calls and
-\textbf{[N]} were false positives (precision \textbf{[N]}\,\%). Per-station
-detection counts ranged from \textbf{[N]} to \textbf{[N]}. At this precision,
-confirming the full set of detections required listening only to the
-\textbf{[N]} exported clips rather than the \textbf{[N]}\,h of raw recordings,
-the reduction in manual effort that motivates the method.
-%% Optional per-station table, built from per_station_summary.csv. If you add
-%% it, reference it above with (Table~\ref{tab:field}):
-%% \begin{table}[H]\centering
-%%   \caption{Per-station detections and confirmed calls.}\label{tab:field}
-%%   ... \end{table}
+The final (V12) model was deployed across 16 acoustic stations. This section
+reports the \textit{Cercopithecus nictitans} detections, every one of which was
+verified by ear; \textit{Colobus guereza} detections were produced by the same
+run but their manual verification is still in progress and is not included
+here. The model produced 6\,189 \textit{C.\ nictitans} detections across the 16
+stations, of which 2\,535 were confirmed as genuine calls and 3\,654 were
+non-target forest sounds, an overall precision of 41.0\,\%
+(Table~\ref{tab:field}).
+
+That aggregate is dominated by a single station. IPA4ST alone produced 2\,470
+detections --- 40\,\% of all detections --- of which only 100 were genuine
+(precision 4.0\,\%), contributing 2\,370 of the 3\,654 false positives. Across
+the remaining fifteen stations precision was 65.5\,\% (2\,435 confirmed of
+3\,719), and the median per-station precision was also 65.5\,\%, ranging from
+20.8\,\% at IPA11ST to 93.1\,\% at IPA20ST. A persistent local sound source at
+IPA4ST, absent from the training data, is the most likely explanation, and it
+is precisely the failure mode the automatic cleanup is designed to absorb: a
+recurring non-target sound produces a tight cluster of detections that the
+Mahalanobis and audio-tagging filters can flag as a group.
+
+Even before any cleanup, the reduction in manual effort is substantial:
+confirming the full set of \textit{C.\ nictitans} detections required listening
+to 6\,189 short exported clips (three seconds each, about 5\,h of audio in
+total) rather than to the continuous recordings from all 16 stations.
+
+\begin{table}[H]
+\centering
+\caption{Per-station \textit{Cercopithecus nictitans} detections and the
+subset confirmed as genuine calls by manual review, before automatic cleanup.}
+\label{tab:field}
+\begin{tabular}{lrrr}
+\toprule
+Station & Detections & Confirmed calls & Precision (\%) \\
+\midrule
+IPA1ST  &  331 & 121 & 36.6 \\
+IPA2ST  &   82 &  64 & 78.0 \\
+IPA4ST  & 2470 & 100 &  4.0 \\
+IPA6ST  &  171 & 151 & 88.3 \\
+IPA7ST  &  124 &  69 & 55.6 \\
+IPA8ST  &  270 & 154 & 57.0 \\
+IPA10ST &  116 & 103 & 88.8 \\
+IPA11ST &  202 &  42 & 20.8 \\
+IPA13ST &  280 & 184 & 65.7 \\
+IPA14ST &  239 & 156 & 65.3 \\
+IPA15ST &  190 & 164 & 86.3 \\
+IPA16ST &  329 & 185 & 56.2 \\
+IPA17ST &  547 & 383 & 70.0 \\
+IPA18ST &  185 & 124 & 67.0 \\
+IPA19ST &  206 & 119 & 57.8 \\
+IPA20ST &  447 & 416 & 93.1 \\
+\midrule
+Total   & 6189 & 2535 & 41.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%% ---------------------------------------------------------------------
+%% CLEANUP EFFECT -- fill from:
+%%   python scripts/evaluate_cleanup.py --review reviews/ --cleanup <dir>
+%% The manual review above was done on the raw detections, before cleanup, so
+%% it is ground truth for scoring the cleanup.
+%% ---------------------------------------------------------------------
+\textbf{[Automatic cleanup, to be filled once the cleanup has been run on this
+same set of detections: of the 3\,654 confirmed false positives the cleanup
+flagged [N] ([N]\,\%) without any listening, while retaining [N] of the 2\,535
+genuine calls ([N]\,\%); precision rose from 41.0\,\% to [N]\,\% and the number
+of clips still requiring review fell by [N]\,\%.]}
 
 \paragraph{Architecture progression (development history).}
 The components of the model were added in response to failures observed on the
