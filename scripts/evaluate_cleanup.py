@@ -107,6 +107,19 @@ def main():
         print(fc.to_string())
         fc.to_csv(os.path.join(out_dir, "cleanup_eval_combinations.csv"))
 
+    va = cleanup_eval.vote_analysis(matched)
+    if len(va):
+        print("\nRequiring filters to agree before discarding:")
+        print(va.to_string())
+        va.to_csv(os.path.join(out_dir, "cleanup_eval_votes.csv"))
+
+    ys = cleanup_eval.yamnet_score_sweep(matched)
+    if len(ys):
+        print("\nYAMNet with a minimum confidence (it always returns a top")
+        print("class, so a low score means it did not recognise the sound):")
+        print(ys.to_string())
+        ys.to_csv(os.path.join(out_dir, "cleanup_eval_yamnet_scores.csv"))
+
     yc = cleanup_eval.yamnet_class_analysis(matched)
     if len(yc):
         print("\nYAMNet by assigned AudioSet class (highest share of genuine")
