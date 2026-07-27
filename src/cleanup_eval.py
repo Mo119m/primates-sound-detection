@@ -109,6 +109,7 @@ def match(review_df, cleanup_df, start_tolerance=1):
 
     verdicts, reasons = [], []
     per_flag = {c: [] for c in FLAG_COLUMNS}
+    extra = {"yamnet_top": []}
     for _, r in rev.iterrows():
         hit = None
         base = _key(r["species"], r["recording"], r["start_s"])
@@ -122,11 +123,17 @@ def match(review_df, cleanup_df, start_tolerance=1):
         for col in FLAG_COLUMNS:
             per_flag[col].append(bool(hit[col]) if hit is not None
                                  and col in hit.index else None)
+        # the AudioSet class YAMNet assigned, for the per-class breakdown
+        extra["yamnet_top"].append(
+            hit["yamnet_top"] if hit is not None and "yamnet_top" in hit.index
+            else None)
 
     rev["cleanup"] = verdicts
     rev["flag_reason"] = reasons
     for col in FLAG_COLUMNS:
         rev[col] = per_flag[col]
+    for col, vals in extra.items():
+        rev[col] = vals
     return rev
 
 
@@ -167,6 +174,46 @@ def per_filter_analysis(matched_df):
                                   if kept_total else None),
         }
     return pd.DataFrame(rows).T
+
+
+def yamnet_class_analysis(matched_df, min_count=10):
+    """
+    Break the YAMNet filter down by the AudioSet class it assigned.
+
+    The filter treats a fixed set of classes as non-primate. Whether that is
+    right is an empirical question per class: a class that lands mostly on
+    false positives is worth flagging, while one that lands mostly on genuine
+    calls is mislabelling the target species and should be removed from the
+    suspicious set. Grouping the reviewed detections by ``yamnet_top`` shows
+    which is which.
+
+    Classes seen fewer than ``min_count`` times are dropped as too rare to act
+    on. Sorted by the share of genuine calls, so the classes doing the damage
+    come first.
+    """
+    df = matched_df[matched_df["cleanup"].notna()]
+    if "yamnet_top" not in df.columns or df["yamnet_top"].isna().all():
+        return pd.DataFrame()
+
+    rows = {}
+    for cls, sub in df.groupby("yamnet_top"):
+        n = len(sub)
+        if n < min_count:
+            continue
+        n_calls = int((sub["verdict"] == "call").sum())
+        n_fps = int((sub["verdict"] == "false_positive").sum())
+        flagged = bool(sub["flag_yamnet"].fillna(False).astype(bool).any())
+        rows[cls] = {
+            "n": n,
+            "calls": n_calls,
+            "false_positives": n_fps,
+            "pct_calls": round(100 * n_calls / n, 1) if n else None,
+            "in_suspicious_set": flagged,
+        }
+    out = pd.DataFrame(rows).T
+    if len(out):
+        out = out.sort_values("pct_calls", ascending=False)
+    return out
 
 
 def evaluate(matched_df):

@@ -100,6 +100,13 @@ def main():
         pf.to_csv(os.path.join(out_dir, "cleanup_eval_per_filter.csv"))
     print(f"\nWrote cleanup_vs_review.csv to {out_dir}/")
 
+    yc = cleanup_eval.yamnet_class_analysis(matched)
+    if len(yc):
+        print("\nYAMNet by assigned AudioSet class (highest share of genuine")
+        print("calls first -- these are the classes mislabelling the target):")
+        print(yc.head(15).to_string())
+        yc.to_csv(os.path.join(out_dir, "cleanup_eval_yamnet_classes.csv"))
+
     dis = cleanup_eval.disagreements(matched)
     dis.to_csv(os.path.join(out_dir, "disagreements.csv"), index=False)
     n_wrong = int((dis["disagreement"] == cleanup_eval.WRONGLY_FLAGGED).sum())
