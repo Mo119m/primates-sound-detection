@@ -66,24 +66,24 @@ Passive acoustic monitoring is a key tool for tracking vocal animals and
 informing their conservation \textbf{[Santi --- please review / expand this
 conservation-significance framing]}, but it produces thousands of hours of
 audio that cannot be annotated by hand. The obstacle is precision: a classifier
-trained on curated reference clips also fires on non-target forest
-sounds (birds, insects, wind) absent from training, so every detection must be
-checked by ear. We describe a pipeline that detects two primate species,
-\textit{Cercopithecus nictitans} and \textit{Colobus guereza}, in long
-recordings from Makokou, Gabon, while keeping manual listening near zero. Audio
-is converted to mel-spectrograms and classified by a VGG19 transfer-learning
-model with a frequency-position-aware convolutional recurrent neural network
-(CRNN) head, designed so that forest birds and insects are not mistaken for the
-target primate. Sliding-window detection is then followed by an automatic
-cleanup that flags false positives and recycles them into training. The
-classifier reaches 98\% validation accuracy, with zero confusion between the
-two species.
+trained on curated clips also fires on untrained forest sounds, so every
+detection must be checked by ear. We describe a pipeline that detects
+\textit{Cercopithecus nictitans} and \textit{Colobus guereza} in long
+recordings from Makokou, Gabon. Mel-spectrograms are classified by a VGG19
+transfer-learning model whose frequency-position-aware convolutional recurrent
+neural network (CRNN) head keeps forest birds and insects from being mistaken
+for the target. Sliding-window detection is followed by an automatic cleanup
+whose filters we measure against a manual review of every field detection. The
+classifier reaches 98\% validation accuracy with zero confusion between the two
+species; the cleanup removes a fifth of the field false positives while keeping
+95\% of genuine calls, but only once a general-purpose audio tagger that
+mislabels the target species is removed from it.
 
 \begin{itemize}
 \item A VGG19 transfer-learning model with a frequency-position-aware CRNN
 head, hardened against forest-noise false positives.
-\item An automatic three-filter cleanup of field detections, with no manual
-listening.
+\item An automatic cleanup of field detections that needs no listening, with
+each filter measured against a full manual review.
 \item A complete, reusable pipeline that recycles confirmed errors into
 retraining and re-targets to new species by swapping in reference clips.
 \end{itemize}
@@ -169,9 +169,9 @@ IUCN status of the two species and why acoustic monitoring matters for their
 conservation.]}
 Rather
 than only training a classifier, we wrap it in (i) a detection stage with
-domain-appropriate post-processing, (ii) an automatic three-filter cleanup
-that flags likely false positives using signals independent of the detector
-itself, and (iii) an iterative hard-negative mining loop that recycles
+domain-appropriate post-processing, (ii) an automatic cleanup that flags
+likely false positives using signals independent of the detector itself, and
+(iii) an iterative hard-negative mining loop that recycles
 confirmed false positives into the background class and retrains. The
 motivation is to obtain trustworthy detections from long recordings while
 keeping the amount of manual listening close to zero, and to do so with a
@@ -545,7 +545,7 @@ The complete method is released as a self-contained repository
 (\url{https://github.com/mo119m/primates-sound-detection}) designed to be run by
 others, not only read. Its README provides complete, step-by-step documentation,
 and ready-to-run Jupyter notebooks reproduce the entire workflow --- preprocessing,
-training, sliding-window detection, and the three-filter false-positive cleanup
+training, sliding-window detection, and the false-positive cleanup
 --- with no code editing. Notebooks are provided for both running
 locally (on a personal machine, with automatic use of a GPU if present and a
 CPU fallback otherwise) and running in the cloud on Google Colab with a free
@@ -561,7 +561,7 @@ clips into the \texttt{data/} folders, lists the new class names in the
 \texttt{SPECIES\_FOLDERS} and \texttt{BACKGROUND\_FOLDERS} dictionaries, and
 re-runs the same notebook; the number of output classes, class weighting, and
 the detection grouping all follow automatically from that configuration. The
-frequency-position head, confuser-class mechanism, and three-filter cleanup are
+frequency-position head, confuser-class mechanism, and cleanup filters are
 generic and apply unchanged to any new target call. In this way the repository
 functions both as an exact reproduction of the results reported here and as a
 reusable template for new passive-acoustic-monitoring problems.
@@ -736,16 +736,70 @@ Total   & 6189 & 2535 & 41.0 \\
 \end{table}
 
 %% ---------------------------------------------------------------------
-%% CLEANUP EFFECT -- fill from:
+%% CLEANUP EFFECT. Numbers from
 %%   python scripts/evaluate_cleanup.py --review reviews/ --cleanup <dir>
 %% The manual review above was done on the raw detections, before cleanup, so
-%% it is ground truth for scoring the cleanup.
+%% it is ground truth for scoring the cleanup, and every filter subset is
+%% derivable from the per-detection flags of a single run.
 %% ---------------------------------------------------------------------
-\textbf{[Automatic cleanup, to be filled once the cleanup has been run on this
-same set of detections: of the 3\,654 confirmed false positives the cleanup
-flagged [N] ([N]\,\%) without any listening, while retaining [N] of the 2\,535
-genuine calls ([N]\,\%); precision rose from 41.0\,\% to [N]\,\% and the number
-of clips still requiring review fell by [N]\,\%.]}
+\paragraph{Effect of the automatic cleanup.}
+Because the manual review was carried out on the raw detections, it is ground
+truth for the cleanup itself: for each of the 6\,189 \textit{C.\ nictitans}
+detections we know both the reviewer's verdict and the cleanup's. The two
+domain-specific filters are the ones that carry signal. Applied together, the
+Mahalanobis and temporal-isolation filters discard 817 detections (13.2\,\% of
+the total) of which 697 (85.3\,\%) are confirmed false positives, retain 2\,415
+of the 2\,535 genuine calls (95.3\,\%), and raise precision from 41.0\,\% to
+45.0\,\% (Table~\ref{tab:ablation}). Requiring both filters to agree before
+discarding is more conservative still --- 70 genuine calls lost instead of 120,
+at the cost of removing only 317 false positives.
+
+The gain is real but bounded, and the reason is the same closed-set limitation
+that produces the false positives: a recurring non-target sound that dominates
+one station is, by construction, not an outlier in feature space. IPA4ST
+illustrates this directly --- it supplies 2\,370 of the 3\,654 false positives,
+and its detections cluster tightly enough that the Mahalanobis filter treats
+them as ordinary.
+
+\paragraph{The audio-tagging filter does not transfer to this target.}
+The YAMNet cross-check, included in the original design as an independent
+opinion on each window, proved actively harmful and was disabled. It flagged
+51.8\,\% of genuine \textit{C.\ nictitans} calls but only 32.5\,\% of the false
+positives --- a lift below one --- and adding it to the other two filters
+lowered precision from 45.0\,\% to 36.1\,\% while discarding 1\,364 genuine
+calls. The cause is taxonomic rather than a matter of tuning. YAMNet assigns
+putty-nosed calls to the same AudioSet classes as the surrounding forest noise:
+of the detections it labelled \textit{Cricket}, 63.1\,\% were genuine calls, as
+were 80.0\,\% of those it labelled \textit{Owl} and 71.4\,\% of those it
+labelled \textit{Animal}, against a base rate of 41.0\,\%. No pruning of the
+suspicious class set can therefore separate calls from noise, and requiring a
+minimum tagger confidence did not help at any threshold up to 0.8, every one of
+which still scored below simply omitting the filter. General-purpose audio
+taggers should not be assumed to transfer to a target species that their label
+set does not represent; whether they help is an empirical question that the
+ablation below answers directly.
+
+\begin{table}[H]
+\centering
+\caption{Cleanup filter ablation on the 6\,189 manually reviewed
+\textit{Cercopithecus nictitans} detections (2\,535 genuine calls, 3\,654 false
+positives). Every subset is derived from the per-detection flags of a single
+run. ``Reviewed after'' is the number of clips a human would still need to
+check.}
+\label{tab:ablation}
+\begin{tabular}{lrrrr}
+\toprule
+Filter set & Calls kept & Calls lost & False pos.\ removed & Precision (\%) \\
+\midrule
+Mahalanobis + temporal isolation & 2415 & 120 & 697 & \textbf{45.0} \\
+Temporal isolation only          & 2495 &  40 & 490 & 44.1 \\
+Mahalanobis only                 & 2454 &  81 & 229 & 41.7 \\
+No cleanup                       & 2535 &   0 &   0 & 41.0 \\
+All three (incl.\ YAMNet)        & 1171 & 1364 & 1580 & 36.1 \\
+YAMNet only                      & 1221 & 1314 & 1188 & 33.1 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \paragraph{Architecture progression (development history).}
 The components of the model were added in response to failures observed on the
@@ -798,13 +852,17 @@ because hard negatives are scored by the same model that produced them, so
 genuine calls with low model confidence may be systematically hidden; this is
 mitigated by a mining-confidence audit in which high-confidence clips in the
 false-positive pool are manually reviewed and confirmed calls are recovered
-into training. Each of the three filters also rests on an assumption that can
-fail: the YAMNet cross-check only rejects clips it can confidently attribute to
-a non-primate AudioSet class, so forest sounds outside that distribution may be
-mislabelled; the Mahalanobis filter assumes that most detections for a species
-are genuine, so that outliers are informative; and the temporal-isolation
-filter assumes bout-calling, so genuinely isolated calls can be flagged. All
-three are deliberately conservative.
+into training. Each filter also rests on an assumption that can fail: the
+Mahalanobis filter assumes that most detections for a species are genuine, so
+that outliers are informative, which breaks down exactly where a single
+recurring non-target sound dominates a station; and the temporal-isolation
+filter assumes bout-calling, so genuinely isolated calls can be flagged. The
+YAMNet cross-check assumed that a general-purpose audio tagger would recognise
+non-primate sounds, and the field review showed it does not separate them from
+the target at all, so it is disabled by default. The cleanup that remains is
+therefore a partial measure: it removes about a fifth of the false positives at
+a cost of under 5\,\% of genuine calls, rather than eliminating the need to
+listen.
 
 Finally, the model favours precision over recall and is therefore conservative
 on weak or short calls: on the validation set Cernic recall is 96.1\,\%, with
