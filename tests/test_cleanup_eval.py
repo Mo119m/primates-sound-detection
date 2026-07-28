@@ -497,3 +497,49 @@ def test_gating_confines_the_recurrence_rule_to_the_invaded_station():
     # only the ungated rule also discards genuine calls elsewhere
     assert ungated[~invaded].sum() == 6
     assert gated[~invaded].sum() == 0
+
+
+def test_atypicality_condition_spares_a_station_dominated_by_the_target():
+    """A station where the target species calls heavily also forms one dense
+    cluster; only the distance to the training data tells it apart from an
+    unlearned species, so the coverage rule alone must not be trusted."""
+    rows, clean = [], []
+    cols = ["species", "source_file", "start_time", "flag_mahal", "flag_yamnet",
+            "flag_isolated", "yamnet_top", "yamnet_score", "mahalanobis_d2",
+            "n_neighbours", "recurrence_knn_dist"]
+
+    # invaded station: dense cluster of false positives, far from training
+    for i in range(30):
+        rows.append((f"Cernic__recX__{i:05d}s__conf0.9.wav", "Noise", "IPA4ST"))
+        clean.append(("Cernic", "recX.wav", float(i), False, False, False,
+                      "Insect", 0.3, 9000.0, 5, 0.01))
+    # productive station: dense cluster of genuine calls, close to training
+    for i in range(30):
+        rows.append((f"Cernic__recY__{i:05d}s__conf0.9.wav", "", "IPA20ST"))
+        clean.append(("Cernic", "recY.wav", float(i), False, False, False,
+                      "Animal", 0.3, 100.0, 5, 0.01))
+
+    d = tempfile.mkdtemp()
+    with open(os.path.join(d, "review.csv"), "w") as f:
+        f.write('"INDIR","IN FILE","MANUAL ID"\n')
+        for fname, mid, site in rows:
+            f.write(f'"/x/Cernic/{site}","{fname}","{mid}"\n')
+    cd = tempfile.mkdtemp()
+    pd.DataFrame(clean, columns=cols).to_csv(
+        os.path.join(cd, "clean_detections.csv"), index=False)
+    pd.DataFrame([], columns=cols).to_csv(
+        os.path.join(cd, "suspicious_detections.csv"), index=False)
+
+    matched, _ = cleanup_eval.run(d, cd)
+    invaded = matched["site"] == "IPA4ST"
+
+    # coverage alone cannot separate them: both stations are fully flagged
+    coverage_only = cleanup_eval.gated_recurrence_mask(matched, 0.1, 0.25)
+    assert coverage_only[invaded].sum() == 30
+    assert coverage_only[~invaded].sum() == 30
+
+    # adding the atypicality condition leaves the productive station alone
+    with_mahal = cleanup_eval.gated_recurrence_mask(matched, 0.1, 0.25,
+                                                    mahal_min=1000.0)
+    assert with_mahal[invaded].sum() == 30
+    assert with_mahal[~invaded].sum() == 0
