@@ -114,6 +114,14 @@ def main():
         print(fc.to_string())
         fc.to_csv(os.path.join(out_dir, "cleanup_eval_combinations.csv"))
 
+    tp = cleanup_eval.two_protocol_cross_validation(matched)
+    if len(tp):
+        print("\nTwo protocols, leave-one-station-out: temporal isolation")
+        print("everywhere, plus cluster removal only at stations the")
+        print("unsupervised triage marks as invaded ('invaded' column):")
+        print(tp.to_string())
+        tp.to_csv(os.path.join(out_dir, "cleanup_eval_cv_two_protocol.csv"))
+
     gr = cleanup_eval.gated_recurrence_cross_validation(matched)
     if len(gr):
         print("\nGated recurrence, leave-one-station-out: the distance rule is")
