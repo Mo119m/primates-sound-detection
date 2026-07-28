@@ -546,26 +546,30 @@ def test_atypicality_condition_spares_a_station_dominated_by_the_target():
 
 
 def test_per_station_floor_rejects_a_cutoff_that_wrecks_one_station():
-    """Pooled retention is dominated by the biggest station, so a cutoff that
-    destroys a smaller station's calls can still pass a pooled floor. Requiring
-    the floor at every station must reject it."""
+    """A cutoff that strips a station whose genuine calls are dense must be
+    rejected during tuning. For the floor to see that, a comparable station has
+    to be present among the training folds -- so there are two of them, and
+    each protects the other when it is held out."""
     rows, clean = [], []
     cols = ["species", "source_file", "start_time", "flag_mahal", "flag_yamnet",
             "flag_isolated", "yamnet_top", "yamnet_score", "mahalanobis_d2",
             "n_neighbours", "recurrence_knn_dist"]
 
-    # big invaded station: 300 false positives in a dense cluster
+    # invaded station: a dense cluster that is all false positives
     for i in range(300):
         rows.append((f"Cernic__recX__{i:05d}s__conf0.9.wav", "Noise", "IPA4ST"))
         clean.append(("Cernic", "recX.wav", float(i), False, False, False,
                       "Insect", 0.3, 100.0, 5, 0.01))
-    # small station whose genuine calls are equally dense
-    for i in range(20):
-        rows.append((f"Cernic__recY__{i:05d}s__conf0.9.wav", "", "IPA20ST"))
-        clean.append(("Cernic", "recY.wav", float(i), False, False, False,
-                      "Animal", 0.3, 100.0, 5, 0.01))
-    # a third station so the folds have something to train on
-    for i in range(40):
+    # two productive stations whose genuine calls are equally dense
+    for site, rec in (("IPA20ST", "recY"), ("IPA17ST", "recW")):
+        for i in range(20):
+            rows.append((f"Cernic__{rec}__{i:05d}s__conf0.9.wav", "", site))
+            clean.append(("Cernic", f"{rec}.wav", float(i), False, False, False,
+                          "Animal", 0.3, 100.0, 5, 0.01))
+    # a large station with nothing dense. It dominates the pooled call count,
+    # which is precisely why a pooled floor fails to notice the two small
+    # stations being stripped.
+    for i in range(400):
         rows.append((f"Cernic__recZ__{i:05d}s__conf0.9.wav", "", "IPA1ST"))
         clean.append(("Cernic", "recZ.wav", float(i), False, False, False,
                       "Animal", 0.3, 100.0, 5, 9.0))
@@ -582,15 +586,14 @@ def test_per_station_floor_rejects_a_cutoff_that_wrecks_one_station():
         os.path.join(cd, "suspicious_detections.csv"), index=False)
 
     matched, _ = cleanup_eval.run(d, cd)
-    small = matched["site"] == "IPA20ST"
-
     pooled = cleanup_eval.gated_recurrence_cross_validation(
         matched, min_call_retention=0.90, per_station_floor=False)
     guarded = cleanup_eval.gated_recurrence_cross_validation(
         matched, min_call_retention=0.90, per_station_floor=True)
 
-    # the pooled floor lets the small station be stripped; the per-station one
-    # must not lose more of it than the floor allows
-    if len(pooled) and "IPA20ST" in pooled.index and len(guarded) and "IPA20ST" in guarded.index:
-        assert guarded.loc["IPA20ST", "calls_lost"] <= pooled.loc["IPA20ST", "calls_lost"]
-        assert guarded.loc["IPA20ST", "calls_kept"] >= 0.90 * int(small.sum())
+    assert "IPA20ST" in pooled.index and "IPA20ST" in guarded.index
+    # the pooled floor lets the productive station be stripped
+    assert pooled.loc["IPA20ST", "calls_lost"] == 20
+    # the per-station floor sees the same pattern at IPA17ST while tuning and
+    # refuses the cutoff, so the held-out station keeps its calls
+    assert guarded.loc["IPA20ST", "calls_lost"] == 0

@@ -618,9 +618,12 @@ def gated_recurrence_cross_validation(matched_df, min_cluster_frac=0.25,
                     return False
             return True
 
+        # A cutoff below every observed distance flags nothing. Including it
+        # means the search can decline to filter when no setting is safe,
+        # instead of finding no admissible configuration at all.
+        no_op = float(train_dist.min()) - 1.0 if train_dist.notna().any() else 0.0
         best, best_cut, best_mahal = None, None, None
-        for q in qs:
-            c = float(train_dist.quantile(q))
+        for c in [no_op] + [float(train_dist.quantile(q)) for q in qs]:
             for mq in mahal_quantiles:
                 mm = (None if mq is None or train_mahal is None
                       or train_mahal.notna().sum() == 0
@@ -693,9 +696,12 @@ def station_cross_validation(matched_df, column, flag_when="low",
             continue
         v_train = pd.to_numeric(train[column], errors="coerce")
         train_calls = int((train["verdict"] == "call").sum())
+        # A cutoff past every observed value flags nothing, so the search can
+        # always decline to filter rather than return no configuration.
+        no_op = (float(v_train.min()) - 1.0 if flag_when == "low"
+                 else float(v_train.max()) + 1.0)
         best, best_cut = None, None
-        for q in qs:
-            c = float(v_train.quantile(q))
+        for c in [no_op] + [float(v_train.quantile(q)) for q in qs]:
             r = tally(train, flag(train, c))
             if r["calls_kept"] < min_call_retention * train_calls:
                 continue
