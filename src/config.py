@@ -235,6 +235,16 @@ LOWFREQ_GATE_THRESHOLD = 0.20  # calibrated: FP max=0.092, Colobus p05=0.261;
 # deployment where the target species is better represented in AudioSet.
 USE_YAMNET_FILTER = False
 
+# Stations fail in two ways. Most accumulate scattered false positives, which
+# the temporal-isolation rule handles. Occasionally one is overrun by a species
+# the model never saw: those detections are numerous and consistent, so they
+# are neither isolated nor outliers, and only removing the whole cluster
+# reaches them -- which is far too destructive at a station with no invasion.
+# With this on, the cleanup decides which case each station is, using no labels
+# and no threshold shared between stations (see src/station_regime.py). It is a
+# no-op at stations showing no dominant unfamiliar cluster.
+USE_STATION_REGIME_FILTER = True
+
 # TIME FILTER FOR FIELD RECORDINGS
 # Coarse, FILE-LEVEL filter (it does NOT trim audio — it only decides which
 # whole recordings to process). The recording's start time is parsed from its

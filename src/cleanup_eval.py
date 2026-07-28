@@ -28,8 +28,10 @@ import pandas as pd
 
 try:
     from . import review_import
+    from . import station_regime
 except ImportError:  # running as a script / from a notebook
     import review_import
+    import station_regime
 
 # recording part of the exported clip filename
 _REC_RE = re.compile(r"^.+?__(?P<recording>.+)__\d+s__conf[0-9.]+\.wav$")
@@ -522,68 +524,16 @@ def operating_points(matched_df, retention_levels=(0.99, 0.97, 0.95, 0.90, 0.85)
     return pd.DataFrame(rows).T
 
 
-def detect_invading_cluster(df, min_frac=0.25, min_gap_ratio=2.0):
+def detect_invading_cluster(df, min_frac=station_regime.DEFAULT_MIN_CLUSTER_FRACTION,
+                            min_gap_ratio=station_regime.DEFAULT_MIN_GAP_RATIO):
+    """Triage a station as invaded or not -- the same rule the cleanup applies.
+
+    Delegates to ``station_regime`` so the evaluation scores exactly what the
+    pipeline does, rather than a re-implementation that could drift from it.
     """
-    Find, per station, a dominant cluster of detections that is foreign to the
-    training data -- using only comparisons made inside that station.
-
-    Every absolute cutoff tried here failed to transfer, because feature-space
-    distances are not on the same scale at every station. This rule avoids one
-    entirely. Within a station the detections are ordered by how tightly they
-    cluster, the largest relative gap in that ordering splits them, and the
-    tight side is treated as a candidate cluster.
-
-    A candidate is only reported when both hold:
-
-    * it covers at least ``min_frac`` of the station -- a handful of similar
-      calls is not an invasion, and
-    * it sits *further* from the training distribution than the rest of that
-      same station. This is what separates an unlearned species from the target
-      species calling heavily: both form dense clusters, but the target's
-      cluster is the familiar part of its station while an intruder's is the
-      foreign part. Comparing the two halves of one station needs no threshold
-      that has to hold anywhere else.
-    """
-    dist = pd.to_numeric(df.get("recurrence_knn_dist"), errors="coerce")
-    mahal = pd.to_numeric(df.get("mahalanobis_d2"), errors="coerce")
-    if dist is None or mahal is None or "site" not in df.columns:
-        return pd.Series(False, index=df.index)
-    if dist.notna().sum() == 0 or mahal.notna().sum() == 0:
-        return pd.Series(False, index=df.index)
-
-    mask = pd.Series(False, index=df.index)
-    for _, sub in df.groupby("site", sort=False):
-        idx = sub.index
-        d = dist.loc[idx].dropna()
-        if len(d) < 10:
-            continue
-        order = d.sort_values()
-        vals = order.to_numpy()
-        # Largest multiplicative gap between consecutive distances, searched
-        # over splits that could still leave a cluster worth acting on.
-        lo = max(1, int(min_frac * len(vals)))
-        best_ratio, best_i = 0.0, None
-        for i in range(lo - 1, len(vals) - 1):
-            prev = max(vals[i], 1e-9)
-            ratio = vals[i + 1] / prev
-            if ratio > best_ratio:
-                best_ratio, best_i = ratio, i
-        if best_i is None or best_ratio < min_gap_ratio:
-            continue
-
-        cluster_idx = order.index[: best_i + 1]
-        rest_idx = order.index[best_i + 1:]
-        if len(cluster_idx) < min_frac * len(vals) or not len(rest_idx):
-            continue
-
-        c_m = mahal.loc[cluster_idx].dropna()
-        r_m = mahal.loc[rest_idx].dropna()
-        if not len(c_m) or not len(r_m):
-            continue
-        # Foreign to this station, not merely dense within it.
-        if c_m.median() > r_m.median():
-            mask.loc[cluster_idx] = True
-    return mask
+    group_col = "site" if "site" in df.columns else "station"
+    return station_regime.detect_invading_cluster(
+        df, group_col=group_col, min_frac=min_frac, min_gap_ratio=min_gap_ratio)
 
 
 def two_protocol_mask(df, isolation_cut, min_frac=0.25, min_gap_ratio=2.0):
