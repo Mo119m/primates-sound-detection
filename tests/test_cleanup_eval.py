@@ -438,3 +438,62 @@ def test_cross_validation_exposes_a_signal_that_only_works_in_sample():
     baseline = cv.loc["POOLED, no cleanup", "precision"]
     # the per-station scales make the cutoff meaningless across stations
     assert pooled <= baseline
+
+
+def _stations_fixture():
+    """One station overrun by a tight cluster of false positives, plus three
+    ordinary stations where a few genuine calls happen to resemble each other."""
+    rows, clean = [], []
+    cols = ["species", "source_file", "start_time", "flag_mahal", "flag_yamnet",
+            "flag_isolated", "yamnet_top", "yamnet_score", "mahalanobis_d2",
+            "n_neighbours", "recurrence_knn_dist"]
+
+    # invaded station: 40 false positives in one tight cluster, 10 calls apart
+    for i in range(40):
+        rows.append((f"Cernic__recX__{i:05d}s__conf0.9.wav", "Noise", "IPA4ST"))
+        clean.append(("Cernic", "recX.wav", float(i), False, False, False,
+                      "Insect", 0.3, 100.0, 5, 0.01))
+    for i in range(10):
+        s = 500 + i
+        rows.append((f"Cernic__recX__{s:05d}s__conf0.9.wav", "", "IPA4ST"))
+        clean.append(("Cernic", "recX.wav", float(s), False, False, False,
+                      "Animal", 0.3, 100.0, 5, 5.0))
+
+    # ordinary stations: mostly calls, a couple of which are coincidentally tight
+    for site in ("IPA1ST", "IPA2ST", "IPA3ST"):
+        for i in range(20):
+            rows.append((f"Cernic__rec{site}__{i:05d}s__conf0.9.wav", "", site))
+            tight = 0.01 if i < 2 else 5.0     # 10% of the station only
+            clean.append(("Cernic", f"rec{site}.wav", float(i), False, False,
+                          False, "Animal", 0.3, 100.0, 5, tight))
+
+    d = tempfile.mkdtemp()
+    with open(os.path.join(d, "review.csv"), "w") as f:
+        f.write('"INDIR","IN FILE","MANUAL ID"\n')
+        for fname, mid, site in rows:
+            f.write(f'"/x/Cernic/{site}","{fname}","{mid}"\n')
+    cd = tempfile.mkdtemp()
+    pd.DataFrame(clean, columns=cols).to_csv(
+        os.path.join(cd, "clean_detections.csv"), index=False)
+    pd.DataFrame([], columns=cols).to_csv(
+        os.path.join(cd, "suspicious_detections.csv"), index=False)
+    return d, cd
+
+
+def test_gating_confines_the_recurrence_rule_to_the_invaded_station():
+    """Without a gate the distance rule also fires on the few tight calls at
+    ordinary stations; requiring the cluster to cover much of its station
+    leaves those stations untouched."""
+    rev, cln = _stations_fixture()
+    matched, _ = cleanup_eval.run(rev, cln)
+
+    ungated = matched["recurrence_knn_dist"].astype(float) <= 0.1
+    gated = cleanup_eval.gated_recurrence_mask(matched, 0.1, min_cluster_frac=0.25)
+
+    invaded = matched["site"] == "IPA4ST"
+    # both catch the invaded station's cluster
+    assert ungated[invaded].sum() == 40
+    assert gated[invaded].sum() == 40
+    # only the ungated rule also discards genuine calls elsewhere
+    assert ungated[~invaded].sum() == 6
+    assert gated[~invaded].sum() == 0

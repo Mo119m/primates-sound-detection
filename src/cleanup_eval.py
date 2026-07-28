@@ -522,6 +522,86 @@ def operating_points(matched_df, retention_levels=(0.99, 0.97, 0.95, 0.90, 0.85)
     return pd.DataFrame(rows).T
 
 
+def gated_recurrence_mask(df, dist_cut, min_cluster_frac=0.25):
+    """
+    Flag repetitive detections only where the repetition is a mass phenomenon.
+
+    Measured per station, tight clustering means two different things. Where a
+    non-target species has moved in, most of the station's detections collapse
+    into one dense cluster. Where nothing has, a handful of calls happen to
+    resemble each other, and flagging them costs genuine calls for almost no
+    false positives -- which is what an ungated distance cutoff does: on the 15
+    unaffected stations it removed 15 false positives while discarding 270
+    genuine calls.
+
+    Requiring the tight group to cover at least ``min_cluster_frac`` of its
+    station's detections before any of it is flagged keeps the filter switched
+    off exactly where it has nothing to offer.
+    """
+    dist = pd.to_numeric(df.get("recurrence_knn_dist"), errors="coerce")
+    if dist is None or dist.notna().sum() == 0 or "site" not in df.columns:
+        return pd.Series(False, index=df.index)
+
+    tight = (dist <= dist_cut).fillna(False)
+    mask = pd.Series(False, index=df.index)
+    for _, sub in df.groupby("site", sort=False):
+        idx = sub.index
+        if not len(idx):
+            continue
+        if tight.loc[idx].mean() >= min_cluster_frac:
+            mask.loc[idx] = tight.loc[idx]
+    return mask
+
+
+def gated_recurrence_cross_validation(matched_df, min_cluster_frac=0.25,
+                                      min_call_retention=0.90, n_steps=25):
+    """Leave-one-station-out estimate for the gated recurrence rule."""
+    df = matched_df[matched_df["cleanup"].notna()].copy()
+    if "recurrence_knn_dist" not in df.columns or "site" not in df.columns:
+        return pd.DataFrame()
+    dist = pd.to_numeric(df["recurrence_knn_dist"], errors="coerce")
+    if dist.notna().sum() == 0:
+        return pd.DataFrame()
+
+    def tally(sub, flagged):
+        n_calls = int((sub["verdict"] == "call").sum())
+        n_fps = int((sub["verdict"] == "false_positive").sum())
+        return _outcome(sub, flagged, n_calls, n_fps, len(sub))
+
+    sites = sorted(df["site"].dropna().unique())
+    qs = [i / (n_steps + 1) for i in range(1, n_steps + 1)]
+    rows, pooled = {}, []
+    for site in sites:
+        train = df[df["site"] != site]
+        test = df[df["site"] == site]
+        if not len(train) or not len(test):
+            continue
+        train_calls = int((train["verdict"] == "call").sum())
+        best, best_cut = None, None
+        for q in qs:
+            c = float(pd.to_numeric(train["recurrence_knn_dist"],
+                                    errors="coerce").quantile(q))
+            m = gated_recurrence_mask(train, c, min_cluster_frac)
+            r = tally(train, m)
+            if r["calls_kept"] < min_call_retention * train_calls:
+                continue
+            if best is None or (r["precision"] or 0) > (best["precision"] or 0):
+                best, best_cut = r, c
+        if best_cut is None:
+            continue
+        m = gated_recurrence_mask(test, best_cut, min_cluster_frac)
+        rows[site] = {**tally(test, m), "cutoff": round(best_cut, 4)}
+        pooled.append(m)
+
+    if not rows:
+        return pd.DataFrame()
+    all_mask = pd.concat(pooled).reindex(df.index).fillna(False).astype(bool)
+    rows["POOLED (all held-out)"] = {**tally(df, all_mask), "cutoff": None}
+    rows["POOLED, no cleanup"] = {
+        **tally(df, pd.Series(False, index=df.index)), "cutoff": None}
+    return pd.DataFrame(rows).T
+
+
 def station_cross_validation(matched_df, column, flag_when="low",
                              min_call_retention=0.90, n_steps=25):
     """
@@ -582,12 +662,11 @@ def station_cross_validation(matched_df, column, flag_when="low",
     if not rows:
         return pd.DataFrame()
 
-    out = pd.DataFrame(rows).T
-    all_mask = pd.concat(pooled_mask).reindex(df.index).fillna(False)
-    out.loc["POOLED (all held-out)"] = {**tally(df, all_mask), "cutoff": None}
-    out.loc["POOLED, no cleanup"] = {
+    all_mask = pd.concat(pooled_mask).reindex(df.index).fillna(False).astype(bool)
+    rows["POOLED (all held-out)"] = {**tally(df, all_mask), "cutoff": None}
+    rows["POOLED, no cleanup"] = {
         **tally(df, pd.Series(False, index=df.index)), "cutoff": None}
-    return out
+    return pd.DataFrame(rows).T
 
 
 def confidence_baseline(matched_df, filter_cols=("flag_mahal", "flag_isolated"),

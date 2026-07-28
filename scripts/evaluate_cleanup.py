@@ -114,6 +114,14 @@ def main():
         print(fc.to_string())
         fc.to_csv(os.path.join(out_dir, "cleanup_eval_combinations.csv"))
 
+    gr = cleanup_eval.gated_recurrence_cross_validation(matched)
+    if len(gr):
+        print("\nGated recurrence, leave-one-station-out: the distance rule is")
+        print("applied only at stations where the tight cluster covers a large")
+        print("share of detections, so it stays off where it has nothing to do:")
+        print(gr.to_string())
+        gr.to_csv(os.path.join(out_dir, "cleanup_eval_cv_gated_recurrence.csv"))
+
     for col in ("n_neighbours", "recurrence_knn_dist", "confidence",
                 "softmax_margin"):
         cv = cleanup_eval.station_cross_validation(matched, col, flag_when="low")
