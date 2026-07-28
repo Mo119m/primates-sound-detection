@@ -522,7 +522,7 @@ def operating_points(matched_df, retention_levels=(0.99, 0.97, 0.95, 0.90, 0.85)
     return pd.DataFrame(rows).T
 
 
-def gated_recurrence_mask(df, dist_cut, min_cluster_frac=0.25):
+def gated_recurrence_mask(df, dist_cut, min_cluster_frac=0.25, mahal_min=None):
     """
     Flag repetitive detections only where the repetition is a mass phenomenon.
 
@@ -535,14 +535,25 @@ def gated_recurrence_mask(df, dist_cut, min_cluster_frac=0.25):
     genuine calls.
 
     Requiring the tight group to cover at least ``min_cluster_frac`` of its
-    station's detections before any of it is flagged keeps the filter switched
-    off exactly where it has nothing to offer.
+    station's detections keeps the filter off where it has nothing to offer.
+    That alone is not enough, because a station where the target species itself
+    calls heavily also collapses into a dense cluster: at the site with the
+    highest precision of all, the coverage rule discarded 121 genuine calls and
+    no false positives. What separates the two cases is not density but
+    familiarity -- an unlearned species sits far from every training cluster,
+    the target species sits close. ``mahal_min`` adds that condition, so only a
+    dense group that is *also* atypical of the training data is flagged.
     """
     dist = pd.to_numeric(df.get("recurrence_knn_dist"), errors="coerce")
     if dist is None or dist.notna().sum() == 0 or "site" not in df.columns:
         return pd.Series(False, index=df.index)
 
     tight = (dist <= dist_cut).fillna(False)
+    if mahal_min is not None:
+        mahal = pd.to_numeric(df.get("mahalanobis_d2"), errors="coerce")
+        if mahal is not None and mahal.notna().sum():
+            tight = tight & (mahal >= mahal_min).fillna(False)
+
     mask = pd.Series(False, index=df.index)
     for _, sub in df.groupby("site", sort=False):
         idx = sub.index
@@ -554,8 +565,14 @@ def gated_recurrence_mask(df, dist_cut, min_cluster_frac=0.25):
 
 
 def gated_recurrence_cross_validation(matched_df, min_cluster_frac=0.25,
-                                      min_call_retention=0.90, n_steps=25):
-    """Leave-one-station-out estimate for the gated recurrence rule."""
+                                      min_call_retention=0.90, n_steps=25,
+                                      mahal_quantiles=(None, 0.5, 0.7, 0.8, 0.9)):
+    """Leave-one-station-out estimate for the gated recurrence rule.
+
+    The distance cutoff and the atypicality cutoff interact -- a group only
+    counts when it is both dense and unfamiliar -- so both are searched per
+    fold, on the training stations only.
+    """
     df = matched_df[matched_df["cleanup"].notna()].copy()
     if "recurrence_knn_dist" not in df.columns or "site" not in df.columns:
         return pd.DataFrame()
@@ -577,28 +594,36 @@ def gated_recurrence_cross_validation(matched_df, min_cluster_frac=0.25,
         if not len(train) or not len(test):
             continue
         train_calls = int((train["verdict"] == "call").sum())
-        best, best_cut = None, None
+        train_dist = pd.to_numeric(train["recurrence_knn_dist"], errors="coerce")
+        train_mahal = pd.to_numeric(train.get("mahalanobis_d2"), errors="coerce")
+        best, best_cut, best_mahal = None, None, None
         for q in qs:
-            c = float(pd.to_numeric(train["recurrence_knn_dist"],
-                                    errors="coerce").quantile(q))
-            m = gated_recurrence_mask(train, c, min_cluster_frac)
-            r = tally(train, m)
-            if r["calls_kept"] < min_call_retention * train_calls:
-                continue
-            if best is None or (r["precision"] or 0) > (best["precision"] or 0):
-                best, best_cut = r, c
+            c = float(train_dist.quantile(q))
+            for mq in mahal_quantiles:
+                mm = (None if mq is None or train_mahal is None
+                      or train_mahal.notna().sum() == 0
+                      else float(train_mahal.quantile(mq)))
+                m = gated_recurrence_mask(train, c, min_cluster_frac, mm)
+                r = tally(train, m)
+                if r["calls_kept"] < min_call_retention * train_calls:
+                    continue
+                if best is None or (r["precision"] or 0) > (best["precision"] or 0):
+                    best, best_cut, best_mahal = r, c, mm
         if best_cut is None:
             continue
-        m = gated_recurrence_mask(test, best_cut, min_cluster_frac)
-        rows[site] = {**tally(test, m), "cutoff": round(best_cut, 4)}
+        m = gated_recurrence_mask(test, best_cut, min_cluster_frac, best_mahal)
+        rows[site] = {**tally(test, m), "cutoff": round(best_cut, 4),
+                      "mahal_min": None if best_mahal is None else round(best_mahal)}
         pooled.append(m)
 
     if not rows:
         return pd.DataFrame()
     all_mask = pd.concat(pooled).reindex(df.index).fillna(False).astype(bool)
-    rows["POOLED (all held-out)"] = {**tally(df, all_mask), "cutoff": None}
+    rows["POOLED (all held-out)"] = {**tally(df, all_mask), "cutoff": None,
+                                     "mahal_min": None}
     rows["POOLED, no cleanup"] = {
-        **tally(df, pd.Series(False, index=df.index)), "cutoff": None}
+        **tally(df, pd.Series(False, index=df.index)), "cutoff": None,
+        "mahal_min": None}
     return pd.DataFrame(rows).T
 
 
