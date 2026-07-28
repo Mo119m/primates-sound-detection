@@ -107,6 +107,13 @@ def main():
         print(fc.to_string())
         fc.to_csv(os.path.join(out_dir, "cleanup_eval_combinations.csv"))
 
+    cb = cleanup_eval.confidence_baseline(matched)
+    if len(cb):
+        print("\nDoes the cleanup beat just dropping the least confident")
+        print("detections? (same number discarded, so directly comparable):")
+        print(cb.to_string())
+        cb.to_csv(os.path.join(out_dir, "cleanup_eval_vs_confidence.csv"))
+
     va = cleanup_eval.vote_analysis(matched)
     if len(va):
         print("\nRequiring filters to agree before discarding:")

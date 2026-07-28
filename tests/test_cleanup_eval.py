@@ -244,3 +244,31 @@ def test_yamnet_score_threshold_can_suppress_low_confidence_flags():
     # requiring confidence keeps it while still removing the false positive
     assert ys.loc["+ yamnet (score >= 0.5)", "calls_lost"] == 0
     assert ys.loc["+ yamnet (score >= 0.5)", "fps_removed"] == 1
+
+
+def test_confidence_baseline_spends_the_same_budget():
+    """The baseline must discard exactly as many detections as the cleanup, so
+    the two precisions are comparable."""
+    rows, clean, susp = [], [], []
+    # flagged detections are false positives but carry HIGH confidence, so a
+    # confidence rule cannot find them -- the filters should win here
+    for s, conf in ((100, 0.99), (200, 0.98)):
+        rows.append((f"Cernic__recA__{s:05d}s__conf{conf}.wav", "Noise"))
+        susp.append(("Cernic", "recA.wav", float(s), True, False, False,
+                     "Insect", 0.9))
+    # genuine calls with low confidence: the confidence rule would drop these
+    for s, conf in ((300, 0.41), (400, 0.42)):
+        rows.append((f"Cernic__recA__{s:05d}s__conf{conf}.wav", ""))
+        clean.append(("Cernic", "recA.wav", float(s), False, False, False,
+                      "Animal", 0.3))
+
+    matched, _ = cleanup_eval.run(_review_csv(rows), _cleanup_dir_full(clean, susp))
+    cb = cleanup_eval.confidence_baseline(matched)
+
+    assert len(cb) == 2
+    # identical budget
+    assert cb.iloc[0]["reviewed_after"] == cb.iloc[1]["reviewed_after"]
+    # the filters removed both false positives; confidence removed both calls
+    assert cb.iloc[0]["fps_removed"] == 2 and cb.iloc[0]["calls_lost"] == 0
+    assert cb.iloc[1]["calls_lost"] == 2
+    assert cb.iloc[0]["advantage"] > 0
