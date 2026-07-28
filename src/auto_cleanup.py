@@ -765,6 +765,20 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
     det_df = load_detection_csvs(detection_dir)
     if verbose:
         print(f'{len(det_df)} detections across {det_df["source_file"].nunique()} files')
+    if clips_dir is None:
+        # Detections are usually reviewed from exported clips, and those clips
+        # hold the same audio the source recordings would be cut down to. When
+        # they are present, prefer them: the long recordings are often left
+        # behind on the machine that ran the detection, and re-cutting from
+        # sources that are not there is the one way this step fails outright.
+        default_clips = Path(config.OUTPUT_ROOT) / 'detected_clips'
+        if default_clips.is_dir() and any(default_clips.rglob('*.wav')):
+            clips_dir = str(default_clips)
+            if verbose:
+                print(f'  Using the exported clips under {default_clips} '
+                      f'(pass clips_dir=... to override, or clips_dir="" to '
+                      f'cut from the source recordings instead).')
+
     if clips_dir:
         # Reuse the clips already exported for manual review; the source
         # recordings are then not needed at all.

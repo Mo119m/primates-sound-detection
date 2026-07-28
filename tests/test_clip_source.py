@@ -90,3 +90,33 @@ def test_all_missing_raises():
     with pytest.raises(FileNotFoundError, match="matched an exported clip"):
         auto_cleanup.load_clips_from_dir(det, clips_dir, padding=PAD,
                                          verbose=False)
+
+
+def test_exported_clips_are_used_when_no_source_is_given(monkeypatch, tmp_path):
+    """The long recordings are usually left on whichever machine ran the
+    detection, so a run that is given neither should fall back to the exported
+    clips rather than failing to cut from sources that are not there."""
+    sr, win = config.SAMPLE_RATE, config.WINDOW_SIZE
+    outputs = tmp_path / "outputs"
+    clips_dir = outputs / "detected_clips" / "Cernic" / "IPA1ST"
+    clips_dir.mkdir(parents=True)
+
+    rng = np.random.default_rng(0)
+    y = (rng.standard_normal(sr * 10) * 0.05).astype("float32")
+    start = 3.0
+    a = int((start - PAD) * sr)
+    b = int((start + win + PAD) * sr)
+    sf.write(clips_dir / f"Cernic__recA__{int(start):05d}s__conf0.900.wav",
+             y[a:b], sr, subtype="FLOAT")
+
+    monkeypatch.setattr(config, "OUTPUT_ROOT", str(outputs))
+    det = pd.DataFrame([dict(species="Cernic", source_file="recA.wav",
+                             source_path="", start_time=start)])
+
+    # resolved the same way run_auto_cleanup does when clips_dir is omitted
+    default_clips = auto_cleanup.Path(config.OUTPUT_ROOT) / "detected_clips"
+    assert default_clips.is_dir() and any(default_clips.rglob("*.wav"))
+    clips = auto_cleanup.load_clips_from_dir(det, str(default_clips),
+                                             padding=PAD, verbose=False)
+    expected = y[int(start * sr):int(start * sr) + int(win * sr)]
+    assert np.max(np.abs(clips[0] - expected)) < 1e-6
