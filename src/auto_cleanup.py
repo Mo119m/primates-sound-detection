@@ -13,9 +13,14 @@ detections into "clean" (trustworthy without listening) and "suspicious":
    false positives (see config.USE_YAMNET_FILTER for the numbers).
 3. Temporal isolation - primates call in bouts, so a detection with no
    same-species neighbour within +/- isolation_window_s is suspicious.
+4. Station regime  - a station overrun by an untrained species produces a dense
+   cluster that none of the above can see, being neither isolated nor outlying.
+   Each station is classified from its own detections and the cluster removed
+   only where one is found (see src/station_regime.py).
 
-A detection is clean only if every enabled filter passes it. Detections flagged
-by >= 2 filters are saved as hard negatives for the next retraining iteration.
+A detection is clean only if every enabled filter passes it. Hard negatives for
+the next retraining iteration are the detections flagged by >= 2 filters, plus
+any invading cluster, which the other filters cannot corroborate.
 
 Use :func:`run_auto_cleanup` as the single entry point, or call the individual
 ``filter_*`` helpers for finer control.
@@ -265,18 +270,23 @@ def filter_station_regime(det_df: pd.DataFrame,
         det_df['flag_invading_cluster'] = False
         return det_df
 
+    # A flat layout leaves 'station' blank for every row, which would group all
+    # recordings into a single pseudo-station; fall back to the recording.
+    group_col = 'station'
+    if ('station' not in det_df.columns
+            or det_df['station'].astype(str).str.strip().eq('').all()):
+        group_col = 'source_file'
+
     mask = station_regime.detect_invading_cluster(
-        det_df, group_col='station' if 'station' in det_df.columns else 'source_file',
+        det_df, group_col=group_col,
         min_frac=min_frac, min_gap_ratio=min_gap_ratio)
     det_df['flag_invading_cluster'] = mask.to_numpy()
     det_df['station_regime'] = station_regime.classify_stations(
-        det_df, mask=mask,
-        group_col='station' if 'station' in det_df.columns else 'source_file'
-    ).to_numpy()
+        det_df, mask=mask, group_col=group_col).to_numpy()
 
     if verbose:
         n = int(mask.sum())
-        sites = sorted(det_df.loc[mask, 'station'].unique()) if n and 'station' in det_df.columns else []
+        sites = sorted(det_df.loc[mask, group_col].unique()) if n else []
         if n:
             print(f'  Station regime: {len(sites)} station(s) look invaded '
                   f'({", ".join(map(str, sites))}); flagged {n} detections in '
@@ -624,6 +634,8 @@ def summarize(det_df: pd.DataFrame) -> pd.DataFrame:
         clean=('n_flags', lambda x: int((x == 0).sum())),
         suspicious=('n_flags', lambda x: int((x > 0).sum())),
         strong_fp=('n_flags', lambda x: int((x >= 2).sum())),
+        invaded=('flag_invading_cluster', 'sum')
+        if 'flag_invading_cluster' in det_df.columns else ('det_id', 'size'),
     )
 
 
@@ -797,7 +809,14 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
 
     clean_df = det_df[det_df['n_flags'] == 0].copy()
     suspicious_df = det_df[det_df['n_flags'] > 0].copy()
-    strong_fp_df = det_df[det_df['n_flags'] >= 2].copy()
+    # Corroboration between filters is the usual bar for mining a hard
+    # negative, but an invading cluster cannot meet it: the other filters are
+    # blind to it by construction, since its detections are neither isolated in
+    # time nor outliers in feature space. It is also the clearest hard negative
+    # available -- an entire species the model was never trained on -- so it
+    # qualifies on its own.
+    strong_fp_df = det_df[(det_df['n_flags'] >= 2)
+                          | det_df.get('flag_invading_cluster', False)].copy()
 
     drop = ['all_probs']
     clean_df.drop(columns=drop, errors='ignore').to_csv(
