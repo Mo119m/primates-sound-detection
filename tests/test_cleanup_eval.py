@@ -597,3 +597,71 @@ def test_per_station_floor_rejects_a_cutoff_that_wrecks_one_station():
     # the per-station floor sees the same pattern at IPA17ST while tuning and
     # refuses the cutoff, so the held-out station keeps its calls
     assert guarded.loc["IPA20ST", "calls_lost"] == 0
+
+
+def _three_regime_fixture():
+    """The three station types the field data showed: one invaded by an
+    unlearned species, one where the target itself is abundant and equally
+    dense, and ordinary ones with neither."""
+    rows, clean = [], []
+    cols = ["species", "source_file", "start_time", "flag_mahal", "flag_yamnet",
+            "flag_isolated", "yamnet_top", "yamnet_score", "mahalanobis_d2",
+            "n_neighbours", "recurrence_knn_dist"]
+
+    # invaded: dense cluster of false positives, FAR from training; the rest of
+    # the station is closer in
+    for i in range(80):
+        rows.append((f"Cernic__recX__{i:05d}s__conf0.9.wav", "Noise", "IPA4ST"))
+        clean.append(("Cernic", "recX.wav", float(i), False, False, False,
+                      "Insect", 0.3, 9000.0, 5, 0.02))
+    for i in range(20):
+        s = 900 + i
+        rows.append((f"Cernic__recX__{s:05d}s__conf0.9.wav", "", "IPA4ST"))
+        clean.append(("Cernic", "recX.wav", float(s), False, False, False,
+                      "Animal", 0.3, 500.0, 5, 8.0))
+
+    # abundant target: dense cluster of genuine calls, CLOSE to training; the
+    # station's other detections are the far ones
+    for i in range(80):
+        rows.append((f"Cernic__recY__{i:05d}s__conf0.9.wav", "", "IPA20ST"))
+        clean.append(("Cernic", "recY.wav", float(i), False, False, False,
+                      "Animal", 0.3, 200.0, 5, 0.02))
+    for i in range(20):
+        s = 900 + i
+        rows.append((f"Cernic__recY__{s:05d}s__conf0.9.wav", "Noise", "IPA20ST"))
+        clean.append(("Cernic", "recY.wav", float(s), False, False, False,
+                      "Insect", 0.3, 8000.0, 5, 8.0))
+
+    # ordinary: nothing dense
+    for i in range(60):
+        rows.append((f"Cernic__recZ__{i:05d}s__conf0.9.wav", "", "IPA1ST"))
+        clean.append(("Cernic", "recZ.wav", float(i), False, False, False,
+                      "Animal", 0.3, 300.0, 5, 4.0 + i * 0.1))
+
+    d = tempfile.mkdtemp()
+    with open(os.path.join(d, "review.csv"), "w") as f:
+        f.write('"INDIR","IN FILE","MANUAL ID"\n')
+        for fname, mid, site in rows:
+            f.write(f'"/x/Cernic/{site}","{fname}","{mid}"\n')
+    cd = tempfile.mkdtemp()
+    pd.DataFrame(clean, columns=cols).to_csv(
+        os.path.join(cd, "clean_detections.csv"), index=False)
+    pd.DataFrame([], columns=cols).to_csv(
+        os.path.join(cd, "suspicious_detections.csv"), index=False)
+    return d, cd
+
+
+def test_triage_separates_invasion_from_an_abundant_target():
+    """Both stations have a dominant dense cluster. Only the one whose cluster
+    is further from the training data than its own remainder is an invasion."""
+    rev, cln = _three_regime_fixture()
+    matched, _ = cleanup_eval.run(rev, cln)
+    flagged = cleanup_eval.detect_invading_cluster(matched)
+
+    by_site = flagged.groupby(matched["site"]).sum()
+    assert by_site.get("IPA4ST", 0) == 80      # the intruding cluster goes
+    assert by_site.get("IPA20ST", 0) == 0      # the target's own cluster stays
+    assert by_site.get("IPA1ST", 0) == 0       # nothing dense here at all
+    # and it removes only false positives at the invaded station
+    invaded_flagged = matched[flagged & (matched["site"] == "IPA4ST")]
+    assert (invaded_flagged["verdict"] == "false_positive").all()
