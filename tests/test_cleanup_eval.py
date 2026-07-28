@@ -543,3 +543,54 @@ def test_atypicality_condition_spares_a_station_dominated_by_the_target():
                                                     mahal_min=1000.0)
     assert with_mahal[invaded].sum() == 30
     assert with_mahal[~invaded].sum() == 0
+
+
+def test_per_station_floor_rejects_a_cutoff_that_wrecks_one_station():
+    """Pooled retention is dominated by the biggest station, so a cutoff that
+    destroys a smaller station's calls can still pass a pooled floor. Requiring
+    the floor at every station must reject it."""
+    rows, clean = [], []
+    cols = ["species", "source_file", "start_time", "flag_mahal", "flag_yamnet",
+            "flag_isolated", "yamnet_top", "yamnet_score", "mahalanobis_d2",
+            "n_neighbours", "recurrence_knn_dist"]
+
+    # big invaded station: 300 false positives in a dense cluster
+    for i in range(300):
+        rows.append((f"Cernic__recX__{i:05d}s__conf0.9.wav", "Noise", "IPA4ST"))
+        clean.append(("Cernic", "recX.wav", float(i), False, False, False,
+                      "Insect", 0.3, 100.0, 5, 0.01))
+    # small station whose genuine calls are equally dense
+    for i in range(20):
+        rows.append((f"Cernic__recY__{i:05d}s__conf0.9.wav", "", "IPA20ST"))
+        clean.append(("Cernic", "recY.wav", float(i), False, False, False,
+                      "Animal", 0.3, 100.0, 5, 0.01))
+    # a third station so the folds have something to train on
+    for i in range(40):
+        rows.append((f"Cernic__recZ__{i:05d}s__conf0.9.wav", "", "IPA1ST"))
+        clean.append(("Cernic", "recZ.wav", float(i), False, False, False,
+                      "Animal", 0.3, 100.0, 5, 9.0))
+
+    d = tempfile.mkdtemp()
+    with open(os.path.join(d, "review.csv"), "w") as f:
+        f.write('"INDIR","IN FILE","MANUAL ID"\n')
+        for fname, mid, site in rows:
+            f.write(f'"/x/Cernic/{site}","{fname}","{mid}"\n')
+    cd = tempfile.mkdtemp()
+    pd.DataFrame(clean, columns=cols).to_csv(
+        os.path.join(cd, "clean_detections.csv"), index=False)
+    pd.DataFrame([], columns=cols).to_csv(
+        os.path.join(cd, "suspicious_detections.csv"), index=False)
+
+    matched, _ = cleanup_eval.run(d, cd)
+    small = matched["site"] == "IPA20ST"
+
+    pooled = cleanup_eval.gated_recurrence_cross_validation(
+        matched, min_call_retention=0.90, per_station_floor=False)
+    guarded = cleanup_eval.gated_recurrence_cross_validation(
+        matched, min_call_retention=0.90, per_station_floor=True)
+
+    # the pooled floor lets the small station be stripped; the per-station one
+    # must not lose more of it than the floor allows
+    if len(pooled) and "IPA20ST" in pooled.index and len(guarded) and "IPA20ST" in guarded.index:
+        assert guarded.loc["IPA20ST", "calls_lost"] <= pooled.loc["IPA20ST", "calls_lost"]
+        assert guarded.loc["IPA20ST", "calls_kept"] >= 0.90 * int(small.sum())

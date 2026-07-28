@@ -566,12 +566,21 @@ def gated_recurrence_mask(df, dist_cut, min_cluster_frac=0.25, mahal_min=None):
 
 def gated_recurrence_cross_validation(matched_df, min_cluster_frac=0.25,
                                       min_call_retention=0.90, n_steps=25,
-                                      mahal_quantiles=(None, 0.5, 0.7, 0.8, 0.9)):
+                                      mahal_quantiles=(None, 0.5, 0.7, 0.8, 0.9),
+                                      per_station_floor=True):
     """Leave-one-station-out estimate for the gated recurrence rule.
 
     The distance cutoff and the atypicality cutoff interact -- a group only
     counts when it is both dense and unfamiliar -- so both are searched per
     fold, on the training stations only.
+
+    ``per_station_floor`` requires the retention floor to hold at every
+    training station rather than over their pooled total. Pooled retention is
+    dominated by whichever station contributes most detections, so a cutoff
+    that wipes out a smaller station's genuine calls can still look best
+    overall -- which is what happened here: every fold selected the setting
+    that stripped the invaded station hardest, and the station with the highest
+    precision of all lost 121 genuine calls to it.
     """
     df = matched_df[matched_df["cleanup"].notna()].copy()
     if "recurrence_knn_dist" not in df.columns or "site" not in df.columns:
@@ -596,6 +605,19 @@ def gated_recurrence_cross_validation(matched_df, min_cluster_frac=0.25,
         train_calls = int((train["verdict"] == "call").sum())
         train_dist = pd.to_numeric(train["recurrence_knn_dist"], errors="coerce")
         train_mahal = pd.to_numeric(train.get("mahalanobis_d2"), errors="coerce")
+
+        def station_floor_holds(mask):
+            """Every training station must keep its share of genuine calls."""
+            for _, s_sub in train.groupby("site", sort=False):
+                s_calls = int((s_sub["verdict"] == "call").sum())
+                if not s_calls:
+                    continue
+                kept = int(((s_sub["verdict"] == "call")
+                            & ~mask.loc[s_sub.index]).sum())
+                if kept < min_call_retention * s_calls:
+                    return False
+            return True
+
         best, best_cut, best_mahal = None, None, None
         for q in qs:
             c = float(train_dist.quantile(q))
@@ -606,6 +628,8 @@ def gated_recurrence_cross_validation(matched_df, min_cluster_frac=0.25,
                 m = gated_recurrence_mask(train, c, min_cluster_frac, mm)
                 r = tally(train, m)
                 if r["calls_kept"] < min_call_retention * train_calls:
+                    continue
+                if per_station_floor and not station_floor_holds(m):
                     continue
                 if best is None or (r["precision"] or 0) > (best["precision"] or 0):
                     best, best_cut, best_mahal = r, c, mm
