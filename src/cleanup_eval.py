@@ -111,7 +111,8 @@ def match(review_df, cleanup_df, start_tolerance=1):
     verdicts, reasons = [], []
     per_flag = {c: [] for c in FLAG_COLUMNS}
     extra = {"yamnet_top": [], "yamnet_score": [],
-             "mahalanobis_d2": [], "n_neighbours": []}
+             "mahalanobis_d2": [], "n_neighbours": [],
+             "softmax_margin": [], "recurrence_knn_dist": []}
     for _, r in rev.iterrows():
         hit = None
         base = _key(r["species"], r["recording"], r["start_s"])
@@ -127,7 +128,7 @@ def match(review_df, cleanup_df, start_tolerance=1):
                                  and col in hit.index else None)
         # the AudioSet class YAMNet assigned, for the per-class breakdown
         for col in ("yamnet_top", "yamnet_score", "mahalanobis_d2",
-                    "n_neighbours"):
+                    "n_neighbours", "softmax_margin", "recurrence_knn_dist"):
             extra[col].append(hit[col] if hit is not None
                               and col in hit.index else None)
 

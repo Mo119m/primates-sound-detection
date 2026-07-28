@@ -62,11 +62,23 @@ DEFAULT_SUSPICIOUS_YAMNET = {
 
 # FEATURE EXTRACTION + MAHALANOBIS STATISTICS
 
-def build_feature_extractor(model, layer_name: str = 'dense_256'):
-    """Tap an intermediate dense layer to get a per-window feature vector."""
+def build_feature_extractor(model, layer_name: str = 'dense_256',
+                            with_probs: bool = False):
+    """Tap an intermediate dense layer to get a per-window feature vector.
+
+    With ``with_probs`` the model also returns the class probabilities, so the
+    feature vector and the softmax come from a single forward pass.
+    """
     import tensorflow as tf
     feat_layer = model.get_layer(layer_name)
-    return tf.keras.Model(inputs=model.inputs, outputs=feat_layer.output)
+    outputs = [feat_layer.output, model.output] if with_probs else feat_layer.output
+    return tf.keras.Model(inputs=model.inputs, outputs=outputs)
+
+
+def clips_to_model_input(clips):
+    """Stack detection clips into the batch the model expects."""
+    return np.stack([_audio_to_model_input(c, config.SAMPLE_RATE)
+                     for c in clips]).astype(np.float32)
 
 
 def _audio_to_model_input(audio, sr):
@@ -158,6 +170,82 @@ def calibrate_thresholds(train_feats_by_class, class_means, inv_cov,
     return thresholds
 
 
+# ADDITIONAL PER-DETECTION SIGNALS
+# Both are recorded as continuous columns rather than applied as flags, so
+# their usefulness can be measured against a manual review (see
+# cleanup_eval.signal_sweep) before any cutoff is trusted.
+
+def annotate_softmax_margin(det_df: pd.DataFrame, probs) -> pd.DataFrame:
+    """
+    Add the gap between the top two class probabilities.
+
+    The reported confidence is the top probability alone, which saturates near
+    1 for almost every detection and so separates little. How far the winning
+    class sits above the runner-up keeps varying where the top probability no
+    longer does, and a window the model finds genuinely ambiguous shows a small
+    margin even when its top score is high.
+    """
+    det_df = det_df.copy()
+    p = np.asarray(probs, dtype=np.float64)
+    if p.ndim != 2 or len(p) != len(det_df):
+        det_df['softmax_margin'] = np.nan
+        det_df['softmax_entropy'] = np.nan
+        return det_df
+    part = np.partition(p, -2, axis=1)
+    det_df['softmax_margin'] = part[:, -1] - part[:, -2]
+    with np.errstate(divide='ignore', invalid='ignore'):
+        det_df['softmax_entropy'] = -(p * np.log(np.clip(p, 1e-12, None))).sum(axis=1)
+    return det_df
+
+
+def annotate_station_recurrence(det_df: pd.DataFrame, feats, k: int = 5,
+                                group_cols=('station', 'species'),
+                                verbose: bool = True) -> pd.DataFrame:
+    """
+    Measure how repetitive each detection is within its station.
+
+    A recurring non-target sound -- one insect chorus, one machine, one bird
+    calling all night at a single station -- produces many detections whose
+    feature vectors are near copies of each other. The Mahalanobis filter
+    cannot see this: once such a sound is numerous it stops being an outlier
+    and starts defining the distribution it would be measured against. Genuine
+    calls vary between utterances, so they sit further from their neighbours.
+
+    ``recurrence_knn_dist`` is the distance to the ``k``-th nearest detection
+    of the same species at the same station. Small means the detection is one
+    of many near-identical copies. A k-th neighbour distance is used rather
+    than a count inside a fixed radius because any such radius would have to be
+    chosen from the same distances it is meant to judge. It is a measurement,
+    not a verdict: sweep it against a manual review before thresholding it.
+    """
+    det_df = det_df.copy()
+    feats = np.asarray(feats, dtype=np.float32)
+    if len(feats) != len(det_df):
+        det_df['recurrence_knn_dist'] = np.nan
+        return det_df
+
+    cols = [c for c in group_cols if c in det_df.columns]
+    out = np.full(len(det_df), np.nan, dtype=np.float32)
+    groups = (det_df.groupby(list(cols), sort=False) if cols
+              else [((), det_df)])
+    for _, sub in groups:
+        pos = det_df.index.get_indexer(sub.index.to_numpy())
+        if len(pos) <= k:
+            continue
+        f = feats[pos]
+        d = np.linalg.norm(f[:, None, :] - f[None, :, :], axis=-1)
+        np.fill_diagonal(d, np.inf)
+        # k-th smallest distance per row (column k-1 after sorting the row)
+        out[pos] = np.partition(d, k - 1, axis=1)[:, k - 1]
+
+    det_df['recurrence_knn_dist'] = out
+    if verbose and np.isfinite(out).any():
+        finite = out[np.isfinite(out)]
+        print(f'  Recurrence: {k}-NN distance median {np.median(finite):.2f}, '
+              f'min {finite.min():.2f} (small = repetitive)')
+    return det_df
+
+
 # DETECTION LOADING + CLIP EXTRACTION
 
 def load_detection_csvs(detection_dir=None) -> pd.DataFrame:
@@ -185,6 +273,10 @@ def load_detection_csvs(detection_dir=None) -> pd.DataFrame:
         source_name = csv.stem.replace('_detections', '') + '.wav'
         df['source_file'] = source_name
         df['source_path'] = audio_index.get(source_name, '')
+        # Recordings are stored one folder per station, so the CSV's parent
+        # relative to the scan root names the station ('' for a flat layout).
+        rel = csv.parent.relative_to(detection_dir)
+        df['station'] = str(rel) if str(rel) != '.' else ''
         rows.append(df)
     if not rows:
         raise ValueError('All detection CSVs were empty - nothing to clean up.')
@@ -326,7 +418,7 @@ def extract_clips(det_df: pd.DataFrame, verbose: bool = True):
 def filter_mahalanobis(det_df, clips, feature_extractor, class_means, inv_cov,
                        class_thresholds, percentile: int = 95,
                        calibrate_on: str = 'detections',
-                       verbose: bool = True) -> pd.DataFrame:
+                       feats=None, verbose: bool = True) -> pd.DataFrame:
     """Flag detections whose feature vector is OOD.
 
     calibrate_on='detections' (default) computes per-species thresholds from
@@ -334,9 +426,10 @@ def filter_mahalanobis(det_df, clips, feature_extractor, class_means, inv_cov,
     when noisy field recordings differ from clean training clips.
     calibrate_on='training' uses the training-data thresholds (class_thresholds).
     """
-    X = np.stack([_audio_to_model_input(c, config.SAMPLE_RATE) for c in clips]).astype(np.float32)
-    feats = feature_extractor.predict(X, batch_size=config.BATCH_SIZE,
-                                      verbose=1 if verbose else 0)
+    if feats is None:
+        X = clips_to_model_input(clips)
+        feats = feature_extractor.predict(X, batch_size=config.BATCH_SIZE,
+                                          verbose=1 if verbose else 0)
     members_map = _group_members()
 
     def members_for(label):
@@ -621,9 +714,19 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
     else:
         clips = extract_clips(det_df, verbose=verbose)
 
+    # One forward pass supplies the features the Mahalanobis and recurrence
+    # signals need and the probabilities the margin needs.
+    combo = build_feature_extractor(model, with_probs=True)
+    X = clips_to_model_input(clips)
+    feats, probs = combo.predict(X, batch_size=config.BATCH_SIZE,
+                                 verbose=1 if verbose else 0)
+    det_df = annotate_softmax_margin(det_df, probs)
+    det_df = annotate_station_recurrence(det_df, feats, verbose=verbose)
+
     det_df = filter_mahalanobis(det_df, clips, feature_extractor, class_means,
                                 inv_cov, class_thresholds, percentile=percentile,
-                                calibrate_on=mahal_calibration, verbose=verbose)
+                                calibrate_on=mahal_calibration, feats=feats,
+                                verbose=verbose)
     if use_yamnet is None:
         use_yamnet = getattr(config, 'USE_YAMNET_FILTER', True)
     if use_yamnet:
