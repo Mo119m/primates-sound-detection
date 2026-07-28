@@ -75,3 +75,58 @@ def test_recurrence_is_computed_within_station_not_across():
     d = out["recurrence_knn_dist"].to_numpy()
     assert np.nanmax(d[:6]) == 0.0        # station A is repetitive
     assert np.nanmin(d[6:]) > 0.0         # station B is not
+
+
+def _regime_frame(stations, tight_cluster_site=None):
+    """Build a detection frame with a dense, unfamiliar cluster at one site."""
+    rows = []
+    for site, n in stations.items():
+        for i in range(n):
+            invading = (site == tight_cluster_site and i < int(0.8 * n))
+            rows.append({
+                "det_id": len(rows),
+                "species": "Cernic",
+                "source_file": f"rec_{site}.wav",
+                "station": site,
+                "start_time": float(i),
+                "recurrence_knn_dist": 0.01 if invading else 5.0 + i * 0.1,
+                "mahalanobis_d2": 9000.0 if invading else 200.0,
+                "flag_mahal": False,
+                "flag_yamnet": False,
+                "flag_isolated": False,
+            })
+    return pd.DataFrame(rows)
+
+
+def test_flat_layout_does_not_become_one_pseudo_station():
+    """With no per-station folders the station column is blank for every row.
+    Grouping on it would treat unrelated recordings as one site."""
+    df = _regime_frame({"": 40})
+    df["source_file"] = ["a.wav"] * 20 + ["b.wav"] * 20
+    # make recording 'a' the dense, unfamiliar one
+    df.loc[:15, "recurrence_knn_dist"] = 0.01
+    df.loc[:15, "mahalanobis_d2"] = 9000.0
+
+    out = auto_cleanup.filter_station_regime(df, verbose=False)
+    flagged = out["flag_invading_cluster"]
+    # the decision is made per recording, so only 'a' is affected
+    assert flagged[out["source_file"] == "b.wav"].sum() == 0
+    assert flagged[out["source_file"] == "a.wav"].sum() > 0
+
+
+def test_invading_cluster_is_mined_without_a_second_filter():
+    """The other filters cannot corroborate an invading cluster -- it is
+    neither isolated nor an outlier -- so requiring two flags would leave the
+    clearest hard negatives unmined."""
+    df = _regime_frame({"IPA4ST": 50, "IPA1ST": 30}, tight_cluster_site="IPA4ST")
+    out = auto_cleanup.filter_station_regime(df, verbose=False)
+    out = auto_cleanup.merge_flags(out)
+
+    invading = out["flag_invading_cluster"]
+    assert invading.sum() > 0
+    # none of them are corroborated by another filter
+    assert (out.loc[invading, "n_flags"] == 1).all()
+    # yet they qualify as hard negatives under the mining rule
+    strong = out[(out["n_flags"] >= 2) | out["flag_invading_cluster"]]
+    assert len(strong) == int(invading.sum())
+    assert "invading_cluster" in out.loc[invading, "flag_reason"].iloc[0]
