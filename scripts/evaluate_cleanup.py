@@ -107,6 +107,15 @@ def main():
         print(fc.to_string())
         fc.to_csv(os.path.join(out_dir, "cleanup_eval_combinations.csv"))
 
+    for col, when in (("confidence", "low"), ("n_neighbours", "low")):
+        hs = cleanup_eval.station_holdout_sweep(matched, col, flag_when=when)
+        if len(hs):
+            print(f"\nHeld-out check for {col}: cutoff chosen on half the")
+            print("stations, scored on the other half (an honest estimate,")
+            print("unlike a cutoff tuned and reported on the same data):")
+            print(hs.to_string())
+            hs.to_csv(os.path.join(out_dir, f"cleanup_eval_holdout_{col}.csv"))
+
     opt = cleanup_eval.optimize_thresholds(matched)
     if len(opt):
         print("\nBest cutoffs keeping >= 95% of genuine calls (the current")
