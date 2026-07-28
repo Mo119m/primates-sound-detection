@@ -361,3 +361,38 @@ def test_holdout_sweep_scores_on_stations_it_did_not_tune_on():
     baseline = hs.iloc[2]      # same stations, no cleanup
     assert held["precision"] > baseline["precision"]
     assert held["calls_lost"] == 0        # confident calls all survive
+
+
+def test_operating_points_respect_each_retention_floor():
+    """Each row must honour its own floor, and demanding more retention can
+    never allow higher precision than accepting less."""
+    rows, clean = [], []
+    cols = ["species", "source_file", "start_time", "flag_mahal", "flag_yamnet",
+            "flag_isolated", "yamnet_top", "yamnet_score", "mahalanobis_d2",
+            "n_neighbours"]
+    # calls: close to the cluster, well connected in time
+    for i in range(20):
+        rows.append((f"Cernic__recA__{i:05d}s__conf0.9.wav", ""))
+        clean.append(("Cernic", "recA.wav", float(i), False, False, False,
+                      "Animal", 0.3, 100.0 + i, 10))
+    # false positives: far from the cluster and isolated
+    for i in range(20):
+        s = 500 + i
+        rows.append((f"Cernic__recA__{s:05d}s__conf0.9.wav", "Noise"))
+        clean.append(("Cernic", "recA.wav", float(s), False, False, False,
+                      "Insect", 0.3, 9000.0 + i, 0))
+
+    d = tempfile.mkdtemp()
+    pd.DataFrame(clean, columns=cols).to_csv(
+        os.path.join(d, "clean_detections.csv"), index=False)
+    pd.DataFrame([], columns=cols).to_csv(
+        os.path.join(d, "suspicious_detections.csv"), index=False)
+
+    matched, _ = cleanup_eval.run(_review_csv(rows), d)
+    op = cleanup_eval.operating_points(matched, retention_levels=(0.95, 0.80))
+    assert len(op) == 2
+    for label, row in op.iterrows():
+        floor = 0.95 if "95%" in label else 0.80
+        assert row["calls_kept"] >= floor * 20
+    # a separable signal reaches high precision even at the strict floor
+    assert op.loc["keep >= 95% of calls", "precision"] > 0.9

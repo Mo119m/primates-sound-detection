@@ -445,6 +445,83 @@ def station_holdout_sweep(matched_df, column="confidence", flag_when="low",
     return pd.DataFrame(rows).T
 
 
+# Continuous signals a run can record, with the direction that marks a
+# detection as suspicious. Absent columns are skipped.
+CANDIDATE_SIGNALS = (
+    ("mahalanobis_d2", "high"),        # far from the training cluster
+    ("n_neighbours", "low"),           # few same-species calls nearby in time
+    ("confidence", "low"),             # detector unsure
+    ("softmax_margin", "low"),         # runner-up class close behind
+    ("recurrence_knn_dist", "low"),    # near-identical copies at this station
+)
+
+
+def operating_points(matched_df, retention_levels=(0.99, 0.97, 0.95, 0.90, 0.85),
+                     n_steps=12, max_signals=2):
+    """
+    For each level of genuine-call retention, the best precision reachable.
+
+    Choosing a cleanup is choosing a point on a trade-off: every additional
+    false positive removed eventually costs genuine calls. Rather than report
+    one configuration, this searches the available signals -- singly and in
+    pairs -- and returns, for each retention floor, the configuration reaching
+    the highest precision without dropping below it.
+
+    Pairs are combined with OR, matching how the pipeline applies filters: a
+    detection is discarded if any of them fires.
+    """
+    df = matched_df[matched_df["cleanup"].notna()].copy()
+    if not len(df):
+        return pd.DataFrame()
+
+    available = []
+    for col, direction in CANDIDATE_SIGNALS:
+        if col in df.columns:
+            v = pd.to_numeric(df[col], errors="coerce")
+            if v.notna().sum():
+                available.append((col, direction, v))
+    if not available:
+        return pd.DataFrame()
+
+    n_calls = int((df["verdict"] == "call").sum())
+    n_fps = int((df["verdict"] == "false_positive").sum())
+    total = len(df)
+    qs = [i / (n_steps + 1) for i in range(1, n_steps + 1)]
+
+    def masks_for(col, direction, v):
+        out = []
+        for q in qs:
+            c = float(v.quantile(q))
+            m = (v >= c) if direction == "high" else (v <= c)
+            out.append((f"{col} {'>=' if direction == 'high' else '<='} {c:.4g}",
+                        m.fillna(False)))
+        return out
+
+    singles = [m for (c, d, v) in available for m in masks_for(c, d, v)]
+    candidates = list(singles)
+    if max_signals >= 2:
+        for (a_label, a_mask), (b_label, b_mask) in itertools.combinations(singles, 2):
+            if a_label.split()[0] == b_label.split()[0]:
+                continue          # two cutoffs on the same signal are redundant
+            candidates.append((f"{a_label} OR {b_label}", a_mask | b_mask))
+
+    scored = []
+    for label, mask in candidates:
+        res = _outcome(df, mask, n_calls, n_fps, total)
+        if res["precision"] is not None:
+            scored.append((label, res))
+
+    rows = {}
+    for level in sorted(retention_levels, reverse=True):
+        floor = level * n_calls
+        ok = [(l, r) for l, r in scored if r["calls_kept"] >= floor]
+        if not ok:
+            continue
+        label, res = max(ok, key=lambda x: x[1]["precision"])
+        rows[f"keep >= {level:.0%} of calls"] = {**res, "configuration": label}
+    return pd.DataFrame(rows).T
+
+
 def confidence_baseline(matched_df, filter_cols=("flag_mahal", "flag_isolated")):
     """
     Compare the cleanup against simply discarding the least confident detections.

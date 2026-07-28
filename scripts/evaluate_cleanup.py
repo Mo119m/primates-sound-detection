@@ -100,6 +100,13 @@ def main():
         pf.to_csv(os.path.join(out_dir, "cleanup_eval_per_filter.csv"))
     print(f"\nWrote cleanup_vs_review.csv to {out_dir}/")
 
+    op = cleanup_eval.operating_points(matched)
+    if len(op):
+        print("\nBest precision reachable at each level of call retention")
+        print("(pick the row whose retention you can live with):")
+        print(op.to_string())
+        op.to_csv(os.path.join(out_dir, "cleanup_eval_operating_points.csv"))
+
     fc = cleanup_eval.filter_combination_analysis(matched)
     if len(fc):
         print("\nEvery filter combination, from the same run's flags")
