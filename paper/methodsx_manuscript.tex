@@ -754,12 +754,16 @@ of the 2\,535 genuine calls (95.3\,\%), and raise precision from 41.0\,\% to
 discarding is more conservative still --- 70 genuine calls lost instead of 120,
 at the cost of removing only 317 false positives.
 
-The gain is real but bounded, and the reason is the same closed-set limitation
-that produces the false positives: a recurring non-target sound that dominates
-one station is, by construction, not an outlier in feature space. IPA4ST
-illustrates this directly --- it supplies 2\,370 of the 3\,654 false positives,
-and its detections cluster tightly enough that the Mahalanobis filter treats
-them as ordinary.
+The gain is real but bounded, and the reason is visible in the station that
+dominates the totals. Listening to the IPA4ST false positives shows they are
+not diffuse background noise but the calls of another, non-target species that
+is abundant at that station and absent from the training data. This is the
+hardest case for an outlier-based filter: the calls are numerous and
+acoustically consistent, so in feature space they form a dense cluster rather
+than scattered outliers, and the Mahalanobis distance --- which asks how far a
+detection sits from what the model knows --- treats a large tight cluster as
+ordinary. IPA4ST supplies 2\,370 of the 3\,654 false positives on exactly
+this mechanism.
 
 \paragraph{The audio-tagging filter does not transfer to this target.}
 The YAMNet cross-check, included in the original design as an independent
