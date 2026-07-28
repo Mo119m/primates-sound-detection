@@ -301,6 +301,49 @@ def yamnet_score_sweep(matched_df, thresholds=(0.0, 0.1, 0.2, 0.3, 0.4, 0.5,
     return pd.DataFrame(rows).T
 
 
+def confidence_baseline(matched_df, filter_cols=("flag_mahal", "flag_isolated")):
+    """
+    Compare the cleanup against simply discarding the least confident detections.
+
+    The filters are only worth their complexity if they beat the trivial
+    alternative already available from the detector: drop the lowest-confidence
+    detections until as many are gone as the cleanup would remove. Both rows
+    discard the same number of detections, so their precision is directly
+    comparable, and ``advantage`` is the cleanup's precision minus the
+    baseline's -- positive means the filters find false positives that model
+    confidence alone does not.
+    """
+    df = matched_df[matched_df["cleanup"].notna()].copy()
+    cols = [c for c in filter_cols if c in df.columns and not df[c].isna().all()]
+    if not cols or "confidence" not in df.columns:
+        return pd.DataFrame()
+
+    calls = df["verdict"] == "call"
+    n_calls = int(calls.sum())
+    n_fps = int((df["verdict"] == "false_positive").sum())
+    total = len(df)
+
+    flagged = df[cols].fillna(False).astype(bool).any(axis=1)
+    n_removed = int(flagged.sum())
+
+    # Same budget, spent on the least confident detections instead.
+    conf = pd.to_numeric(df["confidence"], errors="coerce")
+    order = conf.sort_values(kind="stable").index[:n_removed]
+    by_conf = pd.Series(False, index=df.index)
+    by_conf.loc[order] = True
+
+    name = " + ".join(FLAG_LABELS[c] for c in cols)
+    rows = {
+        f"cleanup ({name})": _outcome(df, flagged, n_calls, n_fps, total),
+        f"lowest confidence ({n_removed} clips)":
+            _outcome(df, by_conf, n_calls, n_fps, total),
+    }
+    out = pd.DataFrame(rows).T
+    out["advantage"] = [round(out.iloc[0]["precision"] - out.iloc[1]["precision"], 4),
+                        None]
+    return out
+
+
 def yamnet_class_analysis(matched_df, min_count=10):
     """
     Break the YAMNet filter down by the AudioSet class it assigned.
