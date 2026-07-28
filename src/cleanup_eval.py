@@ -380,6 +380,70 @@ def optimize_thresholds(matched_df, min_call_retention=0.95, n_steps=12):
     return out.sort_values(["precision", "calls_kept"], ascending=False).head(12)
 
 
+def station_holdout_sweep(matched_df, column="confidence", flag_when="low",
+                          min_call_retention=0.60, n_steps=25):
+    """
+    Choose a cutoff on one set of stations and report it on the others.
+
+    A cutoff picked on the same detections it is then scored on is fitted to
+    them, and the resulting precision is not an estimate of anything. Stations
+    are the natural split here because each one has its own soundscape: sorting
+    them by name and alternating assigns roughly half the data to tuning and
+    half to evaluation while keeping whole stations intact.
+
+    The cutoff maximises precision on the tuning half subject to keeping
+    ``min_call_retention`` of its genuine calls; the row reported for the
+    evaluation half is what that same cutoff achieves on stations that had no
+    part in choosing it.
+    """
+    df = matched_df[matched_df["cleanup"].notna()].copy()
+    if column not in df.columns or "site" not in df.columns:
+        return pd.DataFrame()
+    vals = pd.to_numeric(df[column], errors="coerce")
+    if vals.notna().sum() == 0:
+        return pd.DataFrame()
+
+    sites = sorted(df["site"].dropna().unique())
+    if len(sites) < 4:
+        return pd.DataFrame()
+    tune_sites = set(sites[0::2])
+    tune = df[df["site"].isin(tune_sites)]
+    test = df[~df["site"].isin(tune_sites)]
+    if not len(tune) or not len(test):
+        return pd.DataFrame()
+
+    def score(sub, cutoff):
+        v = pd.to_numeric(sub[column], errors="coerce")
+        flagged = (v <= cutoff) if flag_when == "low" else (v >= cutoff)
+        flagged = flagged.fillna(False)
+        n_calls = int((sub["verdict"] == "call").sum())
+        n_fps = int((sub["verdict"] == "false_positive").sum())
+        return _outcome(sub, flagged, n_calls, n_fps, len(sub))
+
+    qs = [i / (n_steps + 1) for i in range(1, n_steps + 1)]
+    cuts = sorted({float(vals.quantile(q)) for q in qs})
+    tune_calls = int((tune["verdict"] == "call").sum())
+
+    best, best_cut = None, None
+    for c in cuts:
+        r = score(tune, c)
+        if r["calls_kept"] < min_call_retention * tune_calls:
+            continue
+        if best is None or (r["precision"] or 0) > (best["precision"] or 0):
+            best, best_cut = r, c
+    if best is None:
+        return pd.DataFrame()
+
+    rows = {
+        f"tuning stations ({len(tune_sites)}), cutoff {best_cut:.4g}": best,
+        f"held-out stations ({len(sites) - len(tune_sites)}), same cutoff":
+            score(test, best_cut),
+        "held-out stations, no cleanup":
+            score(test, -1e18 if flag_when == "low" else 1e18),
+    }
+    return pd.DataFrame(rows).T
+
+
 def confidence_baseline(matched_df, filter_cols=("flag_mahal", "flag_isolated")):
     """
     Compare the cleanup against simply discarding the least confident detections.

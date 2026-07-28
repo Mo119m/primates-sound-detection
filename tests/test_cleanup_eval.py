@@ -319,3 +319,45 @@ def test_optimizer_respects_the_call_retention_floor():
     # every returned configuration honours the floor
     assert (opt["calls_kept"] >= 0.95 * 10).all()
     assert opt.iloc[0]["precision"] >= 0.5     # and beats doing nothing
+
+
+def test_holdout_sweep_scores_on_stations_it_did_not_tune_on():
+    """The cutoff is chosen on half the stations and reported on the other
+    half, so the evaluation row is never fitted to its own data."""
+    rows, clean = [], []
+    cols = ["species", "source_file", "start_time", "flag_mahal", "flag_yamnet",
+            "flag_isolated", "yamnet_top", "yamnet_score", "mahalanobis_d2",
+            "n_neighbours"]
+    # four stations; in each, calls are confident and false positives are not
+    for si, site in enumerate(["IPA1ST", "IPA2ST", "IPA3ST", "IPA4ST"]):
+        for i in range(6):
+            s = 100 * si + i
+            rows.append((f"Cernic__rec{si}__{s:05d}s__conf0.99.wav", "", site))
+            clean.append(("Cernic", f"rec{si}.wav", float(s), False, False,
+                          False, "Animal", 0.3, 100.0, 5))
+        for i in range(6):
+            s = 100 * si + 50 + i
+            rows.append((f"Cernic__rec{si}__{s:05d}s__conf0.50.wav", "Noise", site))
+            clean.append(("Cernic", f"rec{si}.wav", float(s), False, False,
+                          False, "Insect", 0.3, 100.0, 5))
+
+    d = tempfile.mkdtemp()
+    with open(os.path.join(d, "review.csv"), "w") as f:
+        f.write('"INDIR","IN FILE","MANUAL ID"\n')
+        for fname, mid, site in rows:
+            f.write(f'"/x/Cernic/{site}","{fname}","{mid}"\n')
+    cd = tempfile.mkdtemp()
+    pd.DataFrame(clean, columns=cols).to_csv(
+        os.path.join(cd, "clean_detections.csv"), index=False)
+    pd.DataFrame([], columns=cols).to_csv(
+        os.path.join(cd, "suspicious_detections.csv"), index=False)
+
+    matched, _ = cleanup_eval.run(d, cd)
+    hs = cleanup_eval.station_holdout_sweep(matched, "confidence",
+                                            flag_when="low",
+                                            min_call_retention=0.9)
+    assert len(hs) == 3
+    held = hs.iloc[1]          # the held-out row
+    baseline = hs.iloc[2]      # same stations, no cleanup
+    assert held["precision"] > baseline["precision"]
+    assert held["calls_lost"] == 0        # confident calls all survive
