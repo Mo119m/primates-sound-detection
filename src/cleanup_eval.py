@@ -522,6 +522,74 @@ def operating_points(matched_df, retention_levels=(0.99, 0.97, 0.95, 0.90, 0.85)
     return pd.DataFrame(rows).T
 
 
+def station_cross_validation(matched_df, column, flag_when="low",
+                             min_call_retention=0.90, n_steps=25):
+    """
+    Leave-one-station-out estimate of what a tuned cutoff actually achieves.
+
+    A single tune/test split depends on which stations happen to land on which
+    side, and one atypical station can decide the answer. Holding out each
+    station in turn, choosing the cutoff on all the others and applying it to
+    the one left out, gives every station a verdict that its own data did not
+    influence. Pooling those verdicts is the honest overall estimate, and the
+    per-station rows show whether the cutoff transfers everywhere or only where
+    the soundscape happens to suit it.
+    """
+    df = matched_df[matched_df["cleanup"].notna()].copy()
+    if column not in df.columns or "site" not in df.columns:
+        return pd.DataFrame()
+    if pd.to_numeric(df[column], errors="coerce").notna().sum() == 0:
+        return pd.DataFrame()
+
+    sites = sorted(df["site"].dropna().unique())
+    if len(sites) < 3:
+        return pd.DataFrame()
+
+    def flag(sub, cutoff):
+        v = pd.to_numeric(sub[column], errors="coerce")
+        m = (v <= cutoff) if flag_when == "low" else (v >= cutoff)
+        return m.fillna(False)
+
+    def tally(sub, flagged):
+        n_calls = int((sub["verdict"] == "call").sum())
+        n_fps = int((sub["verdict"] == "false_positive").sum())
+        return _outcome(sub, flagged, n_calls, n_fps, len(sub))
+
+    qs = [i / (n_steps + 1) for i in range(1, n_steps + 1)]
+    rows, pooled_mask, pooled_idx = {}, [], []
+    for site in sites:
+        train = df[df["site"] != site]
+        test = df[df["site"] == site]
+        if not len(train) or not len(test):
+            continue
+        v_train = pd.to_numeric(train[column], errors="coerce")
+        train_calls = int((train["verdict"] == "call").sum())
+        best, best_cut = None, None
+        for q in qs:
+            c = float(v_train.quantile(q))
+            r = tally(train, flag(train, c))
+            if r["calls_kept"] < min_call_retention * train_calls:
+                continue
+            if best is None or (r["precision"] or 0) > (best["precision"] or 0):
+                best, best_cut = r, c
+        if best_cut is None:
+            continue
+        m = flag(test, best_cut)
+        rows[site] = {**tally(test, m), "cutoff": round(best_cut, 4)}
+        pooled_mask.append(m)
+        pooled_idx.append(test.index)
+
+    if not rows:
+        return pd.DataFrame()
+
+    out = pd.DataFrame(rows).T
+    all_mask = pd.concat(pooled_mask).reindex(df.index).fillna(False)
+    out.loc["POOLED (all held-out)"] = {**tally(df, all_mask), "cutoff": None}
+    out.loc["POOLED, no cleanup"] = {
+        **tally(df, pd.Series(False, index=df.index)), "cutoff": None}
+    return out
+
+
 def confidence_baseline(matched_df, filter_cols=("flag_mahal", "flag_isolated"),
                         mask=None, label=None):
     """

@@ -396,3 +396,45 @@ def test_operating_points_respect_each_retention_floor():
         assert row["calls_kept"] >= floor * 20
     # a separable signal reaches high precision even at the strict floor
     assert op.loc["keep >= 95% of calls", "precision"] > 0.9
+
+
+def test_cross_validation_exposes_a_signal_that_only_works_in_sample():
+    """A cutoff whose meaning differs per station looks good where it was tuned
+    and fails on stations held out, which pooling must reveal."""
+    rows, clean = [], []
+    cols = ["species", "source_file", "start_time", "flag_mahal", "flag_yamnet",
+            "flag_isolated", "yamnet_top", "yamnet_score", "mahalanobis_d2",
+            "n_neighbours"]
+    # Each station uses a different absolute scale for mahalanobis_d2, so no
+    # single cutoff transfers; within a station calls sit below its noise.
+    scales = {"A": 1.0, "B": 100.0, "C": 10000.0, "D": 1000000.0}
+    for site, scale in scales.items():
+        for i in range(10):
+            rows.append((f"Cernic__rec{site}__{i:05d}s__conf0.9.wav", "", site))
+            clean.append(("Cernic", f"rec{site}.wav", float(i), False, False,
+                          False, "Animal", 0.3, scale, 5))
+        for i in range(10):
+            s = 100 + i
+            rows.append((f"Cernic__rec{site}__{s:05d}s__conf0.9.wav", "Noise", site))
+            clean.append(("Cernic", f"rec{site}.wav", float(s), False, False,
+                          False, "Insect", 0.3, scale * 2, 5))
+
+    d = tempfile.mkdtemp()
+    with open(os.path.join(d, "review.csv"), "w") as f:
+        f.write('"INDIR","IN FILE","MANUAL ID"\n')
+        for fname, mid, site in rows:
+            f.write(f'"/x/Cernic/{site}","{fname}","{mid}"\n')
+    cd = tempfile.mkdtemp()
+    pd.DataFrame(clean, columns=cols).to_csv(
+        os.path.join(cd, "clean_detections.csv"), index=False)
+    pd.DataFrame([], columns=cols).to_csv(
+        os.path.join(cd, "suspicious_detections.csv"), index=False)
+
+    matched, _ = cleanup_eval.run(d, cd)
+    cv = cleanup_eval.station_cross_validation(matched, "mahalanobis_d2",
+                                               flag_when="high")
+    assert "POOLED (all held-out)" in cv.index
+    pooled = cv.loc["POOLED (all held-out)", "precision"]
+    baseline = cv.loc["POOLED, no cleanup", "precision"]
+    # the per-station scales make the cutoff meaningless across stations
+    assert pooled <= baseline
