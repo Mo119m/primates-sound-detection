@@ -8,12 +8,14 @@ detections into "clean" (trustworthy without listening) and "suspicious":
    cluster. A real call lives close to its training cluster; a bird call does
    not.
 2. YAMNet cross-check - Google's 521-class audio tagger flags windows whose top
-   class is Bird/Insect/Wind/Rain/Speech/etc.
+   class is Bird/Insect/Wind/Rain/Speech/etc. OFF by default: measured against
+   a manual review of 6189 field detections it flagged more genuine calls than
+   false positives (see config.USE_YAMNET_FILTER for the numbers).
 3. Temporal isolation - primates call in bouts, so a detection with no
    same-species neighbour within +/- isolation_window_s is suspicious.
 
-A detection is clean only if all three filters agree. Detections flagged by
->= 2 filters are saved as hard negatives for the next retraining iteration.
+A detection is clean only if every enabled filter passes it. Detections flagged
+by >= 2 filters are saved as hard negatives for the next retraining iteration.
 
 Use :func:`run_auto_cleanup` as the single entry point, or call the individual
 ``filter_*`` helpers for finer control.
@@ -533,7 +535,8 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
                      output_dir=None, fp_dir=None,
                      species_data=None, background_data=None,
                      percentile: int = 95, isolation_window_s: float = 30.0,
-                     suspicious_yamnet=None, save_clips: bool = True,
+                     suspicious_yamnet=None, use_yamnet=None,
+                     save_clips: bool = True,
                      save_all_clips: bool = False,
                      use_cached_stats: bool = True,
                      mahal_calibration: str = 'detections',
@@ -566,6 +569,9 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
             training or detection distances depending on mahal_calibration).
         isolation_window_s: temporal-isolation neighbour window in seconds.
         suspicious_yamnet: set of AudioSet class names to treat as non-primate.
+        use_yamnet: run the YAMNet cross-check. Defaults to
+            config.USE_YAMNET_FILTER, which is off -- see the note there for the
+            measured reason.
         save_clips: write >=2-flag clips as hard negatives.
         save_all_clips: also write every clean and suspicious clip under
             output_dir/clean_clips/<species>/ and suspicious_clips/<species>/
@@ -618,7 +624,19 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
     det_df = filter_mahalanobis(det_df, clips, feature_extractor, class_means,
                                 inv_cov, class_thresholds, percentile=percentile,
                                 calibrate_on=mahal_calibration, verbose=verbose)
-    det_df = filter_yamnet(det_df, clips, suspicious=suspicious_yamnet, verbose=verbose)
+    if use_yamnet is None:
+        use_yamnet = getattr(config, 'USE_YAMNET_FILTER', True)
+    if use_yamnet:
+        det_df = filter_yamnet(det_df, clips, suspicious=suspicious_yamnet,
+                               verbose=verbose)
+    else:
+        if verbose:
+            print('  [off] YAMNet filter disabled (config.USE_YAMNET_FILTER); '
+                  'see the note there for the measured reason.')
+        det_df = det_df.copy()
+        det_df['yamnet_top'] = '(yamnet disabled)'
+        det_df['yamnet_score'] = 0.0
+        det_df['flag_yamnet'] = False
     det_df = filter_temporal_isolation(det_df, window_s=isolation_window_s, verbose=verbose)
     det_df = merge_flags(det_df)
 

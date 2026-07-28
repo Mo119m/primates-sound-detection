@@ -222,6 +222,19 @@ LOWFREQ_GATE_CUTOFF = 1500     # Hz
 LOWFREQ_GATE_THRESHOLD = 0.20  # calibrated: FP max=0.092, Colobus p05=0.261;
                                # 0.20 cuts 100% FP, keeps 97.6% TP (gap 0.11 wide)
 
+# AUTO-CLEANUP FILTERS
+# The YAMNet cross-check is off by default: measured against the manual review
+# of 6189 field detections it flagged 51.8% of genuine C. nictitans calls but
+# only 32.5% of the false positives (lift 0.63), dropping precision from 41.0%
+# to 36.1%. The cause is taxonomic rather than a tuning problem -- YAMNet
+# assigns putty-nosed calls to the same AudioSet classes as forest noise
+# (Cricket, Animal, Owl), so no pruning of the suspicious class set separates
+# them, and requiring a minimum confidence did not help at any threshold up to
+# 0.8. Mahalanobis + temporal isolation alone raise precision to 45.0% while
+# keeping 95.3% of genuine calls. Set this True to re-enable the filter for a
+# deployment where the target species is better represented in AudioSet.
+USE_YAMNET_FILTER = False
+
 # TIME FILTER FOR FIELD RECORDINGS
 # Coarse, FILE-LEVEL filter (it does NOT trim audio — it only decides which
 # whole recordings to process). The recording's start time is parsed from its
