@@ -36,11 +36,13 @@ try:
     from . import data_loader
     from . import preprocessing
     from . import model as model_module
+    from . import station_regime
 except ImportError:  # Allow running as a standalone script (e.g. in Colab)
     import config
     import data_loader
     import preprocessing
     import model as model_module
+    import station_regime
 
 
 # AudioSet classes that indicate the window is NOT one of our primates.
@@ -225,24 +227,63 @@ def annotate_station_recurrence(det_df: pd.DataFrame, feats, k: int = 5,
         return det_df
 
     cols = [c for c in group_cols if c in det_df.columns]
-    out = np.full(len(det_df), np.nan, dtype=np.float32)
-    groups = (det_df.groupby(list(cols), sort=False) if cols
-              else [((), det_df)])
-    for _, sub in groups:
-        pos = det_df.index.get_indexer(sub.index.to_numpy())
-        if len(pos) <= k:
-            continue
-        f = feats[pos]
-        d = np.linalg.norm(f[:, None, :] - f[None, :, :], axis=-1)
-        np.fill_diagonal(d, np.inf)
-        # k-th smallest distance per row (column k-1 after sorting the row)
-        out[pos] = np.partition(d, k - 1, axis=1)[:, k - 1]
+    if cols:
+        keys = det_df[cols].astype(str).agg('||'.join, axis=1).to_numpy()
+    else:
+        keys = np.zeros(len(det_df), dtype=int)
+    out = station_regime.knn_distance(feats, keys, k=k)
 
     det_df['recurrence_knn_dist'] = out
     if verbose and np.isfinite(out).any():
         finite = out[np.isfinite(out)]
         print(f'  Recurrence: {k}-NN distance median {np.median(finite):.2f}, '
               f'min {finite.min():.2f} (small = repetitive)')
+    return det_df
+
+
+def filter_station_regime(det_df: pd.DataFrame,
+                          min_frac=station_regime.DEFAULT_MIN_CLUSTER_FRACTION,
+                          min_gap_ratio=station_regime.DEFAULT_MIN_GAP_RATIO,
+                          verbose: bool = True) -> pd.DataFrame:
+    """
+    Decide per station whether it has been overrun, and flag the cluster if so.
+
+    Stations fail in two ways that need different treatment. Scattered false
+    positives respond to the temporal-isolation rule, which is mild enough to
+    run everywhere. A station taken over by one untrained species does not:
+    those detections are numerous and consistent, so they are neither isolated
+    nor outliers, and only removing the cluster wholesale reaches them --
+    which would be far too destructive at a station with no invasion.
+
+    The decision is made without labels and without any cross-station
+    threshold; see ``station_regime`` for why both matter. Adds
+    ``station_regime`` ('invaded' or 'normal') and ``flag_invading_cluster``.
+    """
+    det_df = det_df.copy()
+    if 'recurrence_knn_dist' not in det_df.columns:
+        det_df['station_regime'] = station_regime.NORMAL
+        det_df['flag_invading_cluster'] = False
+        return det_df
+
+    mask = station_regime.detect_invading_cluster(
+        det_df, group_col='station' if 'station' in det_df.columns else 'source_file',
+        min_frac=min_frac, min_gap_ratio=min_gap_ratio)
+    det_df['flag_invading_cluster'] = mask.to_numpy()
+    det_df['station_regime'] = station_regime.classify_stations(
+        det_df, mask=mask,
+        group_col='station' if 'station' in det_df.columns else 'source_file'
+    ).to_numpy()
+
+    if verbose:
+        n = int(mask.sum())
+        sites = sorted(det_df.loc[mask, 'station'].unique()) if n and 'station' in det_df.columns else []
+        if n:
+            print(f'  Station regime: {len(sites)} station(s) look invaded '
+                  f'({", ".join(map(str, sites))}); flagged {n} detections in '
+                  f'their dominant cluster.')
+        else:
+            print('  Station regime: no station shows a dominant unfamiliar '
+                  'cluster; the cluster rule stays off.')
     return det_df
 
 
@@ -553,7 +594,11 @@ def filter_temporal_isolation(det_df, window_s: float = 30.0,
 def merge_flags(det_df: pd.DataFrame) -> pd.DataFrame:
     """Add ``n_flags`` and a human-readable ``flag_reason`` column."""
     det_df = det_df.copy()
-    flag_cols = ['flag_mahal', 'flag_yamnet', 'flag_isolated']
+    flag_cols = ['flag_mahal', 'flag_yamnet', 'flag_isolated',
+                 'flag_invading_cluster']
+    for c in flag_cols:
+        if c not in det_df.columns:
+            det_df[c] = False
     det_df['n_flags'] = det_df[flag_cols].sum(axis=1).astype(int)
 
     def reason(row):
@@ -564,6 +609,8 @@ def merge_flags(det_df: pd.DataFrame) -> pd.DataFrame:
             parts.append(f'yamnet:{row.yamnet_top}')
         if row.flag_isolated:
             parts.append('isolated')
+        if getattr(row, 'flag_invading_cluster', False):
+            parts.append('invading_cluster')
         return '|'.join(parts)
 
     det_df['flag_reason'] = det_df.apply(reason, axis=1)
@@ -741,6 +788,11 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
         det_df['yamnet_score'] = 0.0
         det_df['flag_yamnet'] = False
     det_df = filter_temporal_isolation(det_df, window_s=isolation_window_s, verbose=verbose)
+    if getattr(config, 'USE_STATION_REGIME_FILTER', True):
+        det_df = filter_station_regime(det_df, verbose=verbose)
+    else:
+        det_df['station_regime'] = station_regime.NORMAL
+        det_df['flag_invading_cluster'] = False
     det_df = merge_flags(det_df)
 
     clean_df = det_df[det_df['n_flags'] == 0].copy()
