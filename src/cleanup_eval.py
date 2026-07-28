@@ -522,7 +522,8 @@ def operating_points(matched_df, retention_levels=(0.99, 0.97, 0.95, 0.90, 0.85)
     return pd.DataFrame(rows).T
 
 
-def confidence_baseline(matched_df, filter_cols=("flag_mahal", "flag_isolated")):
+def confidence_baseline(matched_df, filter_cols=("flag_mahal", "flag_isolated"),
+                        mask=None, label=None):
     """
     Compare the cleanup against simply discarding the least confident detections.
 
@@ -544,7 +545,10 @@ def confidence_baseline(matched_df, filter_cols=("flag_mahal", "flag_isolated"))
     n_fps = int((df["verdict"] == "false_positive").sum())
     total = len(df)
 
-    flagged = df[cols].fillna(False).astype(bool).any(axis=1)
+    if mask is not None:
+        flagged = mask.reindex(df.index).fillna(False).astype(bool)
+    else:
+        flagged = df[cols].fillna(False).astype(bool).any(axis=1)
     n_removed = int(flagged.sum())
 
     # Same budget, spent on the least confident detections instead.
@@ -553,7 +557,7 @@ def confidence_baseline(matched_df, filter_cols=("flag_mahal", "flag_isolated"))
     by_conf = pd.Series(False, index=df.index)
     by_conf.loc[order] = True
 
-    name = " + ".join(FLAG_LABELS[c] for c in cols)
+    name = label or " + ".join(FLAG_LABELS[c] for c in cols)
     rows = {
         f"cleanup ({name})": _outcome(df, flagged, n_calls, n_fps, total),
         f"lowest confidence ({n_removed} clips)":
