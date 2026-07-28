@@ -272,3 +272,50 @@ def test_confidence_baseline_spends_the_same_budget():
     assert cb.iloc[0]["fps_removed"] == 2 and cb.iloc[0]["calls_lost"] == 0
     assert cb.iloc[1]["calls_lost"] == 2
     assert cb.iloc[0]["advantage"] > 0
+
+
+def _graded_fixture():
+    """Calls sit close to the training cluster with many neighbours; false
+    positives sit far away and alone."""
+    rows, clean, susp = [], [], []
+    for i in range(10):                                   # genuine calls
+        s = 100 + i
+        rows.append((f"Cernic__recA__{s:05d}s__conf0.9.wav", ""))
+        clean.append(("Cernic", "recA.wav", float(s), False, False, False,
+                      "Animal", 0.3, 100.0 + i, 8))
+    for i in range(10):                                   # false positives
+        s = 500 + i
+        rows.append((f"Cernic__recA__{s:05d}s__conf0.9.wav", "Noise"))
+        clean.append(("Cernic", "recA.wav", float(s), False, False, False,
+                      "Insect", 0.3, 9000.0 + i, 0))
+    d = tempfile.mkdtemp()
+    cols = ["species", "source_file", "start_time", "flag_mahal", "flag_yamnet",
+            "flag_isolated", "yamnet_top", "yamnet_score", "mahalanobis_d2",
+            "n_neighbours"]
+    pd.DataFrame(clean, columns=cols).to_csv(
+        os.path.join(d, "clean_detections.csv"), index=False)
+    pd.DataFrame([], columns=cols).to_csv(
+        os.path.join(d, "suspicious_detections.csv"), index=False)
+    return _review_csv(rows), d
+
+
+def test_signal_sweep_finds_the_separating_cutoff():
+    rev, cln = _graded_fixture()
+    matched, _ = cleanup_eval.run(rev, cln)
+    sw = cleanup_eval.signal_sweep(matched, "mahalanobis_d2", flag_when="high")
+    assert len(sw)
+    best = sw.iloc[0]
+    # a cutoff between the two groups removes every false positive, no calls
+    assert best["calls_lost"] == 0
+    assert best["fps_removed"] == 10
+    assert best["precision"] == 1.0
+
+
+def test_optimizer_respects_the_call_retention_floor():
+    rev, cln = _graded_fixture()
+    matched, _ = cleanup_eval.run(rev, cln)
+    opt = cleanup_eval.optimize_thresholds(matched, min_call_retention=0.95)
+    assert len(opt)
+    # every returned configuration honours the floor
+    assert (opt["calls_kept"] >= 0.95 * 10).all()
+    assert opt.iloc[0]["precision"] >= 0.5     # and beats doing nothing

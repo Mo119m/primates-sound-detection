@@ -107,6 +107,21 @@ def main():
         print(fc.to_string())
         fc.to_csv(os.path.join(out_dir, "cleanup_eval_combinations.csv"))
 
+    opt = cleanup_eval.optimize_thresholds(matched)
+    if len(opt):
+        print("\nBest cutoffs keeping >= 95% of genuine calls (the current")
+        print("settings are one point on this grid, not necessarily the best):")
+        print(opt.to_string())
+        opt.to_csv(os.path.join(out_dir, "cleanup_eval_tuned.csv"))
+
+    for col, when in (("mahalanobis_d2", "high"), ("n_neighbours", "low"),
+                      ("confidence", "low")):
+        sw = cleanup_eval.signal_sweep(matched, col, flag_when=when)
+        if len(sw):
+            print(f"\nSweeping {col} alone (top 5):")
+            print(sw.head(5).to_string())
+            sw.to_csv(os.path.join(out_dir, f"cleanup_eval_sweep_{col}.csv"))
+
     cb = cleanup_eval.confidence_baseline(matched)
     if len(cb):
         print("\nDoes the cleanup beat just dropping the least confident")

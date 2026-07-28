@@ -110,7 +110,8 @@ def match(review_df, cleanup_df, start_tolerance=1):
 
     verdicts, reasons = [], []
     per_flag = {c: [] for c in FLAG_COLUMNS}
-    extra = {"yamnet_top": [], "yamnet_score": []}
+    extra = {"yamnet_top": [], "yamnet_score": [],
+             "mahalanobis_d2": [], "n_neighbours": []}
     for _, r in rev.iterrows():
         hit = None
         base = _key(r["species"], r["recording"], r["start_s"])
@@ -125,7 +126,8 @@ def match(review_df, cleanup_df, start_tolerance=1):
             per_flag[col].append(bool(hit[col]) if hit is not None
                                  and col in hit.index else None)
         # the AudioSet class YAMNet assigned, for the per-class breakdown
-        for col in ("yamnet_top", "yamnet_score"):
+        for col in ("yamnet_top", "yamnet_score", "mahalanobis_d2",
+                    "n_neighbours"):
             extra[col].append(hit[col] if hit is not None
                               and col in hit.index else None)
 
@@ -299,6 +301,83 @@ def yamnet_score_sweep(matched_df, thresholds=(0.0, 0.1, 0.2, 0.3, 0.4, 0.5,
         rows[f"+ yamnet (score >= {t:.1f})"] = _outcome(df, flagged, n_calls,
                                                         n_fps, total)
     return pd.DataFrame(rows).T
+
+
+def signal_sweep(matched_df, column, flag_when="high", n_steps=15):
+    """
+    Sweep one continuous signal's cutoff and report the outcome at each.
+
+    The filters threshold continuous quantities that the run already records --
+    Mahalanobis distance, neighbour count, detector confidence -- at values
+    chosen a priori. Sweeping the cutoff against the reviewed labels shows what
+    those choices cost and where the useful operating points are.
+
+    ``flag_when`` is "high" when large values are suspicious (Mahalanobis
+    distance) and "low" when small ones are (neighbour count, confidence).
+    """
+    df = matched_df[matched_df["cleanup"].notna()].copy()
+    if column not in df.columns:
+        return pd.DataFrame()
+    vals = pd.to_numeric(df[column], errors="coerce")
+    if vals.notna().sum() == 0:
+        return pd.DataFrame()
+
+    n_calls = int((df["verdict"] == "call").sum())
+    n_fps = int((df["verdict"] == "false_positive").sum())
+    total = len(df)
+
+    qs = [i / (n_steps + 1) for i in range(1, n_steps + 1)]
+    cuts = sorted({round(float(vals.quantile(q)), 4) for q in qs})
+
+    rows = {}
+    for c in cuts:
+        flagged = (vals >= c) if flag_when == "high" else (vals <= c)
+        flagged = flagged.fillna(False)
+        rows[f"{column} {'>=' if flag_when == 'high' else '<='} {c:g}"] = (
+            _outcome(df, flagged, n_calls, n_fps, total))
+    out = pd.DataFrame(rows).T
+    return out.sort_values(["precision", "calls_kept"], ascending=False)
+
+
+def optimize_thresholds(matched_df, min_call_retention=0.95, n_steps=12):
+    """
+    Search Mahalanobis and neighbour cutoffs jointly for the best precision
+    that still keeps at least ``min_call_retention`` of the genuine calls.
+
+    The two filters are applied together (a detection is discarded if either
+    fires), so their cutoffs interact and are searched as a grid rather than
+    tuned one at a time. The retention floor is what keeps the search from
+    "improving" precision by discarding most of the data.
+    """
+    df = matched_df[matched_df["cleanup"].notna()].copy()
+    d2 = pd.to_numeric(df.get("mahalanobis_d2"), errors="coerce")
+    nb = pd.to_numeric(df.get("n_neighbours"), errors="coerce")
+    if d2 is None or nb is None or d2.notna().sum() == 0 or nb.notna().sum() == 0:
+        return pd.DataFrame()
+
+    n_calls = int((df["verdict"] == "call").sum())
+    n_fps = int((df["verdict"] == "false_positive").sum())
+    total = len(df)
+    floor = min_call_retention * n_calls
+
+    qs = [i / (n_steps + 1) for i in range(1, n_steps + 1)]
+    d2_cuts = sorted({float(d2.quantile(q)) for q in qs}) + [float("inf")]
+    nb_cuts = sorted({int(nb.quantile(q)) for q in qs}) + [-1]
+
+    rows = {}
+    for dc in d2_cuts:
+        for nc in nb_cuts:
+            flagged = ((d2 >= dc).fillna(False)) | ((nb <= nc).fillna(False))
+            res = _outcome(df, flagged, n_calls, n_fps, total)
+            if res["calls_kept"] < floor:
+                continue
+            label = (f"mahal >= {dc:.0f}" if dc != float("inf") else "mahal off")
+            label += f", neighbours <= {nc}" if nc >= 0 else ", isolation off"
+            rows[label] = res
+    if not rows:
+        return pd.DataFrame()
+    out = pd.DataFrame(rows).T
+    return out.sort_values(["precision", "calls_kept"], ascending=False).head(12)
 
 
 def confidence_baseline(matched_df, filter_cols=("flag_mahal", "flag_isolated")):
