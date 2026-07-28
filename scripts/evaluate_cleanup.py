@@ -124,7 +124,8 @@ def main():
         opt.to_csv(os.path.join(out_dir, "cleanup_eval_tuned.csv"))
 
     for col, when in (("mahalanobis_d2", "high"), ("n_neighbours", "low"),
-                      ("confidence", "low")):
+                      ("confidence", "low"), ("softmax_margin", "low"),
+                      ("recurrence_knn_dist", "low")):
         sw = cleanup_eval.signal_sweep(matched, col, flag_when=when)
         if len(sw):
             print(f"\nSweeping {col} alone (top 5):")
