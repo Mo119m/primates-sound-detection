@@ -114,6 +114,16 @@ def main():
         print(fc.to_string())
         fc.to_csv(os.path.join(out_dir, "cleanup_eval_combinations.csv"))
 
+    for col in ("n_neighbours", "recurrence_knn_dist", "confidence",
+                "softmax_margin"):
+        cv = cleanup_eval.station_cross_validation(matched, col, flag_when="low")
+        if len(cv):
+            print(f"\nLeave-one-station-out for {col}: each station judged by a")
+            print("cutoff chosen without it. Compare POOLED against no cleanup --")
+            print("a signal that only works in-sample will not beat it here:")
+            print(cv.to_string())
+            cv.to_csv(os.path.join(out_dir, f"cleanup_eval_cv_{col}.csv"))
+
     for col, when in (("recurrence_knn_dist", "low"), ("confidence", "low"),
                       ("n_neighbours", "low")):
         hs = cleanup_eval.station_holdout_sweep(matched, col, flag_when=when)
