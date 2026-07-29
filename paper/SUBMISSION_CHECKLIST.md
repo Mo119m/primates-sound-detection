@@ -25,11 +25,15 @@ as they are done. (This file is a working note, not part of the manuscript.)
       review of all 16 stations: 6189 *C. nictitans* detections, 2535 confirmed,
       41.0% precision, with the per-station table (`tab:field`). Regenerate with
       `python scripts/summarize_review.py --dir reviews/`.
-- [x] Cleanup effect (Field deployment) — filled from the ablation against the
-      manual review: Mahalanobis + temporal isolation give 45.0% precision
-      (95.3% of calls kept, 19.1% of false positives removed), and the YAMNet
-      cross-check is reported as a negative result and disabled by default
-      (`config.USE_YAMNET_FILTER`). Ablation in `tab:ablation`. Regenerate with
+- [x] Cleanup effect (Field deployment) — rewritten around leave-one-station-out
+      results. Filters: 41.0%→46.6% over 16 stations, 65.5%→83.6% over the 15
+      excluding IPA4ST (91.3% of calls kept, 66.0% of false positives removed).
+      Review ordering: mean average precision 0.900 vs 0.658 for arbitrary
+      order, above baseline at 15/15 stations, recovering 90.3% of recoverable
+      calls from half the clips with no fitted parameter (`tab:ranking`).
+      Negative results reported: YAMNet (disabled, `config.USE_YAMNET_FILTER`)
+      and in-sample inflation (61.1% → 38.4% held out). IPA4ST documented as a
+      failure mode. Regenerate with
       `python scripts/evaluate_cleanup.py --review reviews/ --cleanup <dir>`
 - [ ] *Colobus guereza* field verification — detections exist but are not yet
       manually reviewed. Either add them, or keep the current sentence scoping
