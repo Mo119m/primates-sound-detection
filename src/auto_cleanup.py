@@ -42,12 +42,14 @@ try:
     from . import preprocessing
     from . import model as model_module
     from . import station_regime
+    from . import review_queue
 except ImportError:  # Allow running as a standalone script (e.g. in Colab)
     import config
     import data_loader
     import preprocessing
     import model as model_module
     import station_regime
+    import review_queue
 
 
 # AudioSet classes that indicate the window is NOT one of our primates.
@@ -837,6 +839,13 @@ def run_auto_cleanup(model=None, model_path=None, detection_dir=None,
         output_dir / 'clean_detections.csv', index=False)
     suspicious_df.drop(columns=drop, errors='ignore').to_csv(
         output_dir / 'suspicious_detections.csv', index=False)
+
+    # The review queue, over *every* detection rather than only the clean ones.
+    # The field evaluation found the ordering and the episode grouping more
+    # useful than the clean/suspicious split, and neither of them discards
+    # anything, so the queue is built before that split is applied.
+    review_queue.save(det_df.drop(columns=drop, errors='ignore'), output_dir,
+                      verbose=verbose)
 
     n_saved = 0
     if save_clips and len(strong_fp_df) > 0:
