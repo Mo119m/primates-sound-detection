@@ -591,6 +591,7 @@ def effort_curve_by_station(matched_df, signals=None, fraction=0.5, site_col=Non
             "calls": total,
             "clips_reviewed": k,
             "calls_found": found,
+            "recall": round(found / total, 4) if total else None,
             "ceiling_calls": ceiling,
             "of_ceiling": round(found / ceiling, 4) if ceiling else None,
             "avg_precision": round(ap, 4) if ap is not None else None,
