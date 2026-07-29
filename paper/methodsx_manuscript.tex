@@ -763,7 +763,18 @@ out, they raise precision from 41.0\,\% to 46.6\,\% across all sixteen
 stations, and from 65.5\,\% to 83.6\,\% across the fifteen, retaining 91.3\,\%
 of genuine calls while removing 66.0\,\% of false positives.
 
-Held-out evaluation was not a formality. Tuned and scored on the same
+These filters are also worth comparing against the simplest alternative
+available, since the detector already scores every window: discarding the
+least confident detections until as many are gone as the filters would remove.
+Spending that same budget on confidence alone reaches 44.2\,\% precision
+against the filters' 45.0\,\%, a difference of well under one percentage
+point. Two filters requiring a feature extractor, a covariance estimate and a
+temporal scan therefore buy almost nothing over a sort on a number the detector
+already reports --- which
+is the clearest argument for treating these signals as a review order rather
+than as a discard rule, and the ordering below does exactly that.
+
+Held-out evaluation was not a formality either. Tuned and scored on the same
 detections, a feature-space repetition measure reached 61.1\,\% precision;
 evaluated leave-one-station-out the same measure scored 38.4\,\%, below the
 41.0\,\% of no cleanup at all. Its apparent gain came almost entirely from one
