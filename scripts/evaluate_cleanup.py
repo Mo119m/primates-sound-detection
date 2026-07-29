@@ -63,6 +63,13 @@ def main():
                          "detection row (default: 1).")
     ap.add_argument("--out", default=None,
                     help="Directory for the output CSVs (default: --cleanup).")
+    ap.add_argument("--exclude-station", default=None,
+                    help="Comma-separated station names to drop before scoring, "
+                         "e.g. --exclude-station IPA4ST. Every number printed "
+                         "below is then computed over the remaining stations "
+                         "only. Use this to report a result both ways; do not "
+                         "use it to report only the flattering half. Output "
+                         "goes to a separate folder so the full run is kept.")
     ap.add_argument("--clips-dir", default=None,
                     help="Folder of exported detection clips. When given, the "
                          "clips the cleanup and the reviewer disagree on are "
@@ -74,6 +81,28 @@ def main():
         args.review, args.cleanup,
         blank_is_confirmed=not args.blank_unreviewed,
         start_tolerance=args.start_tolerance)
+
+    excluded = [s.strip() for s in (args.exclude_station or "").split(",")
+                if s.strip()]
+    if excluded:
+        col = "site" if "site" in matched.columns else "station"
+        if col not in matched.columns:
+            sys.exit(f"--exclude-station needs a '{col}' column, which the "
+                     f"matched table does not have.")
+        keep = ~matched[col].astype(str).isin(excluded)
+        n_dropped = int((~keep).sum())
+        if not n_dropped:
+            print(f"WARNING: none of {excluded} matched a station name. "
+                  f"Stations present: {sorted(matched[col].astype(str).unique())}")
+        matched = matched[keep].copy()
+        # ev was computed over every station; recompute it or the confusion
+        # table and the per-species table would still report the full set.
+        ev = cleanup_eval.evaluate(matched)
+        print(f"Excluding {', '.join(excluded)}: dropped {n_dropped} detections, "
+              f"{len(matched)} remain across "
+              f"{matched[col].nunique()} stations.")
+        print("Every number below is over those stations only. Report it "
+              "alongside the full-set result, not instead of it.\n")
 
     print(cleanup_eval.report_text(matched))
 
@@ -92,6 +121,9 @@ def main():
         print(pf.to_string())
 
     out_dir = args.out or args.cleanup
+    if excluded and not args.out:
+        # Keep the full run's CSVs intact when scoring a subset of stations.
+        out_dir = os.path.join(args.cleanup, "excluding_" + "_".join(excluded))
     os.makedirs(out_dir, exist_ok=True)
     matched.to_csv(os.path.join(out_dir, "cleanup_vs_review.csv"), index=False)
     if len(ev["per_species"]):
