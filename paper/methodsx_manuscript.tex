@@ -67,23 +67,22 @@ informing their conservation \textbf{[Santi --- please review / expand this
 conservation-significance framing]}, but it produces thousands of hours of
 audio that cannot be annotated by hand. The obstacle is precision: a classifier
 trained on curated clips also fires on untrained forest sounds, so every
-detection must be checked by ear. We describe a pipeline that detects
-\textit{Cercopithecus nictitans} and \textit{Colobus guereza} in long
-recordings from Makokou, Gabon. Mel-spectrograms are classified by a VGG19
-transfer-learning model whose frequency-position-aware convolutional recurrent
-neural network (CRNN) head keeps forest birds and insects from being mistaken
-for the target. Sliding-window detection is followed by an automatic cleanup
-whose filters we measure against a manual review of every field detection. The
-classifier reaches 98\% validation accuracy with zero confusion between the two
-species; the cleanup removes a fifth of the field false positives while keeping
-95\% of genuine calls, but only once a general-purpose audio tagger that
-mislabels the target species is removed from it.
+detection must be checked by ear. We detect \textit{Cercopithecus nictitans}
+and \textit{Colobus guereza} in long recordings from Makokou, Gabon.
+Mel-spectrograms are classified by a VGG19 transfer-learning model whose
+frequency-position-aware convolutional recurrent neural network (CRNN) head
+keeps forest birds and insects from being mistaken for the target, reaching
+98\% validation accuracy with zero confusion between the species. Sliding-window
+detection is followed by a cleanup measured against a review of every field
+detection, each cutoff chosen on stations it was not scored on. It proves most
+useful not as a filter but as a review order, recovering 90\% of the calls any
+order could from half the clips, with no fitted parameter.
 
 \begin{itemize}
 \item A VGG19 transfer-learning model with a frequency-position-aware CRNN
 head, hardened against forest-noise false positives.
-\item An automatic cleanup of field detections that needs no listening, with
-each filter measured against a full manual review.
+\item A cleanup that orders detections for review instead of discarding them,
+with every filter measured against a full manual review.
 \item A complete, reusable pipeline that recycles confirmed errors into
 retraining and re-targets to new species by swapping in reference clips.
 \end{itemize}
@@ -742,54 +741,111 @@ Total   & 6189 & 2535 & 41.0 \\
 %% it is ground truth for scoring the cleanup, and every filter subset is
 %% derivable from the per-detection flags of a single run.
 %% ---------------------------------------------------------------------
-\paragraph{Effect of the automatic cleanup.}
-Because the manual review was carried out on the raw detections, it is ground
-truth for the cleanup itself: for each of the 6\,189 \textit{C.\ nictitans}
-detections we know both the reviewer's verdict and the cleanup's. The two
-domain-specific filters are the ones that carry signal. Applied together, the
-Mahalanobis and temporal-isolation filters discard 817 detections (13.2\,\% of
-the total) of which 697 (85.3\,\%) are confirmed false positives, retain 2\,415
-of the 2\,535 genuine calls (95.3\,\%), and raise precision from 41.0\,\% to
-45.0\,\% (Table~\ref{tab:ablation}). Requiring both filters to agree before
-discarding is more conservative still --- 70 genuine calls lost instead of 120,
-at the cost of removing only 317 false positives.
+\paragraph{Evaluating the cleanup against the manual review.}
+Because the review was carried out on the raw detections, it is ground truth
+for the cleanup itself: for each of the 6\,189 \textit{C.\ nictitans} detections
+we know both the reviewer's verdict and every signal the cleanup computed. Two
+properties of that comparison shaped everything reported below. First, a cutoff
+chosen on the same detections it is then scored on is fitted to them, so every
+threshold here is chosen leave-one-station-out --- on fifteen stations and
+applied to the sixteenth --- and only those held-out verdicts are pooled.
+Second, one station dominates the totals, so results are reported both over all
+sixteen stations and over the fifteen excluding it; the reason for separating
+it is given below and does not depend on the labels.
 
-The gain is real but bounded, and the reason is visible in the station that
-dominates the totals. Listening to the IPA4ST false positives shows they are
-not diffuse background noise but the calls of another, non-target species that
-is abundant at that station and absent from the training data. This is the
-hardest case for an outlier-based filter: the calls are numerous and
-acoustically consistent, so in feature space they form a dense cluster rather
-than scattered outliers, and the Mahalanobis distance --- which asks how far a
-detection sits from what the model knows --- treats a large tight cluster as
-ordinary. IPA4ST supplies 2\,370 of the 3\,654 false positives on exactly
-this mechanism.
+\paragraph{Which filters survive held-out evaluation.}
+Of the three original filters only the two domain-specific ones carry signal.
+Temporal isolation flags 13.4\,\% of false positives against 1.6\,\% of genuine
+calls, and the Mahalanobis distance 6.3\,\% against 3.2\,\%; the ratio of those
+two rates --- how much more often a filter fires on noise than on a call --- is
+8.5 and 2.0 respectively (Table~\ref{tab:ablation}). Applied leave-one-station-
+out, they raise precision from 41.0\,\% to 46.6\,\% across all sixteen
+stations, and from 65.5\,\% to 83.6\,\% across the fifteen, retaining 91.3\,\%
+of genuine calls while removing 66.0\,\% of false positives.
+
+Held-out evaluation was not a formality. Tuned and scored on the same
+detections, a feature-space repetition measure reached 61.1\,\% precision;
+evaluated leave-one-station-out the same measure scored 38.4\,\%, below the
+41.0\,\% of no cleanup at all. Its apparent gain came almost entirely from one
+station whose cutoff happened to suit the others. Any cleanup threshold
+reported without held-out evaluation should be read with that in mind.
 
 \paragraph{The audio-tagging filter does not transfer to this target.}
-The YAMNet cross-check, included in the original design as an independent
-opinion on each window, proved actively harmful and was disabled. It flagged
-51.8\,\% of genuine \textit{C.\ nictitans} calls but only 32.5\,\% of the false
-positives --- a lift below one --- and adding it to the other two filters
-lowered precision from 45.0\,\% to 36.1\,\% while discarding 1\,364 genuine
-calls. The cause is taxonomic rather than a matter of tuning. YAMNet assigns
+The YAMNet cross-check, included as an independent opinion on each window,
+proved actively harmful and is disabled. It flagged 51.8\,\% of genuine
+\textit{C.\ nictitans} calls against 32.5\,\% of the false positives --- it
+fires on calls more readily than on noise --- and adding it to the other two
+filters lowered precision to 36.1\,\% while discarding 1\,364 genuine calls.
+The cause is taxonomic rather than a matter of tuning. YAMNet assigns
 putty-nosed calls to the same AudioSet classes as the surrounding forest noise:
 of the detections it labelled \textit{Cricket}, 63.1\,\% were genuine calls, as
-were 80.0\,\% of those it labelled \textit{Owl} and 71.4\,\% of those it
-labelled \textit{Animal}, against a base rate of 41.0\,\%. No pruning of the
-suspicious class set can therefore separate calls from noise, and requiring a
-minimum tagger confidence did not help at any threshold up to 0.8, every one of
-which still scored below simply omitting the filter. General-purpose audio
-taggers should not be assumed to transfer to a target species that their label
-set does not represent; whether they help is an empirical question that the
-ablation below answers directly.
+were 80.0\,\% of those labelled \textit{Owl} and 71.4\,\% of those labelled
+\textit{Animal}, against a base rate of 41.0\,\%. No pruning of the suspicious
+class set can separate calls from noise on such labels, and requiring a minimum
+tagger confidence did not help at any threshold up to 0.8. A general-purpose
+audio tagger should not be assumed to transfer to a target species its label
+set does not represent.
+
+\paragraph{Ranking the detections rather than filtering them.}
+Every cutoff we tried transferred poorly between stations, because these
+signals are not on a common scale across sites. An ordering does not need them
+to be. Each of four signals the model already produces --- detector confidence,
+the margin between the top two classes, the number of same-species detections
+nearby in time, and the Mahalanobis distance --- is converted to a percentile
+rank \emph{within its own station}, and the ranks are averaged. Nothing is
+fitted: no cutoff, no weights, and so nothing that could fail to carry to a new
+site.
+
+Reviewed in that order, the ordering reaches a mean average precision of 0.900
+across the fifteen stations, against 0.658 for an arbitrary order, and exceeds
+the arbitrary-order baseline at every one of them (Table~\ref{tab:ranking}).
+The gain is largest exactly where it is most needed: at the two stations with
+the worst raw precision the ordering scores 3.4 and 2.0 times the arbitrary
+baseline. Read as review effort, listening to half the exported clips per
+station recovers 90.3\,\% of the calls that \emph{any} ordering could recover
+at that budget --- an important distinction, because at a station where 93\,\%
+of detections are genuine, half the clips cannot contain more than half the
+calls however they are ordered. At two stations the ordering attains that
+ceiling exactly.
+
+This reframing is what makes the cleanup usable rather than merely measurable.
+A filter is an ordering plus a cutoff chosen in advance by someone who cannot
+know the reviewer's budget; reporting the ordering leaves that choice where it
+belongs, and is measurable without any tuning to argue about.
+
+\paragraph{Where the cleanup fails, and why.}
+IPA4ST is the one station where none of this works: the ordering scores 0.038
+there against an arbitrary-order baseline of 0.041, and the filters remove only
+its scattered detections. Listening to its false positives explains why. They
+are not diffuse background noise but the calls of another, non-target species
+abundant at that station and absent from the training data. This is the hardest
+case for the approach: the calls are numerous and acoustically consistent, so
+in feature space they form a dense cluster rather than scattered outliers,
+they occur in bouts rather than isolation, and the classifier is confident
+about them. Every signal used here is therefore blind to them by construction,
+and IPA4ST alone supplies 2\,370 of the 3\,654 false positives.
+
+The station is identifiable before any listening: it produced 2\,470
+detections, 11.1 times the median across stations, where the next highest
+produced 2.5 times the median. We suggest treating such an outlier as a signal
+to inspect a station rather than as something to filter --- the remedy is to
+add the intruding species to training, which is what the hard-negative loop
+already does, not to tune a filter against it. We did attempt an automatic
+triage that would apply a cluster-removal rule only at invaded stations, but it
+cannot be justified on these data: the dense group it looks for is separated
+from the rest of its station by a factor of only 1.08 at IPA4ST, the smallest
+separation of any station, because the intruding species constitutes 82\,\% of
+that station's detections and so forms the bulk of its distribution rather than
+a group standing apart from it.
 
 \begin{table}[H]
 \centering
 \caption{Cleanup filter ablation on the 6\,189 manually reviewed
 \textit{Cercopithecus nictitans} detections (2\,535 genuine calls, 3\,654 false
 positives). Every subset is derived from the per-detection flags of a single
-run. ``Reviewed after'' is the number of clips a human would still need to
-check.}
+run; precision is in-sample here, with the leave-one-station-out figures given
+in the text. ``Reviewed after'' is the number of clips a human would still need
+to check.}
 \label{tab:ablation}
 \begin{tabular}{lrrrr}
 \toprule
@@ -801,6 +857,42 @@ Mahalanobis only                 & 2454 &  81 & 229 & 41.7 \\
 No cleanup                       & 2535 &   0 &   0 & 41.0 \\
 All three (incl.\ YAMNet)        & 1171 & 1364 & 1580 & 36.1 \\
 YAMNet only                      & 1221 & 1314 & 1188 & 33.1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Review ordering per station. Average precision summarises the whole
+ordering with no cutoff; ``arbitrary'' is what an unordered review scores,
+which equals the station's own share of genuine calls. ``Of ceiling'' is the
+share of the recoverable calls found after listening to half of that station's
+clips --- the ceiling, not the total, because half the clips cannot contain
+more calls than they hold.}
+\label{tab:ranking}
+\begin{tabular}{lrrrrr}
+\toprule
+Station & Detections & Calls & Avg.\ precision & Arbitrary & Of ceiling (\%) \\
+\midrule
+IPA20ST &  447 & 416 & 0.995 & 0.931 & 100.0 \\
+IPA6ST  &  171 & 151 & 0.992 & 0.883 & 100.0 \\
+IPA8ST  &  270 & 154 & 0.982 & 0.570 &  97.0 \\
+IPA15ST &  190 & 164 & 0.971 & 0.863 &  95.8 \\
+IPA10ST &  116 & 103 & 0.969 & 0.888 &  94.8 \\
+IPA17ST &  547 & 383 & 0.951 & 0.700 &  95.6 \\
+IPA18ST &  185 & 124 & 0.941 & 0.670 &  92.4 \\
+IPA2ST  &   82 &  64 & 0.936 & 0.781 &  92.7 \\
+IPA14ST &  239 & 156 & 0.927 & 0.653 &  90.0 \\
+IPA13ST &  280 & 184 & 0.904 & 0.657 &  87.1 \\
+IPA16ST &  329 & 185 & 0.857 & 0.562 &  80.5 \\
+IPA19ST &  206 & 119 & 0.855 & 0.578 &  80.6 \\
+IPA7ST  &  124 &  69 & 0.787 & 0.557 &  75.8 \\
+IPA11ST &  202 &  42 & 0.717 & 0.208 &  85.7 \\
+IPA1ST  &  331 & 121 & 0.714 & 0.366 &  71.1 \\
+\midrule
+Mean (15 stations) & & & \textbf{0.900} & 0.658 & \textbf{90.3} \\
+\midrule
+IPA4ST (see text)  & 2470 & 100 & 0.038 & 0.041 & 45.0 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -858,15 +950,22 @@ mitigated by a mining-confidence audit in which high-confidence clips in the
 false-positive pool are manually reviewed and confirmed calls are recovered
 into training. Each filter also rests on an assumption that can fail: the
 Mahalanobis filter assumes that most detections for a species are genuine, so
-that outliers are informative, which breaks down exactly where a single
-recurring non-target sound dominates a station; and the temporal-isolation
-filter assumes bout-calling, so genuinely isolated calls can be flagged. The
-YAMNet cross-check assumed that a general-purpose audio tagger would recognise
-non-primate sounds, and the field review showed it does not separate them from
-the target at all, so it is disabled by default. The cleanup that remains is
-therefore a partial measure: it removes about a fifth of the false positives at
-a cost of under 5\,\% of genuine calls, rather than eliminating the need to
-listen.
+that outliers are informative; and the temporal-isolation filter assumes
+bout-calling, so genuinely isolated calls can be flagged. The YAMNet
+cross-check assumed a general-purpose audio tagger would recognise non-primate
+sounds, and the field review showed it does not separate them from the target
+at all, so it is disabled by default.
+
+All three assumptions fail together in one situation, and it is the situation
+that produced most of the false positives here: a station overrun by a species
+the model never saw. Such detections are numerous, consistent, clustered in
+time and confidently classified, so nothing the cleanup measures distinguishes
+them, and the review ordering is no better than arbitrary at that station. The
+cleanup should therefore be understood as reducing the effort of reviewing
+ordinary false positives, not as a defence against an unmodelled species; that
+case needs the species added to training. More generally, the cleanup never
+removes the need to listen. It orders the listening, and how much of it can be
+skipped is a decision for whoever bears the cost of a missed call.
 
 Finally, the model favours precision over recall and is therefore conservative
 on weak or short calls: on the validation set Cernic recall is 96.1\,\%, with
