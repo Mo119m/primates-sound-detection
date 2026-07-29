@@ -95,6 +95,9 @@ def main():
             print(f"WARNING: none of {excluded} matched a station name. "
                   f"Stations present: {sorted(matched[col].astype(str).unique())}")
         matched = matched[keep].copy()
+        # ev was computed over every station; recompute it or the confusion
+        # table and the per-species table would still report the full set.
+        ev = cleanup_eval.evaluate(matched)
         print(f"Excluding {', '.join(excluded)}: dropped {n_dropped} detections, "
               f"{len(matched)} remain across "
               f"{matched[col].nunique()} stations.")
