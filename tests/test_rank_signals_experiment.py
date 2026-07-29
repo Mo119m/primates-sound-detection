@@ -162,3 +162,46 @@ def test_exclude_station_is_honoured(tmp_path):
     assert "across 3 stations" in proc.stdout
     hs = pd.read_csv(tmp_path / "rank_signals_holdout.csv")
     assert "IPA1ST" not in hs["site"].astype(str).tolist()
+
+
+def test_delta_interval_flags_a_gain_carried_by_two_stations():
+    """The failure mode the verdict has to catch: most stations gain almost
+    nothing, two gain a lot, and the mean looks like a result."""
+    hs = pd.DataFrame({
+        "site": [f"S{i}" for i in range(15)] + ["MEAN (held out)"],
+        "delta": [0.001] * 13 + [0.09, 0.05] + [0.0128],
+    })
+    ci = rse.delta_interval(hs)
+    assert ci["stations"] == 15
+    assert ci["improved"] == 15                    # every station "improved"
+    assert ci["mean_without_top2"] < 0.005         # ... by nothing much
+    assert ci["median"] < 0.005
+
+
+def test_delta_interval_accepts_a_broad_gain():
+    hs = pd.DataFrame({
+        "site": [f"S{i}" for i in range(15)] + ["MEAN (held out)"],
+        "delta": [0.05, 0.06, 0.04, 0.055, 0.045, 0.05, 0.06, 0.04,
+                  0.05, 0.05, 0.045, 0.055, 0.05, 0.06, 0.04] + [0.05],
+    })
+    ci = rse.delta_interval(hs)
+    assert ci["ci_low"] > 0
+    assert ci["mean_without_top2"] > 0.005
+
+
+def test_delta_interval_interval_includes_zero_for_a_noisy_wash():
+    hs = pd.DataFrame({
+        "site": [f"S{i}" for i in range(15)] + ["MEAN (held out)"],
+        "delta": [0.002, -0.056, 0.001, 0.014, 0.008, 0.024, -0.005, 0.005,
+                  0.044, 0.092, -0.000, 0.009, 0.001, 0.014, 0.010] + [0.0108],
+    })
+    ci = rse.delta_interval(hs)
+    assert ci["ci_low"] < 0 < ci["ci_high"], ci
+    assert ci["improved"] >= 12          # a good-looking count ...
+    assert ci["mean_without_top2"] < 0.005   # ... with nothing behind it
+
+
+def test_delta_interval_needs_enough_stations():
+    hs = pd.DataFrame({"site": ["A", "B", "MEAN (held out)"],
+                       "delta": [0.01, 0.02, 0.015]})
+    assert rse.delta_interval(hs) is None

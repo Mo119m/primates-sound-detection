@@ -868,6 +868,34 @@ A filter is an ordering plus a cutoff chosen in advance by someone who cannot
 know the reviewer's budget; reporting the ordering leaves that choice where it
 belongs, and is measurable without any tuning to argue about.
 
+It also makes extending the ordering cheap to test, because a candidate signal
+enters as a within-station rank with no weight attached and so cannot fail to
+transfer the way a threshold can. We used that to ask whether the temporal
+structure the episodes expose adds anything as a per-detection signal, deriving
+six further quantities from the detection times alone --- the size, duration,
+internal spacing and density of the episode a detection belongs to, its position
+within that episode, and the distance to the nearest same-species detection.
+Read on its own, the size of the episode a detection sits in reaches an average
+precision of 0.827 across the fifteen stations, not far below the 0.845 of the
+detector's own confidence: how a detection clusters in time, computed without
+the model and without the audio, is almost as informative about whether it is
+genuine as the classifier's score. The direction is the bout-calling assumption
+made quantitative, and it is the opposite of what we first assumed --- larger and
+more tightly spaced episodes are \emph{more} likely to be genuine, because
+calling in bouts is what the target species does. It reverses only at the
+station an untrained species overran, which is a compact statement of why that
+station is the hard case.
+
+Added to the four signals already in use, however, these features gain nothing
+that survives scrutiny. Forward selection run leave-one-station-out improves
+mean average precision by 0.011 (bootstrap 95\,\% CI $-0.004$ to $+0.027$), and
+two of the fifteen stations supply almost all of it: setting those two aside
+leaves 0.002. Twelve of fifteen stations improved, which is not evidence when
+the improvements are this small. The neighbour count already carries the
+temporal structure these features measure, so the reported ordering keeps the
+four signals and the episode grouping stays what it is --- a unit of review
+effort rather than another signal.
+
 \paragraph{Which filters survive held-out evaluation.}
 Of the three filters originally implemented only the two domain-specific ones
 carry signal; a general-purpose audio tagger (YAMNet) was also tried and is
