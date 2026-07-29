@@ -477,7 +477,9 @@ The detector's raw output contains many false positives from sounds absent
 from the training set. Three independent filters, each exploiting a different
 signal, are run over the saved detections; their agreement determines how a
 detection is treated. For each detection a 2\,s clip is extracted from the
-source recording.
+source recording. The same per-detection signals are then reused to group and
+order the remaining detections for manual review, which is where most of the
+practical saving turns out to lie.
 
 \paragraph{(a) Mahalanobis out-of-distribution filter}
 Using a penultimate dense layer as a feature extractor, per-class feature means
@@ -512,6 +514,41 @@ false positive} when at least two filters agree. Clean and suspicious
 detections are written to separate CSVs (the suspicious file carries a
 human-readable flag-reason column), and strong false positives are
 exported as labelled WAV clips for the next stage.
+
+\subsection*{Organising the review: episodes and ordering}
+
+Discarding a detection is only one thing that can be done with these signals,
+and on our field data it turned out to be the least useful (see
+\S\,Method validation). Two further steps use the same per-detection
+information to reduce how much listening the surviving detections cost, without
+removing any of them. Both are parameter-free in the sense that matters here:
+neither fits a cutoff on labelled data, so neither can fail to transfer to a
+new site.
+
+\paragraph{(i) Grouping detections into listening episodes}
+Detections of one species in one recording that fall within a fixed gap of each
+other (five minutes by default) are grouped into an \textbf{episode}. An
+episode is the unit a reviewer actually decides on: a non-target sound that
+runs for a stretch of a recording produces many detections, and hearing one of
+them settles the whole stretch. Review effort is therefore counted as one
+listen per episode that turns out to be uniformly non-target, and per clip only
+within episodes that mix genuine calls with false positives. Nothing is
+discarded and no threshold is involved; the grouping only changes how the same
+detections are presented.
+
+\paragraph{(ii) Ordering the review by averaged within-station ranks}
+The clips that still need listening are presented most-likely-genuine first.
+Four signals the pipeline already computes are used: the detector's confidence,
+the margin between its top two class scores, the number of same-species
+detections within the temporal-isolation window, and the Mahalanobis distance
+(entered with its sign reversed, since large is bad). Each is converted to a
+percentile rank \emph{within its own station}, and the four ranks are averaged
+into one score. Ranking within the station is what makes this robust: the raw
+scales of these signals differ between sites, which is exactly why fixed
+cutoffs transfer badly, but a percentile rank is scale-free by construction.
+No weights are fitted and no cutoff is chosen --- the reviewer simply stops when
+their budget runs out, and the ordering is reported as an average precision,
+which summarises every possible stopping point at once.
 
 \subsection*{Iterative hard-negative mining}
 
@@ -689,11 +726,10 @@ detections --- 40\,\% of all detections --- of which only 100 were genuine
 (precision 4.0\,\%), contributing 2\,370 of the 3\,654 false positives. Across
 the remaining fifteen stations precision was 65.5\,\% (2\,435 confirmed of
 3\,719), and the median per-station precision was also 65.5\,\%, ranging from
-20.8\,\% at IPA11ST to 93.1\,\% at IPA20ST. A persistent local sound source at
-IPA4ST, absent from the training data, is the most likely explanation, and it
-is precisely the failure mode the automatic cleanup is designed to absorb: a
-recurring non-target sound produces a tight cluster of detections that the
-Mahalanobis and audio-tagging filters can flag as a group.
+20.8\,\% at IPA11ST to 93.1\,\% at IPA20ST. Listening to IPA4ST's detections
+identified the cause: a non-target species abundant at that station and absent
+from the training data. It is treated separately below, because it is the one
+case that none of the per-detection cleanup signals can read.
 
 Even before any cleanup, the reduction in manual effort is substantial:
 confirming the full set of \textit{C.\ nictitans} detections required listening

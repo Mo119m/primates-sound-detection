@@ -65,6 +65,16 @@ as they are done. (This file is a working note, not part of the manuscript.)
       it in).
 - [ ] Compile twice with pdfLaTeX so `\cite` references resolve.
 
+- [x] **Method details now describe what the validation reports.** Added
+      "Organising the review: episodes and ordering" to §Method details: (i) the
+      five-minute episode grouping rule and (ii) the averaged within-station
+      percentile-rank ordering over four signals. Previously these appeared only
+      in Method validation, which left the paper's headline results without a
+      method to point at.
+- [x] Removed the stale claim (Field deployment) that IPA4ST "is precisely the
+      failure mode the automatic cleanup is designed to absorb" — it is the
+      opposite, and the sentence also referred to the disabled audio tagger.
+
 ## Decisions already settled (for reference)
 - Title, abstract (197 words), keywords (7), Specifications table — done.
 - Graphical abstract: separate file only, not embedded in the body — done.
