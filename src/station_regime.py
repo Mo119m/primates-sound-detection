@@ -132,6 +132,70 @@ def detect_invading_cluster(df, tightness_col="recurrence_knn_dist",
     return mask
 
 
+def explain(df, tightness_col="recurrence_knn_dist",
+            distance_col="mahalanobis_d2", group_col="station",
+            min_frac=DEFAULT_MIN_CLUSTER_FRACTION,
+            min_gap_ratio=DEFAULT_MIN_GAP_RATIO):
+    """
+    Report, per station, what the triage saw and which condition decided it.
+
+    The rule declines to act far more often than it acts, which is intended but
+    makes a negative result uninformative on its own: a station can be passed
+    over because no gap separates its detections, because the tight side is too
+    small to matter, or because that side is closer to the training data than
+    the rest. Those are different findings and the columns here distinguish
+    them.
+    """
+    tight_vals = pd.to_numeric(df.get(tightness_col), errors="coerce")
+    far_vals = pd.to_numeric(df.get(distance_col), errors="coerce")
+    if tight_vals is None or far_vals is None or group_col not in df.columns:
+        return pd.DataFrame()
+
+    rows = {}
+    for site, sub in df.groupby(group_col, sort=True):
+        d = tight_vals.loc[sub.index].dropna()
+        rec = {"n": len(sub), "verdict": "", "gap_ratio": None,
+               "cluster_frac": None, "cluster_mahal": None, "rest_mahal": None}
+        if len(d) < 10:
+            rec["verdict"] = "too few detections"
+            rows[site] = rec
+            continue
+
+        order = d.sort_values()
+        vals = order.to_numpy()
+        split = _split_at_largest_gap(vals, min_frac, min_gap_ratio)
+        # Report the best gap even when it fails the threshold, so a near miss
+        # is visible rather than indistinguishable from no structure at all.
+        lo = max(1, int(min_frac * len(vals)))
+        best = max((vals[i + 1] / max(vals[i], 1e-9)
+                    for i in range(lo - 1, len(vals) - 1)), default=0.0)
+        rec["gap_ratio"] = round(float(best), 2)
+
+        if split is None:
+            rec["verdict"] = f"no gap >= {min_gap_ratio}"
+            rows[site] = rec
+            continue
+
+        cluster_idx = order.index[: split + 1]
+        rest_idx = order.index[split + 1:]
+        rec["cluster_frac"] = round(len(cluster_idx) / len(vals), 3)
+        c_m = far_vals.loc[cluster_idx].dropna()
+        r_m = far_vals.loc[rest_idx].dropna()
+        rec["cluster_mahal"] = round(float(c_m.median()), 1) if len(c_m) else None
+        rec["rest_mahal"] = round(float(r_m.median()), 1) if len(r_m) else None
+
+        if len(cluster_idx) < min_frac * len(vals) or not len(rest_idx):
+            rec["verdict"] = "cluster too small"
+        elif not len(c_m) or not len(r_m):
+            rec["verdict"] = "no distance values"
+        elif c_m.median() <= r_m.median():
+            rec["verdict"] = "cluster is the familiar side"
+        else:
+            rec["verdict"] = INVADED
+        rows[site] = rec
+    return pd.DataFrame(rows).T
+
+
 def classify_stations(df, mask=None, group_col="station", **kwargs):
     """Label each station ``invaded`` or ``normal`` from the cluster mask."""
     if mask is None:

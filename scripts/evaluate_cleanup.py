@@ -114,6 +114,15 @@ def main():
         print(fc.to_string())
         fc.to_csv(os.path.join(out_dir, "cleanup_eval_combinations.csv"))
 
+    ex = cleanup_eval.station_regime.explain(
+        matched, group_col="site" if "site" in matched.columns else "station")
+    if len(ex):
+        print("\nStation triage, per station: what the rule saw and which")
+        print("condition settled it (a station is only acted on when a clear")
+        print("gap splits off a large group that is the unfamiliar side):")
+        print(ex.to_string())
+        ex.to_csv(os.path.join(out_dir, "cleanup_eval_triage.csv"))
+
     tp = cleanup_eval.two_protocol_cross_validation(matched)
     if len(tp):
         print("\nTwo protocols, leave-one-station-out: temporal isolation")
