@@ -241,9 +241,19 @@ USE_YAMNET_FILTER = False
 # are neither isolated nor outliers, and only removing the whole cluster
 # reaches them -- which is far too destructive at a station with no invasion.
 # With this on, the cleanup decides which case each station is, using no labels
-# and no threshold shared between stations (see src/station_regime.py). It is a
-# no-op at stations showing no dominant unfamiliar cluster.
-USE_STATION_REGIME_FILTER = True
+# and no threshold shared between stations (see src/station_regime.py).
+#
+# OFF by default: the triage does not work on this dataset. It assumes an
+# invasion shows up as a dense group separated from the rest of its station by
+# a clear gap in clustering tightness. Measured across the 16 field stations,
+# the widest such gap was a factor of 1.08 to 1.32 -- and the invaded station
+# had the SMALLEST of all, at 1.08, because its intruding species accounts for
+# 82% of its detections and so forms the bulk of the distribution rather than a
+# group separated from it. No threshold can select it without selecting every
+# other station first. The filter is kept, and the diagnosis available through
+# station_regime.explain(), because the underlying problem is real and a better
+# signal may exist; the gap is not it.
+USE_STATION_REGIME_FILTER = False
 
 # TIME FILTER FOR FIELD RECORDINGS
 # Coarse, FILE-LEVEL filter (it does NOT trim audio — it only decides which
