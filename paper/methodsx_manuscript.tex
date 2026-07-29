@@ -493,16 +493,14 @@ per species, the detections beyond the 95th percentile of the observed
 distance distribution (a configurable percentile). This makes the filter a
 relative-outlier detector that is robust to the train-to-field domain shift.
 
-\paragraph{(b) YAMNet cross-check}
-Each clip is resampled to 16\,kHz and passed to YAMNet, a network trained on
-Google's AudioSet ontology of 521 everyday sound classes
-\cite{gemmeke2017,hershey2017}. A detection is flagged when YAMNet's top class
-is one of a curated set of non-primate sounds (birds, insects, frogs, wind,
-rain, water, mechanical and human sounds, etc.); generic classes consistent
-with a primate call (e.g.\ ``Animal'', ``Wild animals'') are deliberately left
-unflagged. Because AudioSet has no monkey-specific class, this filter is used
-only to reject clips that are confidently something else, not to
-confirm primates.
+\paragraph{(b) YAMNet cross-check (implemented, disabled)}
+The pipeline also implements a cross-check against YAMNet, a network trained on
+Google's AudioSet ontology \cite{gemmeke2017,hershey2017}, flagging a detection
+whose top class is a non-primate sound. It is off by default: AudioSet has no
+monkey-specific class, and the field review showed it labels putty-nosed calls
+with the same classes as the surrounding forest, so it flagged more genuine
+calls than false positives. It is described here because the code retains it
+for targets that AudioSet does represent.
 
 \paragraph{(c) Temporal-isolation filter}
 Primates tend to call in bouts, so a genuine call usually has same-species
@@ -754,7 +752,11 @@ sixteen stations and over the fifteen excluding it; the reason for separating
 it is given below and does not depend on the labels.
 
 \paragraph{Which filters survive held-out evaluation.}
-Of the three original filters only the two domain-specific ones carry signal.
+Of the three filters originally implemented only the two domain-specific ones
+carry signal; a general-purpose audio tagger (YAMNet) was also tried and is
+disabled, because it labels putty-nosed calls with the same AudioSet classes as
+the surrounding forest noise and so flagged more genuine calls than false
+positives.
 Temporal isolation flags 13.4\,\% of false positives against 1.6\,\% of genuine
 calls, and the Mahalanobis distance 6.3\,\% against 3.2\,\%; the ratio of those
 two rates --- how much more often a filter fires on noise than on a call --- is
@@ -780,22 +782,6 @@ evaluated leave-one-station-out the same measure scored 38.4\,\%, below the
 41.0\,\% of no cleanup at all. Its apparent gain came almost entirely from one
 station whose cutoff happened to suit the others. Any cleanup threshold
 reported without held-out evaluation should be read with that in mind.
-
-\paragraph{The audio-tagging filter does not transfer to this target.}
-The YAMNet cross-check, included as an independent opinion on each window,
-proved actively harmful and is disabled. It flagged 51.8\,\% of genuine
-\textit{C.\ nictitans} calls against 32.5\,\% of the false positives --- it
-fires on calls more readily than on noise --- and adding it to the other two
-filters lowered precision to 36.1\,\% while discarding 1\,364 genuine calls.
-The cause is taxonomic rather than a matter of tuning. YAMNet assigns
-putty-nosed calls to the same AudioSet classes as the surrounding forest noise:
-of the detections it labelled \textit{Cricket}, 63.1\,\% were genuine calls, as
-were 80.0\,\% of those labelled \textit{Owl} and 71.4\,\% of those labelled
-\textit{Animal}, against a base rate of 41.0\,\%. No pruning of the suspicious
-class set can separate calls from noise on such labels, and requiring a minimum
-tagger confidence did not help at any threshold up to 0.8. A general-purpose
-audio tagger should not be assumed to transfer to a target species its label
-set does not represent.
 
 \paragraph{Ranking the detections rather than filtering them.}
 Every cutoff we tried transferred poorly between stations, because these
@@ -866,8 +852,6 @@ Mahalanobis + temporal isolation & 2415 & 120 & 697 & \textbf{45.0} \\
 Temporal isolation only          & 2495 &  40 & 490 & 44.1 \\
 Mahalanobis only                 & 2454 &  81 & 229 & 41.7 \\
 No cleanup                       & 2535 &   0 &   0 & 41.0 \\
-All three (incl.\ YAMNet)        & 1171 & 1364 & 1580 & 36.1 \\
-YAMNet only                      & 1221 & 1314 & 1188 & 33.1 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -962,10 +946,10 @@ false-positive pool are manually reviewed and confirmed calls are recovered
 into training. Each filter also rests on an assumption that can fail: the
 Mahalanobis filter assumes that most detections for a species are genuine, so
 that outliers are informative; and the temporal-isolation filter assumes
-bout-calling, so genuinely isolated calls can be flagged. The YAMNet
-cross-check assumed a general-purpose audio tagger would recognise non-primate
-sounds, and the field review showed it does not separate them from the target
-at all, so it is disabled by default.
+bout-calling, so genuinely isolated calls can be flagged. The third filter
+originally implemented, a general-purpose audio tagger, assumed such a tagger
+would recognise non-primate sounds; it does not separate them from this target
+and is disabled.
 
 All three assumptions fail together in one situation, and it is the situation
 that produced most of the false positives here: a station overrun by a species
