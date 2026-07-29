@@ -642,6 +642,88 @@ def ranking_signal_comparison(matched_df, fraction=0.5, site_col=None):
     return out.sort_values("mean_avg_precision", ascending=False)
 
 
+def episodes(matched_df, gap_s=300.0, site_col=None):
+    """
+    Group each recording's detections into listening episodes.
+
+    Reviewing clip by clip counts every detection as a separate decision, which
+    is not how listening works. A non-target sound that runs for a stretch of a
+    recording produces many detections that a reviewer dismisses together: one
+    listen settles the whole stretch. Detections of the same species in the same
+    recording separated by less than ``gap_s`` are therefore treated as one
+    episode.
+
+    Returns one row per episode with how many detections it holds and how they
+    were judged. An episode whose detections are all false positives can be
+    discarded on a single listen; a mixed one cannot.
+    """
+    df = matched_df[matched_df["cleanup"].notna()].copy()
+    if not len(df) or "start_s" not in df.columns:
+        return pd.DataFrame()
+    site_col = site_col or ("site" if "site" in df.columns else "station")
+
+    keys = [c for c in (site_col, "recording", "species") if c in df.columns]
+    df = df.sort_values(keys + ["start_s"], kind="stable")
+    start = pd.to_numeric(df["start_s"], errors="coerce")
+    new_group = df[keys].ne(df[keys].shift()).any(axis=1) if keys else pd.Series(
+        [True] + [False] * (len(df) - 1), index=df.index)
+    new_episode = new_group | (start.diff() > gap_s)
+    df["episode"] = new_episode.cumsum()
+
+    rows = []
+    for eid, sub in df.groupby("episode", sort=True):
+        n_calls = int((sub["verdict"] == "call").sum())
+        rows.append({
+            "episode": int(eid),
+            site_col: sub[site_col].iloc[0] if site_col in sub.columns else "",
+            "recording": sub["recording"].iloc[0] if "recording" in sub.columns else "",
+            "detections": len(sub),
+            "calls": n_calls,
+            "false_positives": len(sub) - n_calls,
+            "span_s": float(start.loc[sub.index].max() - start.loc[sub.index].min()),
+            "pure": "all false positives" if n_calls == 0
+                    else ("all calls" if n_calls == len(sub) else "mixed"),
+        })
+    return pd.DataFrame(rows)
+
+
+def episode_effort(matched_df, gap_s=300.0, site_col=None):
+    """
+    What reviewing by episode costs, against reviewing clip by clip.
+
+    An episode of pure false positives is one listen however many detections it
+    contains, so the saving is largest exactly where a non-target sound runs on
+    -- the case the per-clip filters could not touch.
+    """
+    ep = episodes(matched_df, gap_s=gap_s, site_col=site_col)
+    if not len(ep):
+        return pd.DataFrame()
+    site_col = site_col or ("site" if "site" in ep.columns else "station")
+
+    def block(sub, label):
+        det = int(sub["detections"].sum())
+        pure_fp = sub[sub["pure"] == "all false positives"]
+        mixed = sub[sub["pure"] == "mixed"]
+        pure_call = sub[sub["pure"] == "all calls"]
+        # One listen settles a pure episode; a mixed one still needs its clips.
+        listens = len(pure_fp) + len(pure_call) + int(mixed["detections"].sum())
+        return {
+            "detections": det,
+            "episodes": len(sub),
+            "detections_per_episode": round(det / len(sub), 1) if len(sub) else None,
+            "pure_fp_episodes": len(pure_fp),
+            "fps_dismissed_in_bulk": int(pure_fp["false_positives"].sum()),
+            "listens_needed": listens,
+            "vs_per_clip": round(listens / det, 4) if det else None,
+        }
+
+    rows = {"all stations": block(ep, "all")}
+    if site_col in ep.columns:
+        for site, sub in ep.groupby(site_col, sort=True):
+            rows[str(site)] = block(sub, site)
+    return pd.DataFrame(rows).T
+
+
 def operating_points(matched_df, retention_levels=(0.99, 0.97, 0.95, 0.90, 0.85),
                      n_steps=12, max_signals=2):
     """
