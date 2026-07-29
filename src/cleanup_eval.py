@@ -24,6 +24,7 @@ and the cleanup CSVs carry ``species``, ``source_file`` and ``start_time``.
 import os
 import re
 import itertools
+import numpy as np
 import pandas as pd
 
 try:
@@ -526,22 +527,42 @@ def effort_curve(matched_df, signals=None, fractions=(0.1, 0.25, 0.5, 0.75, 0.9)
     n = len(df)
     cumulative = is_call.cumsum()
 
+    # Budgets are spent per station, so the ceiling is per station too: at a
+    # site where nearly every detection is genuine, listening to half the clips
+    # cannot recover more than half the calls no matter how good the order is.
+    site_col = site_col or ("site" if "site" in df.columns else "station")
+    groups = (df.groupby(site_col, sort=False) if site_col in df.columns
+              else [("", df)])
+
     rows = {}
     for f in fractions:
         k = max(1, int(round(f * n)))
         found = int(cumulative[k - 1])
+        ceiling = sum(min(max(1, int(round(f * len(sub)))),
+                          int((sub["verdict"] == "call").sum()))
+                      for _, sub in groups)
         rows[f"review {f:.0%} of clips"] = {
             "clips_reviewed": k,
             "calls_found": found,
             "recall": round(found / total_calls, 4) if total_calls else None,
-            "precision_in_batch": round(found / k, 4),
+            "ceiling_calls": ceiling,
+            "of_ceiling": round(found / ceiling, 4) if ceiling else None,
             "random": round(f, 4),
         }
     return pd.DataFrame(rows).T
 
 
 def effort_curve_by_station(matched_df, signals=None, fraction=0.5, site_col=None):
-    """Per-station recall at a fixed review budget, so one site cannot hide the rest."""
+    """
+    Per-station ranking quality, so no single site can carry the result.
+
+    ``of_ceiling`` is what matters rather than raw recall: at a station where
+    nearly every detection is genuine, listening to half the clips cannot
+    recover more than half the calls however good the order is, so recall there
+    is bounded by arithmetic rather than by the ranking. ``avg_precision``
+    summarises the ordering with no budget at all, against what an arbitrary
+    order would score.
+    """
     df = matched_df[matched_df["cleanup"].notna()].copy()
     site_col = site_col or ("site" if "site" in df.columns else "station")
     if site_col not in df.columns:
@@ -558,13 +579,22 @@ def effort_curve_by_station(matched_df, signals=None, fraction=0.5, site_col=Non
         total = int(is_call.sum())
         k = max(1, int(round(fraction * len(sub))))
         found = int(is_call.cumsum()[k - 1])
+        ceiling = min(k, total)
+        # Average precision summarises the whole ordering without any budget;
+        # a random order scores about the station's own call rate, which is the
+        # figure beside it.
+        hits = is_call.cumsum()
+        positions = np.arange(1, len(sub) + 1)
+        ap = float((hits[is_call] / positions[is_call]).mean()) if total else None
         rows[site] = {
             "detections": len(sub),
             "calls": total,
             "clips_reviewed": k,
             "calls_found": found,
-            "recall": round(found / total, 4) if total else None,
-            "random": round(fraction, 4),
+            "ceiling_calls": ceiling,
+            "of_ceiling": round(found / ceiling, 4) if ceiling else None,
+            "avg_precision": round(ap, 4) if ap is not None else None,
+            "ap_if_random": round(total / len(sub), 4) if len(sub) else None,
         }
     return pd.DataFrame(rows).T
 
