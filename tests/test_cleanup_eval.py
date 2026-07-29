@@ -741,7 +741,7 @@ def test_ceiling_separates_a_good_ranking_from_an_easy_station():
 
     # raw recall looks unimpressive: 10 of 18 calls
     assert row["calls_found"] == 10
-    assert abs(row["recall"] - 10 / 18) < 1e-6
+    assert abs(row["recall"] - 10 / 18) < 1e-3   # stored rounded to 4 dp
     # against what 10 clips could possibly contain, the ordering is perfect
     assert row["ceiling_calls"] == 10
     assert row["of_ceiling"] == 1.0
