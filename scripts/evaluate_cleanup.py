@@ -109,6 +109,13 @@ def main():
         print(ec.to_string())
         ec.to_csv(os.path.join(out_dir, "cleanup_eval_effort_curve.csv"))
 
+    rs = cleanup_eval.ranking_signal_comparison(matched)
+    if len(rs):
+        print("\nIs the combined ordering worth more than each signal alone?")
+        print("(the same question that sank the filters, asked of the ranking)")
+        print(rs.to_string())
+        rs.to_csv(os.path.join(out_dir, "cleanup_eval_ranking_signals.csv"))
+
     eb = cleanup_eval.effort_curve_by_station(matched, fraction=0.5)
     if len(eb):
         print("\nSame ordering, per station, at a half-the-clips budget:")

@@ -600,6 +600,48 @@ def effort_curve_by_station(matched_df, signals=None, fraction=0.5, site_col=Non
     return pd.DataFrame(rows).T
 
 
+def ranking_signal_comparison(matched_df, fraction=0.5, site_col=None):
+    """
+    Is the combined ordering worth more than each signal used alone?
+
+    The same question that sank the filters applies here: a combination is only
+    worth its complexity if it beats the simplest thing available, which is
+    sorting on the confidence the detector already reports. Each row is one
+    ordering, scored the same way -- mean average precision across stations,
+    and the share of the recoverable calls found at a fixed review budget.
+    """
+    df = matched_df[matched_df["cleanup"].notna()].copy()
+    site_col = site_col or ("site" if "site" in df.columns else "station")
+    if not len(df) or site_col not in df.columns:
+        return pd.DataFrame()
+
+    candidates = {"all four combined": None}
+    for col, higher in RANKING_SIGNALS.items():
+        if col in df.columns and pd.to_numeric(df[col], errors="coerce").notna().any():
+            candidates[f"{col} alone"] = {col: higher}
+
+    rows = {}
+    for label, signals in candidates.items():
+        per_station = effort_curve_by_station(df, signals=signals,
+                                              fraction=fraction, site_col=site_col)
+        if not len(per_station):
+            continue
+        ap = pd.to_numeric(per_station["avg_precision"], errors="coerce")
+        rand = pd.to_numeric(per_station["ap_if_random"], errors="coerce")
+        found = pd.to_numeric(per_station["calls_found"], errors="coerce")
+        ceil = pd.to_numeric(per_station["ceiling_calls"], errors="coerce")
+        rows[label] = {
+            "mean_avg_precision": round(float(ap.mean()), 4),
+            "vs_arbitrary": round(float((ap - rand).mean()), 4),
+            "stations_above_arbitrary": int((ap > rand).sum()),
+            "stations": int(len(per_station)),
+            "of_ceiling": (round(float(found.sum() / ceil.sum()), 4)
+                           if ceil.sum() else None),
+        }
+    out = pd.DataFrame(rows).T
+    return out.sort_values("mean_avg_precision", ascending=False)
+
+
 def operating_points(matched_df, retention_levels=(0.99, 0.97, 0.95, 0.90, 0.85),
                      n_steps=12, max_signals=2):
     """
