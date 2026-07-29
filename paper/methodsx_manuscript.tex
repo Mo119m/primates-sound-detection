@@ -750,6 +750,66 @@ Second, one station dominates the totals, so results are reported both over all
 sixteen stations and over the fifteen excluding it; the reason for separating
 it is given below and does not depend on the labels.
 
+\paragraph{Counting review effort in listening episodes.}
+Treating each detection as a separate decision misstates what review costs. A
+non-target sound that runs for a stretch of a recording produces many
+detections that a reviewer settles together: hearing one is enough to dismiss
+the stretch. Grouping detections of one species in one recording that fall
+within five minutes of each other gives 722 episodes over the 6\,189
+detections, 8.6 detections apiece. Of the 3\,654 false positives, 3\,488
+(95.5\,\%) fall in episodes containing no genuine call at all, and each such
+episode costs one listen however many detections it holds. Counting a pure
+episode as one decision and a mixed one as its individual clips, the full
+review is 1\,529 listens rather than 6\,189 --- 24.7\,\% of the per-clip effort,
+with no detection discarded and no threshold anywhere.
+
+One station accounts for most of that saving, and it is the station no
+per-detection signal can read at all (below). IPA4ST's detections are not
+spread through its recordings but concentrated: 36.3 per
+episode against roughly six elsewhere, because the intruding species calls in
+long bouts. Its 2\,470 detections form 68 episodes and cost 106 listens, 4.3\,\%
+of reviewing them one by one, and 2\,368 of its 2\,370 false positives are
+dismissed in bulk. Across the other fifteen stations the same rule gives 1\,423
+listens for 3\,719 detections.
+
+The two cases separate themselves. A station carrying a running intruder
+collapses into few, long episodes because that is what a running intruder is; a
+station whose genuine calls are spread through the recordings does not. No
+triage step decides which station is which, and none is needed --- which is
+fortunate, because we could not build one that worked (see below).
+
+\paragraph{Ranking the detections rather than filtering them.}
+Within the clips that still need listening, the order they are heard in
+matters. Every cutoff we tried transferred poorly between stations, because
+these signals are not on a common scale across sites (below); an ordering does
+not need them to be. Each of four signals the model already produces --- detector confidence,
+the margin between the top two classes, the number of same-species detections
+nearby in time, and the Mahalanobis distance --- is converted to a percentile
+rank \emph{within its own station}, and the ranks are averaged. Nothing is
+fitted: no cutoff, no weights, and so nothing that could fail to carry to a new
+site.
+
+Reviewed in that order, the ordering reaches a mean average precision of 0.900
+across the fifteen stations, against 0.658 for an arbitrary order, and exceeds
+the arbitrary-order baseline at every one of them (Table~\ref{tab:ranking}).
+The combination earns its complexity, which the filters below do not: over all
+sixteen stations it scores 0.846 against 0.815 for the best single signal (the
+neighbour count), 0.801 for detector confidence, 0.797 for the class margin and
+0.782 for the Mahalanobis distance.
+The gain is largest exactly where it is most needed: at the two stations with
+the worst raw precision the ordering scores 3.4 and 2.0 times the arbitrary
+baseline. Read as review effort, listening to half the exported clips per
+station recovers 90.3\,\% of the calls that \emph{any} ordering could recover
+at that budget --- an important distinction, because at a station where 93\,\%
+of detections are genuine, half the clips cannot contain more than half the
+calls however they are ordered. At two stations the ordering attains that
+ceiling exactly.
+
+This reframing is what makes the cleanup usable rather than merely measurable.
+A filter is an ordering plus a cutoff chosen in advance by someone who cannot
+know the reviewer's budget; reporting the ordering leaves that choice where it
+belongs, and is measurable without any tuning to argue about.
+
 \paragraph{Which filters survive held-out evaluation.}
 Of the three filters originally implemented only the two domain-specific ones
 carry signal; a general-purpose audio tagger (YAMNet) was also tried and is
@@ -771,9 +831,8 @@ Spending that same budget on confidence alone reaches 44.2\,\% precision
 against the filters' 45.0\,\%, a difference of well under one percentage
 point. Two filters requiring a feature extractor, a covariance estimate and a
 temporal scan therefore buy almost nothing over a sort on a number the detector
-already reports --- which
-is the clearest argument for treating these signals as a review order rather
-than as a discard rule, and the ordering below does exactly that.
+already reports. This is the clearest argument for reading these signals as a
+review order, as above, rather than as a discard rule.
 
 Held-out evaluation was not a formality either. Tuned and scored on the same
 detections, a feature-space repetition measure reached 61.1\,\% precision;
@@ -781,64 +840,6 @@ evaluated leave-one-station-out the same measure scored 38.4\,\%, below the
 41.0\,\% of no cleanup at all. Its apparent gain came almost entirely from one
 station whose cutoff happened to suit the others. Any cleanup threshold
 reported without held-out evaluation should be read with that in mind.
-
-\paragraph{Counting review effort in listening episodes.}
-Treating each detection as a separate decision misstates what review costs. A
-non-target sound that runs for a stretch of a recording produces many
-detections that a reviewer settles together: hearing one is enough to dismiss
-the stretch. Grouping detections of one species in one recording that fall
-within five minutes of each other gives 722 episodes over the 6\,189
-detections, 8.6 detections apiece. Of the 3\,654 false positives, 3\,488
-(95.5\,\%) fall in episodes containing no genuine call at all, and each such
-episode costs one listen however many detections it holds. Counting a pure
-episode as one decision and a mixed one as its individual clips, the full
-review is 1\,529 listens rather than 6\,189 --- 24.7\,\% of the per-clip effort,
-with no detection discarded and no threshold anywhere.
-
-This is what resolves the station the filters could not touch. IPA4ST's
-detections are not spread through its recordings but concentrated: 36.3 per
-episode against roughly six elsewhere, because the intruding species calls in
-long bouts. Its 2\,470 detections form 68 episodes and cost 106 listens, 4.3\,\%
-of reviewing them one by one, and 2\,368 of its 2\,370 false positives are
-dismissed in bulk. Across the other fifteen stations the same rule gives 1\,423
-listens for 3\,719 detections.
-
-The two cases separate themselves. A station carrying a running intruder
-collapses into few, long episodes because that is what a running intruder is; a
-station whose genuine calls are spread through the recordings does not. No
-triage step decides which station is which, and none is needed --- which is
-fortunate, because we could not build one that worked (see below).
-
-\paragraph{Ranking the detections rather than filtering them.}
-Every cutoff we tried transferred poorly between stations, because these
-signals are not on a common scale across sites. An ordering does not need them
-to be. Each of four signals the model already produces --- detector confidence,
-the margin between the top two classes, the number of same-species detections
-nearby in time, and the Mahalanobis distance --- is converted to a percentile
-rank \emph{within its own station}, and the ranks are averaged. Nothing is
-fitted: no cutoff, no weights, and so nothing that could fail to carry to a new
-site.
-
-Reviewed in that order, the ordering reaches a mean average precision of 0.900
-across the fifteen stations, against 0.658 for an arbitrary order, and exceeds
-the arbitrary-order baseline at every one of them (Table~\ref{tab:ranking}).
-Unlike the filters, the combination earns its complexity: over all sixteen
-stations it scores 0.846 against 0.815 for the best single signal (the
-neighbour count), 0.801 for detector confidence, 0.797 for the class margin and
-0.782 for the Mahalanobis distance.
-The gain is largest exactly where it is most needed: at the two stations with
-the worst raw precision the ordering scores 3.4 and 2.0 times the arbitrary
-baseline. Read as review effort, listening to half the exported clips per
-station recovers 90.3\,\% of the calls that \emph{any} ordering could recover
-at that budget --- an important distinction, because at a station where 93\,\%
-of detections are genuine, half the clips cannot contain more than half the
-calls however they are ordered. At two stations the ordering attains that
-ceiling exactly.
-
-This reframing is what makes the cleanup usable rather than merely measurable.
-A filter is an ordering plus a cutoff chosen in advance by someone who cannot
-know the reviewer's budget; reporting the ordering leaves that choice where it
-belongs, and is measurable without any tuning to argue about.
 
 \paragraph{The one station the per-clip signals cannot read.}
 IPA4ST is where every per-detection signal fails: the ordering scores 0.038
