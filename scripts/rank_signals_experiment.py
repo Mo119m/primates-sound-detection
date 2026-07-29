@@ -41,6 +41,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
+import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import cleanup_eval  # noqa: E402
 import episode_features  # noqa: E402
@@ -156,6 +157,39 @@ def holdout_selection(df, cands, site_col, base, max_added=2):
     return out
 
 
+def delta_interval(holdout_df, n_boot=20000, seed=0):
+    """
+    A confidence interval for the held-out gain, and how much of it is local.
+
+    A mean improvement is not evidence on its own: with sixteen stations, two
+    that happen to gain a lot will carry a mean that most stations do not share.
+    The interval is bootstrapped over stations, which is the unit that varies,
+    and ``mean_without_top2`` reports what is left when the two largest
+    contributors are set aside. A signal worth reporting has an interval clear
+    of zero and survives that removal.
+    """
+    d = pd.to_numeric(holdout_df["delta"], errors="coerce").iloc[:-1].dropna()
+    n = len(d)
+    if n < 3:
+        return None
+    v = d.to_numpy(dtype=float)
+    rng = np.random.default_rng(seed)
+    boot = rng.choice(v, size=(n_boot, n), replace=True).mean(axis=1)
+    lo, hi = np.percentile(boot, [2.5, 97.5])
+    sd = float(v.std(ddof=1))
+    return {
+        "stations": n,
+        "mean": round(float(v.mean()), 4),
+        "median": round(float(np.median(v)), 4),
+        "sd": round(sd, 4),
+        "t": round(float(v.mean() / (sd / np.sqrt(n))), 2) if sd else None,
+        "ci_low": round(float(lo), 4),
+        "ci_high": round(float(hi), 4),
+        "improved": int((v > 0).sum()),
+        "mean_without_top2": round(float(np.sort(v)[:-2].mean()), 4) if n > 2 else None,
+    }
+
+
 def main():
     ap_ = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -234,20 +268,35 @@ def main():
         print(hs.to_string(index=False))
         hs.to_csv(os.path.join(out_dir, "rank_signals_holdout.csv"), index=False)
 
-        d = pd.to_numeric(hs["delta"], errors="coerce").iloc[-1]
+        ci = delta_interval(hs)
         print()
-        if pd.isna(d):
-            print("VERDICT: inconclusive -- not enough stations to hold out.")
-        elif d > 0.005:
-            print(f"VERDICT: the temporal signals help. Held-out mean average "
-                  f"precision improves by {d:+.4f}; report it.")
-        elif d > 0:
-            print(f"VERDICT: a real but negligible gain ({d:+.4f} held out). "
-                  f"Not worth the extra columns in the paper.")
+        if ci is None:
+            print("VERDICT: inconclusive -- too few stations to hold out.")
         else:
-            print(f"VERDICT: no held-out gain ({d:+.4f}). The temporal "
-                  f"structure is already captured by the neighbour count; "
-                  f"keep the four reported signals and say so.")
+            print(f"Held-out gain across {ci['stations']} stations: "
+                  f"mean {ci['mean']:+.4f}, median {ci['median']:+.4f}, "
+                  f"t = {ci['t']}, bootstrap 95% CI "
+                  f"[{ci['ci_low']:+.4f}, {ci['ci_high']:+.4f}], "
+                  f"{ci['improved']}/{ci['stations']} improved.")
+            print(f"Setting aside the two largest contributors leaves "
+                  f"{ci['mean_without_top2']:+.4f}.")
+            print()
+            if ci["ci_low"] > 0 and (ci["mean_without_top2"] or 0) > 0.005:
+                print(f"VERDICT: report it. The interval clears zero and the "
+                      f"gain is not carried by a couple of stations.")
+            elif ci["ci_low"] > 0:
+                print(f"VERDICT: the interval clears zero but the gain is "
+                      f"concentrated in two stations "
+                      f"({ci['mean_without_top2']:+.4f} without them). Report "
+                      f"as a per-station observation, not as a method change.")
+            else:
+                print(f"VERDICT: do not add these signals. The interval "
+                      f"includes zero, so the mean gain of {ci['mean']:+.4f} "
+                      f"is not distinguishable from no gain. The count of "
+                      f"stations that improved is not evidence on its own when "
+                      f"the improvements are this small. Report the negative "
+                      f"result: the neighbour count already carries the "
+                      f"temporal structure these features measure.")
 
     print(f"\nWrote rank_signals_*.csv to {out_dir}/")
 

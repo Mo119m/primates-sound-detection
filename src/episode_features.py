@@ -26,22 +26,29 @@ import pandas as pd
 # The gap that separates two listening episodes, matching cleanup_eval.episodes.
 DEFAULT_GAP_S = 300.0
 
-#: Derived columns and the direction that *should* mean "more likely genuine",
-#: as a hypothesis to be tested rather than a setting to be trusted. See the
-#: module docstring: these are candidates, not part of the reported ranking.
+#: Derived columns and the direction that means "more likely genuine".
+#:
+#: These directions are *measured*, not assumed, and two of them came out the
+#: opposite way from the obvious guess. The guess was that a dense run of
+#: detections is a running intruder, so a large or tightly spaced episode should
+#: be suspicious. Across the field review the reverse holds: larger episodes and
+#: shorter internal spacing both mean *more* likely genuine, because
+#: bout-calling primates cluster tightly and that dominates at fourteen of
+#: sixteen stations. The guess is right only at a station an untrained species
+#: has overrun, where the sign reverses -- which is why no single direction can
+#: serve both cases, and part of why these features do not survive as additions
+#: to the reported ranking (see scripts/rank_signals_experiment.py).
 CANDIDATE_SIGNALS = {
-    # A dense machine-gun run is more like a running intruder than a bout.
-    "episode_rate": False,
-    # ... and the same thing read as spacing rather than density.
-    "episode_mean_gap_s": True,
+    # Measured: bigger bouts are more likely to be genuine calls.
+    "episode_size": True,
+    # ... and so is tighter spacing inside the bout.
+    "episode_mean_gap_s": False,
+    "episode_rate": True,
+    "episode_span_s": True,
     # A genuinely isolated detection contradicts bout-calling.
     "gap_to_nearest_s": False,
-    # Direction unclear in advance -- primates cluster as well.
-    "episode_size": False,
-    "episode_span_s": False,
-    # Where in its own run the detection sits; the middle of a long run is the
-    # least informative place for a reviewer to start.
-    "episode_position": False,
+    # Where in its own run the detection sits.
+    "episode_position": True,
 }
 
 
