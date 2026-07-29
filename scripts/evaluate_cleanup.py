@@ -109,6 +109,14 @@ def main():
         print(ec.to_string())
         ec.to_csv(os.path.join(out_dir, "cleanup_eval_effort_curve.csv"))
 
+    ee = cleanup_eval.episode_effort(matched)
+    if len(ee):
+        print("\nReviewing by episode rather than by clip. Detections of one")
+        print("species close together in a recording are one listening decision;")
+        print("an episode that is all false positives is dismissed in one go:")
+        print(ee.to_string())
+        ee.to_csv(os.path.join(out_dir, "cleanup_eval_episodes.csv"))
+
     rs = cleanup_eval.ranking_signal_comparison(matched)
     if len(rs):
         print("\nIs the combined ordering worth more than each signal alone?")

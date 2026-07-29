@@ -747,3 +747,46 @@ def test_ceiling_separates_a_good_ranking_from_an_easy_station():
     assert row["of_ceiling"] == 1.0
     # and a perfect ordering scores well above an arbitrary one
     assert row["avg_precision"] > row["ap_if_random"]
+
+
+def test_episodes_collapse_a_running_intruder_but_not_scattered_calls():
+    """A non-target sound that runs on becomes one listening decision, while
+    calls spread through a recording stay separate ones."""
+    rows, clean = [], []
+    cols = ["species", "source_file", "start_time", "flag_mahal", "flag_yamnet",
+            "flag_isolated", "yamnet_top", "yamnet_score", "mahalanobis_d2",
+            "n_neighbours"]
+    # invaded station: 50 false positives every 10 s, one continuous stretch
+    for i in range(50):
+        s = 100 + i * 10
+        rows.append((f"Cernic__recX__{s:05d}s__conf0.9.wav", "Noise", "IPA4ST"))
+        clean.append(("Cernic", "recX.wav", float(s), False, False, False,
+                      "Insect", 0.3, 100.0, 5))
+    # ordinary station: 5 genuine calls, hours apart
+    for i in range(5):
+        s = 1000 + i * 3600
+        rows.append((f"Cernic__recY__{s:05d}s__conf0.9.wav", "", "IPA1ST"))
+        clean.append(("Cernic", "recY.wav", float(s), False, False, False,
+                      "Animal", 0.3, 100.0, 5))
+
+    d = tempfile.mkdtemp()
+    with open(os.path.join(d, "review.csv"), "w") as f:
+        f.write('"INDIR","IN FILE","MANUAL ID"\n')
+        for fname, mid, site in rows:
+            f.write(f'"/x/Cernic/{site}","{fname}","{mid}"\n')
+    cd = tempfile.mkdtemp()
+    pd.DataFrame(clean, columns=cols).to_csv(
+        os.path.join(cd, "clean_detections.csv"), index=False)
+    pd.DataFrame([], columns=cols).to_csv(
+        os.path.join(cd, "suspicious_detections.csv"), index=False)
+
+    matched, _ = cleanup_eval.run(d, cd)
+    ee = cleanup_eval.episode_effort(matched, gap_s=300.0)
+
+    # the running intruder collapses to a single episode, dismissed in one listen
+    assert ee.loc["IPA4ST", "episodes"] == 1
+    assert ee.loc["IPA4ST", "fps_dismissed_in_bulk"] == 50
+    assert ee.loc["IPA4ST", "listens_needed"] == 1
+    # the scattered calls do not collapse
+    assert ee.loc["IPA1ST", "episodes"] == 5
+    assert ee.loc["IPA1ST", "fps_dismissed_in_bulk"] == 0
