@@ -786,6 +786,16 @@ Second, one station dominates the totals, so results are reported both over all
 sixteen stations and over the fifteen excluding it; the reason for separating
 it is given below and does not depend on the labels.
 
+In summary, and in decreasing order of how much they are worth: grouping
+detections into listening episodes cuts the review from 6\,189 clips to 1\,529
+listens while discarding nothing; ordering the remainder by averaged
+within-station ranks reaches an average precision of 0.900 against 0.658 for an
+unordered review, recovering 90.3\,\% of the recoverable calls from half the
+clips; and discarding the flagged detections raises precision from 65.5\,\% to
+83.6\,\% over the fifteen stations (41.0\,\% to 46.6\,\% over all sixteen),
+keeping 91.3\,\% of genuine calls. Each is developed below, with the
+qualification that matters for the last of them.
+
 \paragraph{Counting review effort in listening episodes.}
 Treating each detection as a separate decision misstates what review costs. A
 non-target sound that runs for a stretch of a recording produces many
@@ -852,23 +862,33 @@ carry signal; a general-purpose audio tagger (YAMNet) was also tried and is
 disabled, because it labels putty-nosed calls with the same AudioSet classes as
 the surrounding forest noise and so flagged more genuine calls than false
 positives.
-Temporal isolation flags 13.4\,\% of false positives against 1.6\,\% of genuine
-calls, and the Mahalanobis distance 6.3\,\% against 3.2\,\%; the ratio of those
-two rates --- how much more often a filter fires on noise than on a call --- is
-8.5 and 2.0 respectively (Table~\ref{tab:ablation}). Applied leave-one-station-
-out, they raise precision from 41.0\,\% to 46.6\,\% across all sixteen
-stations, and from 65.5\,\% to 83.6\,\% across the fifteen, retaining 91.3\,\%
-of genuine calls while removing 66.0\,\% of false positives.
+Both are strongly selective for false positives. Temporal isolation flags
+32.8\,\% of false positives against 1.6\,\% of genuine calls across the fifteen
+stations, and the Mahalanobis distance 4.8\,\% against 3.2\,\%; the ratio of
+those two rates --- how much more often a filter fires on noise than on a call
+--- is 21.0 and 1.5 respectively. Pooled over all sixteen stations the same
+rates are 13.4\,\% against 1.6\,\% and 6.3\,\% against 3.2\,\% (lift 8.5 and
+2.0, Table~\ref{tab:ablation}); the difference is entirely the station discussed
+below, where the false positives are neither isolated in time nor distant in
+feature space. Applied leave-one-station-out, the two filters raise precision
+from 41.0\,\% to 46.6\,\% across all sixteen stations, and from 65.5\,\% to
+83.6\,\% across the fifteen, retaining 91.3\,\% of genuine calls while removing
+66.0\,\% of false positives. Accepting a 10\,\% loss of genuine calls instead of
+9\,\% reaches 83.4\,\% precision on those fifteen stations, and a 15\,\% loss
+reaches 86.6\,\%; the full retention-versus-precision trade-off is available
+from the evaluation script rather than fixed in advance.
 
-These filters are also worth comparing against the simplest alternative
-available, since the detector already scores every window: discarding the
-least confident detections until as many are gone as the filters would remove.
-Spending that same budget on confidence alone reaches 44.2\,\% precision
-against the filters' 45.0\,\%, a difference of well under one percentage
-point. Two filters requiring a feature extractor, a covariance estimate and a
-temporal scan therefore buy almost nothing over a sort on a number the detector
-already reports. This is the clearest argument for reading these signals as a
-review order, as above, rather than as a discard rule.
+These filters are worth comparing against the simplest alternative available,
+since the detector already scores every window: discarding the least confident
+detections until as many are gone as the filters would remove. Over all sixteen
+stations that comparison is nearly a tie --- 45.0\,\% for the filters against
+44.2\,\% for confidence alone, well under one percentage point. Over the fifteen
+the margin more than triples, to 73.9\,\% against 71.4\,\%. Both readings are
+worth keeping: the filters do capture false positives that model confidence
+alone does not, so they are not redundant, but a 2.5-point gain for a feature
+extractor, a covariance estimate and a temporal scan is a modest return, and it
+collapses at the one station that most needed help. The ordering above extracts
+considerably more from the same four signals than any cutoff on them does.
 
 Held-out evaluation was not a formality either. Tuned and scored on the same
 detections, a feature-space repetition measure reached 61.1\,\% precision;
@@ -877,27 +897,37 @@ evaluated leave-one-station-out the same measure scored 38.4\,\%, below the
 station whose cutoff happened to suit the others. Any cleanup threshold
 reported without held-out evaluation should be read with that in mind.
 
-\paragraph{The one station the per-clip signals cannot read.}
-IPA4ST is where every per-detection signal fails: the ordering scores 0.038
-there against an arbitrary-order baseline of 0.041, and the filters remove only
-its scattered detections. Listening to its false positives explains why. They
-are not diffuse background noise but the calls of another, non-target species
-abundant at that station and absent from the training data. This is the hardest
-case for the approach: the calls are numerous and acoustically consistent, so
-in feature space they form a dense cluster rather than scattered outliers,
-they occur in bouts rather than isolation, and the classifier is confident
-about them. Every signal used here is therefore blind to them by construction,
-and IPA4ST alone supplies 2\,370 of the 3\,654 false positives.
+\paragraph{The hardest case: a station overrun by an untrained species.}
+IPA4ST is the worst case this approach can meet, and it is worth setting out in
+full because it is the case a deployment is most likely to hit. Listening to its
+false positives identified them immediately: not diffuse background noise but
+the calls of another, non-target species abundant at that station and absent
+from the training data. Such detections are numerous and acoustically
+consistent, so in feature space they form a dense cluster rather than scattered
+outliers; they occur in bouts rather than in isolation; and the classifier is
+confident about them. Every \emph{per-detection} signal used here is therefore
+blind to them by construction, and the measurements confirm it: the ordering
+scores 0.038 at that station against an arbitrary-order baseline of 0.041, and
+the filters remove only its scattered detections. IPA4ST alone supplies 2\,370
+of the 3\,654 false positives.
 
-What no per-clip signal can read, the temporal structure gives away for free.
-The very property that defeats the filters --- the species calls in long,
-continuous bouts --- is what collapses those detections into 68 episodes, and
-the review costs 106 listens instead of 2\,470. The station also stands out
-before any listening at all, producing 11.1 times the median detection count
-where the next highest station produces 2.5 times; we suggest reading such an
-outlier as a reason to inspect a station, and the remedy as adding the
-intruding species to training, which is what the hard-negative loop already
-does.
+The review still costs almost nothing there, because what no per-clip signal
+can read, the temporal structure gives away for free. The very property that
+defeats the filters --- the species calls in long, continuous bouts --- is what
+collapses those 2\,470 detections into 68 episodes: \textbf{106 listens instead
+of 2\,470, a 95.7\,\% reduction, with 2\,368 of the station's 2\,370 false
+positives dismissed in bulk.} The hardest case for the filters is the easiest
+case for the episode rule, and for the same reason. This is the practical
+argument for organising a review around episodes rather than clips: it is
+strongest exactly where every per-clip signal is weakest.
+
+Two further observations make the case actionable rather than merely
+diagnosed. First, the station announces itself before any listening at all,
+producing 11.1 times the median detection count where the next highest station
+produces 2.5 times; such an outlier is a reason to inspect a station. Second,
+the proper remedy is not a cleverer filter but adding the intruding species to
+training, which is exactly what the hard-negative loop of \S\,Iterative
+hard-negative mining does.
 
 We did try to build an automatic triage that would apply a cluster-removal rule
 only at such stations, and it cannot be justified on these data: the dense group
@@ -911,21 +941,31 @@ and long episodes are cheap, whether or not anyone has classified the station.
 
 \begin{table}[H]
 \centering
-\caption{Cleanup filter ablation on the 6\,189 manually reviewed
-\textit{Cercopithecus nictitans} detections (2\,535 genuine calls, 3\,654 false
-positives). Every subset is derived from the per-detection flags of a single
-run; precision is in-sample here, with the leave-one-station-out figures given
-in the text. ``Reviewed after'' is the number of clips a human would still need
-to check.}
+\caption{Cleanup filter ablation on the manually reviewed
+\textit{Cercopithecus nictitans} detections. Every subset is derived from the
+per-detection flags of a single run; precision is in-sample here, with the
+leave-one-station-out figures given in the text. The upper panel covers all
+sixteen stations (6\,189 detections, 2\,535 genuine calls); the lower panel
+excludes IPA4ST (3\,719 detections, 2\,435 genuine calls), where the false
+positives are the calls of an untrained species and are invisible to both
+filters. The two filters retain the same 95.3\,\% of genuine calls in either
+case; what changes is how many false positives they reach.}
 \label{tab:ablation}
 \begin{tabular}{lrrrr}
 \toprule
 Filter set & Calls kept & Calls lost & False pos.\ removed & Precision (\%) \\
 \midrule
+\multicolumn{5}{@{}l}{\textit{All sixteen stations} (41.0\,\% before cleanup)} \\
 Mahalanobis + temporal isolation & 2415 & 120 & 697 & \textbf{45.0} \\
 Temporal isolation only          & 2495 &  40 & 490 & 44.1 \\
 Mahalanobis only                 & 2454 &  81 & 229 & 41.7 \\
 No cleanup                       & 2535 &   0 &   0 & 41.0 \\
+\midrule
+\multicolumn{5}{@{}l}{\textit{Excluding IPA4ST} (65.5\,\% before cleanup)} \\
+Mahalanobis + temporal isolation & 2320 & 115 & 465 & \textbf{73.9} \\
+Temporal isolation only          & 2397 &  38 & 421 & 73.5 \\
+Mahalanobis only                 & 2357 &  78 &  61 & 65.8 \\
+No cleanup                       & 2435 &   0 &   0 & 65.5 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1041,6 +1081,13 @@ on weak or short calls: on the validation set Cernic recall is 96.1\,\%, with
 the misclassified clips (mostly brief hacks and pyows in loud ambient noise)
 split between the confuser class and Background, and the fixed 2\,s analysis
 window can truncate or split long vocalizations such as \textit{Colobus} roars.
+Recall in the field is not measured here and should not be read off the
+validation figure. The manual review covered the exported detections, not the
+continuous recordings, so it establishes how many detections were genuine but
+cannot establish how many genuine calls the detector passed over; quantifying
+that would require exhaustively annotating a sample of continuous audio, which
+we did not do. Every field number reported above is therefore a statement about
+precision and about review effort, not about detection completeness.
 Re-targeting the pipeline to a new species requires curated reference clips and
 edits to the configuration, and performance on rare or quiet calls with few
 reference examples is not guaranteed. The method also yields detections rather
