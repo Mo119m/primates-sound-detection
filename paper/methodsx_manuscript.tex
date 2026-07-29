@@ -68,21 +68,21 @@ conservation-significance framing]}, but it produces thousands of hours of
 audio that cannot be annotated by hand. The obstacle is precision: a classifier
 trained on curated clips also fires on untrained forest sounds, so every
 detection must be checked by ear. We detect \textit{Cercopithecus nictitans}
-and \textit{Colobus guereza} in long recordings from Makokou, Gabon.
-Mel-spectrograms are classified by a VGG19 transfer-learning model whose
-frequency-position-aware convolutional recurrent neural network (CRNN) head
+and \textit{Colobus guereza} at Makokou, Gabon. Mel-spectrograms are classified
+by a VGG19 transfer-learning model whose frequency-position-aware CRNN head
 keeps forest birds and insects from being mistaken for the target, reaching
-98\% validation accuracy with zero confusion between the species. Sliding-window
-detection is followed by a cleanup measured against a review of every field
-detection, each cutoff chosen on stations it was not scored on. It proves most
-useful not as a filter but as a review order, recovering 90\% of the calls any
-order could from half the clips, with no fitted parameter.
+98\% validation accuracy with zero confusion between the species. A cleanup,
+measured against a review of every field detection, proves most useful not as a
+filter but as a way to organise listening: counting a run of detections as the
+single decision a reviewer makes cuts the review to a quarter of the clips
+while discarding nothing, and ordering what remains recovers 90\% of the calls
+any order could from half.
 
 \begin{itemize}
 \item A VGG19 transfer-learning model with a frequency-position-aware CRNN
 head, hardened against forest-noise false positives.
-\item A cleanup that orders detections for review instead of discarding them,
-with every filter measured against a full manual review.
+\item A cleanup that groups and orders detections for review instead of
+discarding them, measured against a review of every field detection.
 \item A complete, reusable pipeline that recycles confirmed errors into
 retraining and re-targets to new species by swapping in reference clips.
 \end{itemize}
@@ -783,6 +783,33 @@ evaluated leave-one-station-out the same measure scored 38.4\,\%, below the
 station whose cutoff happened to suit the others. Any cleanup threshold
 reported without held-out evaluation should be read with that in mind.
 
+\paragraph{Counting review effort in listening episodes.}
+Treating each detection as a separate decision misstates what review costs. A
+non-target sound that runs for a stretch of a recording produces many
+detections that a reviewer settles together: hearing one is enough to dismiss
+the stretch. Grouping detections of one species in one recording that fall
+within five minutes of each other gives 722 episodes over the 6\,189
+detections, 8.6 detections apiece. Of the 3\,654 false positives, 3\,488
+(95.5\,\%) fall in episodes containing no genuine call at all, and each such
+episode costs one listen however many detections it holds. Counting a pure
+episode as one decision and a mixed one as its individual clips, the full
+review is 1\,529 listens rather than 6\,189 --- 24.7\,\% of the per-clip effort,
+with no detection discarded and no threshold anywhere.
+
+This is what resolves the station the filters could not touch. IPA4ST's
+detections are not spread through its recordings but concentrated: 36.3 per
+episode against roughly six elsewhere, because the intruding species calls in
+long bouts. Its 2\,470 detections form 68 episodes and cost 106 listens, 4.3\,\%
+of reviewing them one by one, and 2\,368 of its 2\,370 false positives are
+dismissed in bulk. Across the other fifteen stations the same rule gives 1\,423
+listens for 3\,719 detections.
+
+The two cases separate themselves. A station carrying a running intruder
+collapses into few, long episodes because that is what a running intruder is; a
+station whose genuine calls are spread through the recordings does not. No
+triage step decides which station is which, and none is needed --- which is
+fortunate, because we could not build one that worked (see below).
+
 \paragraph{Ranking the detections rather than filtering them.}
 Every cutoff we tried transferred poorly between stations, because these
 signals are not on a common scale across sites. An ordering does not need them
@@ -796,6 +823,10 @@ site.
 Reviewed in that order, the ordering reaches a mean average precision of 0.900
 across the fifteen stations, against 0.658 for an arbitrary order, and exceeds
 the arbitrary-order baseline at every one of them (Table~\ref{tab:ranking}).
+Unlike the filters, the combination earns its complexity: over all sixteen
+stations it scores 0.846 against 0.815 for the best single signal (the
+neighbour count), 0.801 for detector confidence, 0.797 for the class margin and
+0.782 for the Mahalanobis distance.
 The gain is largest exactly where it is most needed: at the two stations with
 the worst raw precision the ordering scores 3.4 and 2.0 times the arbitrary
 baseline. Read as review effort, listening to half the exported clips per
@@ -810,8 +841,8 @@ A filter is an ordering plus a cutoff chosen in advance by someone who cannot
 know the reviewer's budget; reporting the ordering leaves that choice where it
 belongs, and is measurable without any tuning to argue about.
 
-\paragraph{Where the cleanup fails, and why.}
-IPA4ST is the one station where none of this works: the ordering scores 0.038
+\paragraph{The one station the per-clip signals cannot read.}
+IPA4ST is where every per-detection signal fails: the ordering scores 0.038
 there against an arbitrary-order baseline of 0.041, and the filters remove only
 its scattered detections. Listening to its false positives explains why. They
 are not diffuse background noise but the calls of another, non-target species
@@ -822,18 +853,25 @@ they occur in bouts rather than isolation, and the classifier is confident
 about them. Every signal used here is therefore blind to them by construction,
 and IPA4ST alone supplies 2\,370 of the 3\,654 false positives.
 
-The station is identifiable before any listening: it produced 2\,470
-detections, 11.1 times the median across stations, where the next highest
-produced 2.5 times the median. We suggest treating such an outlier as a signal
-to inspect a station rather than as something to filter --- the remedy is to
-add the intruding species to training, which is what the hard-negative loop
-already does, not to tune a filter against it. We did attempt an automatic
-triage that would apply a cluster-removal rule only at invaded stations, but it
-cannot be justified on these data: the dense group it looks for is separated
-from the rest of its station by a factor of only 1.08 at IPA4ST, the smallest
-separation of any station, because the intruding species constitutes 82\,\% of
-that station's detections and so forms the bulk of its distribution rather than
-a group standing apart from it.
+What no per-clip signal can read, the temporal structure gives away for free.
+The very property that defeats the filters --- the species calls in long,
+continuous bouts --- is what collapses those detections into 68 episodes, and
+the review costs 106 listens instead of 2\,470. The station also stands out
+before any listening at all, producing 11.1 times the median detection count
+where the next highest station produces 2.5 times; we suggest reading such an
+outlier as a reason to inspect a station, and the remedy as adding the
+intruding species to training, which is what the hard-negative loop already
+does.
+
+We did try to build an automatic triage that would apply a cluster-removal rule
+only at such stations, and it cannot be justified on these data: the dense group
+it looks for is separated from the rest of its station by a factor of only 1.08
+at IPA4ST, the smallest separation of any station, because the intruding
+species constitutes 82\,\% of that station's detections and so forms the bulk
+of its distribution rather than a group standing apart from it. Any threshold
+selecting IPA4ST selects all fifteen others first. That the episode rule needs
+no such triage is the more useful result: a running intruder is long episodes,
+and long episodes are cheap, whether or not anyone has classified the station.
 
 \begin{table}[H]
 \centering
