@@ -76,6 +76,25 @@ def test_exclude_station_restricts_the_numbers():
     assert set(sub["site"].unique()) == {"IPA1ST"}
 
 
+def test_exclude_station_also_restricts_the_secondary_tables():
+    """The confusion table and the per-species table are built from the
+    evaluation dict, not from `matched`, so they have to be recomputed after the
+    exclusion -- otherwise they silently keep reporting all stations."""
+    rev, cln = _two_station_case()
+    out = _run("--review", rev, "--cleanup", cln,
+               "--exclude-station", "IPA4ST")
+
+    # IPA1ST holds 2 calls and 0 false positives; the excluded station held all
+    # 4 false positives. A stale table would still show them.
+    conf = out.split("Manual verdict x cleanup verdict:")[1].split("Per species")[0]
+    assert "4" not in conf, f"confusion table still reports excluded rows:\n{conf}"
+
+    per_sp = pd.read_csv(os.path.join(cln, "excluding_IPA4ST",
+                                      "cleanup_eval_per_species.csv"))
+    assert int(per_sp["detections"].iloc[0]) == 2
+    assert int(per_sp["false_positives"].iloc[0]) == 0
+
+
 def test_exclude_station_does_not_clobber_the_full_run():
     rev, cln = _two_station_case()
     _run("--review", rev, "--cleanup", cln)
