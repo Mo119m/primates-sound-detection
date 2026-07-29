@@ -550,6 +550,18 @@ No weights are fitted and no cutoff is chosen --- the reviewer simply stops when
 their budget runs out, and the ordering is reported as an average precision,
 which summarises every possible stopping point at once.
 
+\paragraph{What the reviewer receives}
+Both steps are label-free, so the pipeline emits them directly rather than
+leaving them to a later analysis: the cleanup writes a review queue over
+\emph{all} detections, before the clean/suspicious split, holding one row per
+detection in the order described above and one row per episode marked as the
+clip to listen to first. It is written in the column layout of the annotation
+software used here (Kaleidoscope Pro) with the manual-identification field left
+blank, so a reviewer works down the file and fills it in. Reading the queue
+top-down does two things at once: genuine calls surface early, and the long runs
+of non-target sound collect at the end, where each is met as a block and settled
+in one listen.
+
 \subsection*{Iterative hard-negative mining}
 
 The exported strong false positives are the sounds the detector most needs to
