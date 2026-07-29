@@ -100,6 +100,21 @@ def main():
         pf.to_csv(os.path.join(out_dir, "cleanup_eval_per_filter.csv"))
     print(f"\nWrote cleanup_vs_review.csv to {out_dir}/")
 
+    ec = cleanup_eval.effort_curve(matched)
+    if len(ec):
+        print("\nReview effort: detections ordered most-likely-genuine first,")
+        print("using only within-station ranks, so nothing is fitted and no")
+        print("cutoff has to carry between stations. 'random' is what the same")
+        print("amount of listening recovers in arbitrary order:")
+        print(ec.to_string())
+        ec.to_csv(os.path.join(out_dir, "cleanup_eval_effort_curve.csv"))
+
+    eb = cleanup_eval.effort_curve_by_station(matched, fraction=0.5)
+    if len(eb):
+        print("\nSame ordering, per station, at a half-the-clips budget:")
+        print(eb.to_string())
+        eb.to_csv(os.path.join(out_dir, "cleanup_eval_effort_by_station.csv"))
+
     op = cleanup_eval.operating_points(matched)
     if len(op):
         print("\nBest precision reachable at each level of call retention")

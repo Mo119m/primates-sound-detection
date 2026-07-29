@@ -458,6 +458,117 @@ CANDIDATE_SIGNALS = (
 )
 
 
+# Direction each signal points: True when a LARGER value means more likely to
+# be a genuine call.
+RANKING_SIGNALS = {
+    "confidence": True,          # detector's own score
+    "softmax_margin": True,      # runner-up class further behind
+    "n_neighbours": True,        # part of a calling bout
+    "mahalanobis_d2": False,     # far from the training distribution
+}
+
+
+def _within_station_rank(values, higher_is_better, sites):
+    """Percentile rank of each value inside its own station."""
+    v = pd.to_numeric(values, errors="coerce")
+    if not higher_is_better:
+        v = -v
+    return v.groupby(sites).rank(pct=True, na_option="bottom")
+
+
+def review_ranking(matched_df, signals=None, site_col=None):
+    """
+    Order detections most-likely-genuine first, without any threshold.
+
+    Every cutoff tried here failed to carry from one station to another,
+    because the signals are not on a common scale across sites. An ordering
+    does not need them to be: each signal is turned into a percentile rank
+    *within its own station*, and the ranks are averaged. Nothing is fitted --
+    no cutoff, no weights -- so there is no parameter that could fail to
+    transfer, and the result is a review order rather than a verdict.
+    """
+    df = matched_df[matched_df["cleanup"].notna()].copy()
+    if not len(df):
+        return pd.Series(dtype=float)
+    site_col = site_col or ("site" if "site" in df.columns else "station")
+    sites = df[site_col] if site_col in df.columns else pd.Series("", index=df.index)
+
+    signals = signals or {c: d for c, d in RANKING_SIGNALS.items()
+                          if c in df.columns
+                          and pd.to_numeric(df[c], errors="coerce").notna().any()}
+    if not signals:
+        return pd.Series(dtype=float)
+
+    ranks = [_within_station_rank(df[c], higher, sites) for c, higher in signals.items()]
+    return sum(ranks) / len(ranks)
+
+
+def effort_curve(matched_df, signals=None, fractions=(0.1, 0.25, 0.5, 0.75, 0.9),
+                 site_col=None):
+    """
+    How many genuine calls a reviewer recovers for a given amount of listening.
+
+    Reviewing in the order above and stopping early is what a filter is really
+    for: a filter is just an ordering plus a cutoff someone else chose. Read
+    off the row for however much listening is affordable. ``random`` is the
+    share recovered by reviewing that fraction in arbitrary order, which is the
+    honest thing to beat.
+    """
+    df = matched_df[matched_df["cleanup"].notna()].copy()
+    score = review_ranking(df, signals=signals, site_col=site_col)
+    if not len(score):
+        return pd.DataFrame()
+
+    df = df.assign(_score=score).sort_values("_score", ascending=False,
+                                             kind="stable")
+    is_call = (df["verdict"] == "call").to_numpy()
+    total_calls = int(is_call.sum())
+    n = len(df)
+    cumulative = is_call.cumsum()
+
+    rows = {}
+    for f in fractions:
+        k = max(1, int(round(f * n)))
+        found = int(cumulative[k - 1])
+        rows[f"review {f:.0%} of clips"] = {
+            "clips_reviewed": k,
+            "calls_found": found,
+            "recall": round(found / total_calls, 4) if total_calls else None,
+            "precision_in_batch": round(found / k, 4),
+            "random": round(f, 4),
+        }
+    return pd.DataFrame(rows).T
+
+
+def effort_curve_by_station(matched_df, signals=None, fraction=0.5, site_col=None):
+    """Per-station recall at a fixed review budget, so one site cannot hide the rest."""
+    df = matched_df[matched_df["cleanup"].notna()].copy()
+    site_col = site_col or ("site" if "site" in df.columns else "station")
+    if site_col not in df.columns:
+        return pd.DataFrame()
+    score = review_ranking(df, signals=signals, site_col=site_col)
+    if not len(score):
+        return pd.DataFrame()
+    df = df.assign(_score=score)
+
+    rows = {}
+    for site, sub in df.groupby(site_col, sort=True):
+        sub = sub.sort_values("_score", ascending=False, kind="stable")
+        is_call = (sub["verdict"] == "call").to_numpy()
+        total = int(is_call.sum())
+        k = max(1, int(round(fraction * len(sub))))
+        found = int(is_call.cumsum()[k - 1])
+        rows[site] = {
+            "detections": len(sub),
+            "calls": total,
+            "clips_reviewed": k,
+            "calls_found": found,
+            "recall": round(found / total, 4) if total else None,
+            "random": round(fraction, 4),
+        }
+    return pd.DataFrame(rows).T
+
+
 def operating_points(matched_df, retention_levels=(0.99, 0.97, 0.95, 0.90, 0.85),
                      n_steps=12, max_signals=2):
     """
