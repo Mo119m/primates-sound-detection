@@ -704,3 +704,46 @@ def test_ranking_needs_no_threshold_to_transfer_between_stations():
     # stations sharing no common confidence scale
     assert ec.loc["review 50% of clips", "recall"] == 1.0
     assert ec.loc["review 50% of clips", "random"] == 0.5
+
+
+def test_ceiling_separates_a_good_ranking_from_an_easy_station():
+    """Where nearly every detection is genuine, recall at half the clips is
+    capped near half by arithmetic alone. Scoring against that ceiling shows a
+    perfect ordering as perfect instead of as barely beating chance."""
+    rows, clean = [], []
+    cols = ["species", "source_file", "start_time", "flag_mahal", "flag_yamnet",
+            "flag_isolated", "yamnet_top", "yamnet_score", "mahalanobis_d2",
+            "n_neighbours"]
+    # 18 genuine calls, 2 false positives, and confidence orders them perfectly
+    for i in range(20):
+        genuine = i >= 2
+        conf = 0.50 + i * 0.01
+        rows.append((f"Cernic__recA__{i:05d}s__conf{conf:.2f}.wav",
+                     "" if genuine else "Noise", "IPA20ST"))
+        clean.append(("Cernic", "recA.wav", float(i), False, False, False,
+                      "Animal", 0.3, 100.0, 5))
+
+    d = tempfile.mkdtemp()
+    with open(os.path.join(d, "review.csv"), "w") as f:
+        f.write('"INDIR","IN FILE","MANUAL ID"\n')
+        for fname, mid, site in rows:
+            f.write(f'"/x/Cernic/{site}","{fname}","{mid}"\n')
+    cd = tempfile.mkdtemp()
+    pd.DataFrame(clean, columns=cols).to_csv(
+        os.path.join(cd, "clean_detections.csv"), index=False)
+    pd.DataFrame([], columns=cols).to_csv(
+        os.path.join(cd, "suspicious_detections.csv"), index=False)
+
+    matched, _ = cleanup_eval.run(d, cd)
+    eb = cleanup_eval.effort_curve_by_station(
+        matched, signals={"confidence": True}, fraction=0.5)
+    row = eb.loc["IPA20ST"]
+
+    # raw recall looks unimpressive: 10 of 18 calls
+    assert row["calls_found"] == 10
+    assert abs(row["recall"] - 10 / 18) < 1e-6
+    # against what 10 clips could possibly contain, the ordering is perfect
+    assert row["ceiling_calls"] == 10
+    assert row["of_ceiling"] == 1.0
+    # and a perfect ordering scores well above an arbitrary one
+    assert row["avg_precision"] > row["ap_if_random"]
