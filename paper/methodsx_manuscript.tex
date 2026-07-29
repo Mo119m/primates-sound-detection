@@ -786,6 +786,16 @@ Second, one station dominates the totals, so results are reported both over all
 sixteen stations and over the fifteen excluding it; the reason for separating
 it is given below and does not depend on the labels.
 
+In summary, and in decreasing order of how much they are worth: grouping
+detections into listening episodes cuts the review from 6\,189 clips to 1\,529
+listens while discarding nothing; ordering the remainder by averaged
+within-station ranks reaches an average precision of 0.900 against 0.658 for an
+unordered review, recovering 90.3\,\% of the recoverable calls from half the
+clips; and discarding the flagged detections raises precision from 65.5\,\% to
+83.6\,\% over the fifteen stations (41.0\,\% to 46.6\,\% over all sixteen),
+keeping 91.3\,\% of genuine calls. Each is developed below, with the
+qualification that matters for the last of them.
+
 \paragraph{Counting review effort in listening episodes.}
 Treating each detection as a separate decision misstates what review costs. A
 non-target sound that runs for a stretch of a recording produces many
@@ -877,27 +887,37 @@ evaluated leave-one-station-out the same measure scored 38.4\,\%, below the
 station whose cutoff happened to suit the others. Any cleanup threshold
 reported without held-out evaluation should be read with that in mind.
 
-\paragraph{The one station the per-clip signals cannot read.}
-IPA4ST is where every per-detection signal fails: the ordering scores 0.038
-there against an arbitrary-order baseline of 0.041, and the filters remove only
-its scattered detections. Listening to its false positives explains why. They
-are not diffuse background noise but the calls of another, non-target species
-abundant at that station and absent from the training data. This is the hardest
-case for the approach: the calls are numerous and acoustically consistent, so
-in feature space they form a dense cluster rather than scattered outliers,
-they occur in bouts rather than isolation, and the classifier is confident
-about them. Every signal used here is therefore blind to them by construction,
-and IPA4ST alone supplies 2\,370 of the 3\,654 false positives.
+\paragraph{The hardest case: a station overrun by an untrained species.}
+IPA4ST is the worst case this approach can meet, and it is worth setting out in
+full because it is the case a deployment is most likely to hit. Listening to its
+false positives identified them immediately: not diffuse background noise but
+the calls of another, non-target species abundant at that station and absent
+from the training data. Such detections are numerous and acoustically
+consistent, so in feature space they form a dense cluster rather than scattered
+outliers; they occur in bouts rather than in isolation; and the classifier is
+confident about them. Every \emph{per-detection} signal used here is therefore
+blind to them by construction, and the measurements confirm it: the ordering
+scores 0.038 at that station against an arbitrary-order baseline of 0.041, and
+the filters remove only its scattered detections. IPA4ST alone supplies 2\,370
+of the 3\,654 false positives.
 
-What no per-clip signal can read, the temporal structure gives away for free.
-The very property that defeats the filters --- the species calls in long,
-continuous bouts --- is what collapses those detections into 68 episodes, and
-the review costs 106 listens instead of 2\,470. The station also stands out
-before any listening at all, producing 11.1 times the median detection count
-where the next highest station produces 2.5 times; we suggest reading such an
-outlier as a reason to inspect a station, and the remedy as adding the
-intruding species to training, which is what the hard-negative loop already
-does.
+The review still costs almost nothing there, because what no per-clip signal
+can read, the temporal structure gives away for free. The very property that
+defeats the filters --- the species calls in long, continuous bouts --- is what
+collapses those 2\,470 detections into 68 episodes: \textbf{106 listens instead
+of 2\,470, a 95.7\,\% reduction, with 2\,368 of the station's 2\,370 false
+positives dismissed in bulk.} The hardest case for the filters is the easiest
+case for the episode rule, and for the same reason. This is the practical
+argument for organising a review around episodes rather than clips: it is
+strongest exactly where every per-clip signal is weakest.
+
+Two further observations make the case actionable rather than merely
+diagnosed. First, the station announces itself before any listening at all,
+producing 11.1 times the median detection count where the next highest station
+produces 2.5 times; such an outlier is a reason to inspect a station. Second,
+the proper remedy is not a cleverer filter but adding the intruding species to
+training, which is exactly what the hard-negative loop of \S\,Iterative
+hard-negative mining does.
 
 We did try to build an automatic triage that would apply a cluster-removal rule
 only at such stations, and it cannot be justified on these data: the dense group
@@ -1041,6 +1061,13 @@ on weak or short calls: on the validation set Cernic recall is 96.1\,\%, with
 the misclassified clips (mostly brief hacks and pyows in loud ambient noise)
 split between the confuser class and Background, and the fixed 2\,s analysis
 window can truncate or split long vocalizations such as \textit{Colobus} roars.
+Recall in the field is not measured here and should not be read off the
+validation figure. The manual review covered the exported detections, not the
+continuous recordings, so it establishes how many detections were genuine but
+cannot establish how many genuine calls the detector passed over; quantifying
+that would require exhaustively annotating a sample of continuous audio, which
+we did not do. Every field number reported above is therefore a statement about
+precision and about review effort, not about detection completeness.
 Re-targeting the pipeline to a new species requires curated reference clips and
 edits to the configuration, and performance on rare or quiet calls with few
 reference examples is not guaranteed. The method also yields detections rather
