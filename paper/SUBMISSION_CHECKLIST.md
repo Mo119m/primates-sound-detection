@@ -94,6 +94,12 @@ as they are done. (This file is a working note, not part of the manuscript.)
       size alone reaches 0.827 average precision against 0.845 for detector
       confidence). Reproduce with `python scripts/rank_signals_experiment.py`.
 
+- [ ] **If the model is retrained** — the Limitations paragraph on circular bias
+      ("hard negatives are scored by the same model that produced them") should be
+      revised: `scripts/mine_hard_negatives.py` mines from the manual review
+      instead, which removes the circularity. Also update the field numbers, and
+      report the gate's held-out-station result rather than a pooled one.
+
 ## Decisions already settled (for reference)
 - Title, abstract (197 words), keywords (7), Specifications table — done.
 - Graphical abstract: separate file only, not embedded in the body — done.
