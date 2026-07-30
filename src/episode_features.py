@@ -51,6 +51,20 @@ CANDIDATE_SIGNALS = {
     "episode_position": True,
 }
 
+#: The same idea at the scale of a single vocalization rather than a bout.
+#:
+#: These are separate from the episode features above because they measure
+#: something different: an episode is a run of activity minutes long, an event is
+#: one call a few seconds long (see :mod:`call_events`). The field review makes
+#: the case for testing them -- 61 % of false-positive events are a single
+#: window against 20 % of genuine ones, so how many consecutive windows saw a
+#: sound separates the two far better at this scale than at the episode scale.
+EVENT_CANDIDATE_SIGNALS = {
+    "event_windows": True,      # a call long enough to be seen twice is likelier real
+    "event_duration_s": True,
+    "event_position": True,
+}
+
 
 def _site_col(df, site_col=None):
     if site_col:
@@ -161,8 +175,57 @@ def _gap_to_nearest(det_df, site_col=None):
     return out
 
 
-def available_candidates(det_df):
-    """The subset of CANDIDATE_SIGNALS present and numeric in ``det_df``."""
-    return {c: d for c, d in CANDIDATE_SIGNALS.items()
-            if c in det_df.columns
-            and pd.to_numeric(det_df[c], errors="coerce").notna().any()}
+def add_event_features(det_df, max_gap_s=None, site_col=None, window_s=2.0):
+    """
+    Add per-detection features describing the call event the detection sits in.
+
+    An event is a run of windows that overlap or touch -- one vocalization -- as
+    opposed to an episode, which is a run of activity minutes long. Adds
+    ``event`` plus every key of :data:`EVENT_CANDIDATE_SIGNALS`.
+    """
+    try:
+        from . import call_events
+    except ImportError:
+        import call_events
+
+    gap = call_events.DEFAULT_MAX_GAP_S if max_gap_s is None else max_gap_s
+    df = call_events.assign_events(det_df, max_gap_s=gap, site_col=site_col)
+    if "event" not in df.columns or not len(df) or "start_s" not in df.columns:
+        return df
+
+    start = pd.to_numeric(df["start_s"], errors="coerce")
+    grp = start.groupby(df["event"])
+    size = grp.transform("size").astype(float)
+    span = (grp.transform("max") - grp.transform("min")).astype(float)
+
+    df["event_windows"] = size
+    df["event_duration_s"] = span + float(window_s)
+    df["event_position"] = np.where(span > 0,
+                                    (start - grp.transform("min")) / span, 0.0)
+    return df
+
+
+def add_all_features(det_df, gap_s=DEFAULT_GAP_S, site_col=None, window_s=2.0):
+    """Both scales at once: episode features and call-event features."""
+    df = add_episode_features(det_df, gap_s=gap_s, site_col=site_col)
+    return add_event_features(df, site_col=site_col, window_s=window_s)
+
+
+def available_candidates(det_df, include_events=True):
+    """The candidate signals present and numeric in ``det_df``.
+
+    A constant column is excluded as well as an absent one: a feature with the
+    same value everywhere carries no ordering, and including it would only add a
+    tied rank to the average.
+    """
+    pool = dict(CANDIDATE_SIGNALS)
+    if include_events:
+        pool.update(EVENT_CANDIDATE_SIGNALS)
+    out = {}
+    for c, d in pool.items():
+        if c not in det_df.columns:
+            continue
+        v = pd.to_numeric(det_df[c], errors="coerce")
+        if v.notna().any() and v.nunique(dropna=True) > 1:
+            out[c] = d
+    return out

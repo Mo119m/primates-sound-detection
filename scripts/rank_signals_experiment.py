@@ -227,7 +227,7 @@ def main():
     if "cleanup" not in matched.columns:
         matched["cleanup"] = "clean"
 
-    matched = episode_features.add_episode_features(
+    matched = episode_features.add_all_features(
         matched, gap_s=args.gap_s, site_col=site_col)
     cands = episode_features.available_candidates(matched)
     if not cands:
@@ -240,7 +240,12 @@ def main():
     print(f"Reported signals in this table : {', '.join(base) or '(none)'}")
     print(f"Candidate temporal signals     : {', '.join(cands)}")
     print(f"Episodes at a {args.gap_s:.0f} s gap          : "
-          f"{matched['episode'].nunique()} over {len(matched)} detections\n")
+          f"{matched['episode'].nunique()} over {len(matched)} detections")
+    if "event" in matched.columns:
+        print(f"Call events (overlapping windows): "
+              f"{matched['event'].nunique()} over {len(matched)} detections\n")
+    else:
+        print()
 
     out_dir = args.out or (os.path.dirname(args.matched) if args.matched
                            else args.cleanup)
