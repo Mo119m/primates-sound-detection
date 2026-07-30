@@ -21,6 +21,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
+import call_events  # noqa: E402
 import cleanup_eval  # noqa: E402
 
 
@@ -148,6 +149,23 @@ def main():
         print("an episode that is all false positives is dismissed in one go:")
         print(ee.to_string())
         ee.to_csv(os.path.join(out_dir, "cleanup_eval_episodes.csv"))
+
+    ee2 = call_events.event_effort(matched)
+    if len(ee2):
+        print("\nConsolidating overlapping windows into call events. Detection")
+        print("slides a 2 s window 1 s at a time, so one long call is reported")
+        print("by several windows; 'inflation' is how much a window count")
+        print("overstates the number of vocalizations:")
+        print(ee2.to_string())
+        ee2.to_csv(os.path.join(out_dir, "cleanup_eval_call_events.csv"))
+
+    ds = call_events.duration_summary(matched)
+    if len(ds):
+        print("\nHow long those events are, by verdict (this says whether the")
+        print("merging is doing real work: it matters only if genuine calls")
+        print("span more windows than false positives do):")
+        print(ds.to_string())
+        ds.to_csv(os.path.join(out_dir, "cleanup_eval_event_durations.csv"))
 
     rs = cleanup_eval.ranking_signal_comparison(matched)
     if len(rs):

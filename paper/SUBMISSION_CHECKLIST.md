@@ -75,6 +75,24 @@ as they are done. (This file is a working note, not part of the manuscript.)
       failure mode the automatic cleanup is designed to absorb" — it is the
       opposite, and the sentence also referred to the disabled audio tagger.
 
+- [ ] **Call-event counts (Field deployment)** — the detection figures count
+      2 s *windows*, and a call longer than the 1 s step is reported by several.
+      A bracketed placeholder now says so; fill it from
+      `cleanup_eval_call_events.csv` (total events, genuine call events, and the
+      confirmed-windows-to-confirmed-events ratio). Regenerate with
+      `python scripts/evaluate_cleanup.py --review reviews/ --cleanup <dir>`
+- [ ] **Field recall (optional, adds a result)** — tooling is in place
+      (`scripts/recall_sample.py plan|budget|score`). ~3.5 h of exhaustively
+      annotated audio puts recall inside ±5%. Limitations currently states the
+      method and says the number is not reported; replace that with the number if
+      the listening gets done.
+- [x] Ranking-signal search — six temporal features derived from timestamps were
+      tested and **rejected**: held-out gain +0.011, bootstrap 95% CI
+      [-0.004, +0.027], and two of fifteen stations supply nearly all of it.
+      Reported as a negative result, with the positive finding inside it (episode
+      size alone reaches 0.827 average precision against 0.845 for detector
+      confidence). Reproduce with `python scripts/rank_signals_experiment.py`.
+
 ## Decisions already settled (for reference)
 - Title, abstract (197 words), keywords (7), Specifications table — done.
 - Graphical abstract: separate file only, not embedded in the body — done.

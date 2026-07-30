@@ -550,6 +550,19 @@ No weights are fitted and no cutoff is chosen --- the reviewer simply stops when
 their budget runs out, and the ordering is reported as an average precision,
 which summarises every possible stopping point at once.
 
+\paragraph{(iii) Consolidating overlapping windows into call events}
+At a finer scale than an episode, consecutive windows on one vocalization are one
+sound. Because the window advances in steps shorter than itself, and because
+non-maximum suppression is deliberately set to keep neighbouring windows so that
+a boundary-straddling call is not lost, a call longer than one step is reported
+more than once. Detections of one species in one recording whose windows overlap
+or touch are therefore also grouped into a \textbf{call event}, and the pipeline
+reports the event count beside the window count. The distinction matters for two
+different readers: review effort is paid per window, but vocal activity is a
+count of events, and only the latter is comparable across studies with different
+window settings. Like the two steps above, this is grouping by timestamp, with
+nothing discarded.
+
 \paragraph{What the reviewer receives}
 Both steps are label-free, so the pipeline emits them directly rather than
 leaving them to a later analysis: the cleanup writes a review queue over
@@ -742,6 +755,21 @@ the remaining fifteen stations precision was 65.5\,\% (2\,435 confirmed of
 identified the cause: a non-target species abundant at that station and absent
 from the training data. It is treated separately below, because it is the one
 case that none of the per-detection cleanup signals can read.
+
+One point of interpretation applies to all of these counts. Detection advances a
+2\,s window in 1\,s steps, and per-species non-maximum suppression removes only
+windows overlapping by more than half, so two consecutive windows --- which
+overlap by a third of the time they jointly span --- both survive, deliberately,
+so that a call straddling a boundary is not lost. A vocalization longer than the
+1\,s step is therefore reported by more than one window, and the figures above
+count \emph{windows}, not calls. They are the right unit for precision, which is
+a property of what the detector reported, and for review effort, which is paid
+per clip; they overstate vocal activity, and the pipeline therefore also
+consolidates consecutive windows into call events
+(\S\,Automatic false-positive cleanup) and reports both counts.
+\textbf{[Fill in the consolidated call-event counts from
+\texttt{cleanup\_eval\_call\_events.csv}: total events, genuine call events, and
+the ratio of confirmed windows to confirmed events.]}
 
 Even before any cleanup, the reduction in manual effort is substantial:
 confirming the full set of \textit{C.\ nictitans} detections required listening
@@ -1124,10 +1152,17 @@ window can truncate or split long vocalizations such as \textit{Colobus} roars.
 Recall in the field is not measured here and should not be read off the
 validation figure. The manual review covered the exported detections, not the
 continuous recordings, so it establishes how many detections were genuine but
-cannot establish how many genuine calls the detector passed over; quantifying
-that would require exhaustively annotating a sample of continuous audio, which
-we did not do. Every field number reported above is therefore a statement about
-precision and about review effort, not about detection completeness.
+cannot establish how many genuine calls the detector passed over. Every field
+number reported above is therefore a statement about precision and about review
+effort, not about detection completeness. Closing that gap needs the opposite
+kind of listening --- exhaustive annotation of continuous audio --- and the
+repository includes the tooling for it: a station-stratified sampler that draws
+segments from a fixed seed, an annotation sheet in which a segment containing no
+calls keeps its row as evidence of effort, and scoring that reports a Wilson
+interval rather than a bare percentage, since a recall estimate from a few dozen
+calls carries more uncertainty than a percentage suggests. Roughly 3.5\,h of
+annotated audio at the call density this review implies would place recall within
+about five percentage points. We report the method rather than the number.
 Re-targeting the pipeline to a new species requires curated reference clips and
 edits to the configuration, and performance on rare or quiet calls with few
 reference examples is not guaranteed. The method also yields detections rather
