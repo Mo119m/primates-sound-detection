@@ -75,11 +75,12 @@ as they are done. (This file is a working note, not part of the manuscript.)
       failure mode the automatic cleanup is designed to absorb" — it is the
       opposite, and the sentence also referred to the disabled audio tagger.
 
-- [ ] **Call-event counts (Field deployment)** — the detection figures count
-      2 s *windows*, and a call longer than the 1 s step is reported by several.
-      A bracketed placeholder now says so; fill it from
-      `cleanup_eval_call_events.csv` (total events, genuine call events, and the
-      confirmed-windows-to-confirmed-events ratio). Regenerate with
+- [x] **Call-event counts (Field deployment)** — filled. 6189 windows = 2103
+      call events; 2535 confirmed windows = **755 confirmed vocalizations**
+      (inflation 3.36). Genuine events span 3.40 windows vs 2.69 for false
+      positives; 20.3% of genuine events are single-window vs 61.0% of false
+      positives. Event-level precision 35.9% (lower than the 41.0% window-level
+      figure, because genuine calls consolidate more). Regenerate with
       `python scripts/evaluate_cleanup.py --review reviews/ --cleanup <dir>`
 - [ ] **Field recall (optional, adds a result)** — tooling is in place
       (`scripts/recall_sample.py plan|budget|score`). ~3.5 h of exhaustively

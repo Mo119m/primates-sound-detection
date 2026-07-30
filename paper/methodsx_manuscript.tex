@@ -766,10 +766,23 @@ count \emph{windows}, not calls. They are the right unit for precision, which is
 a property of what the detector reported, and for review effort, which is paid
 per clip; they overstate vocal activity, and the pipeline therefore also
 consolidates consecutive windows into call events
-(\S\,Automatic false-positive cleanup) and reports both counts.
-\textbf{[Fill in the consolidated call-event counts from
-\texttt{cleanup\_eval\_call\_events.csv}: total events, genuine call events, and
-the ratio of confirmed windows to confirmed events.]}
+(\S\,Automatic false-positive cleanup) and reports both counts. Consolidated,
+the 6\,189 windows are 2\,103 call events and the 2\,535 confirmed windows are
+\textbf{755 confirmed \textit{C.\ nictitans} vocalizations}: a window count
+overstates vocal activity here by a factor of 3.36. Any use of these data as a
+measure of calling activity should use the event counts.
+
+The consolidation also separates the two classes, which is why it is not merely
+bookkeeping. Genuine calls span 3.40 windows on average and false positives
+2.69, and the contrast is sharpest at the short end: 61.0\,\% of false-positive
+events are a single window against 20.3\,\% of genuine ones, so a sound seen by
+only one window is far more likely to be spurious. Median event duration is 3\,s
+for genuine calls and 2\,s for false positives, and the longest event of all ---
+118\,s --- is at the station an untrained species overran, which is that
+species calling without pause for close to two minutes. Note also that precision
+measured on events (755 of 2\,103, 35.9\,\%) is lower than on windows
+(41.0\,\%), precisely because genuine calls consolidate more than false
+positives do; both are correct, and they answer different questions.
 
 Even before any cleanup, the reduction in manual effort is substantial:
 confirming the full set of \textit{C.\ nictitans} detections required listening

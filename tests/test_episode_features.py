@@ -106,10 +106,55 @@ def test_empty_and_missing_columns_do_not_raise():
 
 
 def test_available_candidates_reports_what_was_computed():
-    out = ef.add_episode_features(_det([("recA", 0), ("recA", 10)]))
-    got = ef.available_candidates(out)
+    # Episodes of differing size and spacing, so every feature actually varies;
+    # a fixture where they are all constant would exercise nothing.
+    out = ef.add_episode_features(_det(
+        [("recA", 0), ("recA", 10), ("recA", 40),      # 3 detections, 40 s
+         ("recA", 900), ("recA", 902),                 # 2 detections, 2 s
+         ("recA", 5000)]))                             # singleton
+    got = ef.available_candidates(out, include_events=False)
     assert set(got) == set(ef.CANDIDATE_SIGNALS)
     # gap_to_nearest_s is all-NaN when nothing has a neighbour, and is then
     # correctly reported as unavailable rather than as a column of NaN.
     lone = ef.add_episode_features(_det([("recA", 0)]))
     assert "gap_to_nearest_s" not in ef.available_candidates(lone)
+
+
+# ------------------------------------------------- call-event scale features
+
+def test_event_features_measure_the_vocalization_not_the_bout():
+    """A 3-window call and a lone window are one episode but two events."""
+    df = _det([("recA", 0), ("recA", 1), ("recA", 2), ("recA", 60)])
+    out = ef.add_event_features(df, window_s=2.0)
+    assert out["event"].nunique() == 2
+    assert out["event_windows"].tolist() == [3.0, 3.0, 3.0, 1.0]
+    assert out["event_duration_s"].tolist() == [4.0, 4.0, 4.0, 2.0]
+    # ... while the episode grouping keeps all four together.
+    assert ef.assign_episodes(df)["episode"].nunique() == 1
+
+
+def test_event_position_runs_zero_to_one_within_the_call():
+    out = ef.add_event_features(_det([("recA", 0), ("recA", 1), ("recA", 2)]))
+    assert out["event_position"].tolist() == [0.0, 0.5, 1.0]
+
+
+def test_add_all_features_gives_both_scales():
+    out = ef.add_all_features(_det([("recA", 0), ("recA", 1), ("recA", 600)]))
+    assert {"episode", "event"} <= set(out.columns)
+    assert set(ef.EVENT_CANDIDATE_SIGNALS) <= set(out.columns)
+    assert set(ef.CANDIDATE_SIGNALS) <= set(out.columns)
+
+
+def test_available_candidates_can_include_or_exclude_the_event_scale():
+    out = ef.add_all_features(_det([("recA", 0), ("recA", 1), ("recA", 600)]))
+    with_ev = ef.available_candidates(out, include_events=True)
+    without = ef.available_candidates(out, include_events=False)
+    assert "event_windows" in with_ev and "event_windows" not in without
+
+
+def test_a_constant_feature_is_not_offered_as_a_candidate():
+    """Every detection isolated -> event_windows is 1 everywhere. A column with
+    one value carries no ordering, so offering it would only add tied ranks."""
+    out = ef.add_all_features(_det([("recA", 0), ("recA", 600), ("recA", 1200)]))
+    assert out["event_windows"].nunique() == 1
+    assert "event_windows" not in ef.available_candidates(out)
