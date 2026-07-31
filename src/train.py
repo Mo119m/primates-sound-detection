@@ -5,6 +5,7 @@ Complete training pipeline for primate vocalization detection
 
 import numpy as np
 import os
+import re
 from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_class_weight
 import tensorflow as tf
@@ -21,6 +22,91 @@ except ImportError:  # Allow running as a standalone script (e.g. in Colab)
     import preprocessing
     import augmentation
     import model as model_module
+
+
+# Window suffixes the pipeline appends when it slices one recording into several
+# clips. Stripping them recovers the recording a clip came from, which is the
+# unit a validation split has to keep whole.
+_WINDOW_SUFFIX_RE = re.compile(
+    r"(__t\d+(?:\.\d+)?s(?:__conf[\d.]+)?"      # colger100__t003.0s / field clips
+    r"|__\d+s__conf[\d.]+"                      # review clips: __01540s__conf0.980
+    r"|_\d+\.\d+s_\d+\.\d+s)$"                  # BirdNET: _807.0s_810.0s
+)
+# BirdNET writes its own score and a within-file index ahead of the recording
+# name (``0.554_2_<recording>_807.0s_810.0s``). Left in place, two segments cut
+# from one recording look like two recordings and can be split apart.
+_BIRDNET_PREFIX_RE = re.compile(r"^\d+\.\d+_\d+_")
+_SAMPLE_INFO_RE = re.compile(r"^(?P<species>.+)_sample(?P<idx>\d+)(?:_aug\d+)?$")
+
+
+def source_group(path):
+    """
+    The recording a clip came from.
+
+    Two clips share a group when they are two windows of the same recording, or
+    two augmentations of the same window. Either relationship makes them
+    near-duplicates, and near-duplicates on opposite sides of a split turn
+    validation accuracy into a memorisation score.
+    """
+    stem = os.path.splitext(os.path.basename(str(path)))[0]
+    stem = _BIRDNET_PREFIX_RE.sub("", stem)
+    return _WINDOW_SUFFIX_RE.sub("", stem)
+
+
+def build_source_groups(sample_info, species_paths, background_data):
+    """
+    A group label for every augmented sample, aligned to ``X_aug``.
+
+    ``augment_dataset`` labels each sample ``<species>_sample<i>_aug<j>`` (or
+    ``Background_sample<i>``), where ``i`` indexes the clip list the spectrograms
+    were built from -- so the index maps straight back to a file path, and the
+    path back to a recording. A sample whose origin cannot be resolved gets a
+    unique group of its own, which is the conservative choice: it can never
+    place a duplicate on the other side of the split.
+    """
+    background_paths = [p for _a, p in background_data]
+    groups = []
+    for k, info in enumerate(sample_info):
+        m = _SAMPLE_INFO_RE.match(str(info))
+        if not m:
+            groups.append(f"__unmatched_{k}")
+            continue
+        species, idx = m.group("species"), int(m.group("idx"))
+        paths = (background_paths if species == "Background"
+                 else species_paths.get(species))
+        if not paths or idx >= len(paths):
+            groups.append(f"__unmatched_{k}")
+            continue
+        groups.append(f"{species}/{source_group(paths[idx])}")
+    return np.asarray(groups)
+
+
+def grouped_split(X, y, groups, test_size=0.2, seed=42):
+    """
+    Split so that no recording appears on both sides, keeping classes balanced.
+
+    ``StratifiedGroupKFold`` satisfies both constraints; ``GroupShuffleSplit``
+    is the fallback and only satisfies the grouping one. Stratification matters
+    here because Colobus_confuser and Colobus_guereza are small classes that a
+    careless grouped split can empty out of validation entirely.
+    """
+    from sklearn.model_selection import GroupShuffleSplit
+    n_splits = max(2, int(round(1.0 / max(test_size, 1e-6))))
+    try:
+        from sklearn.model_selection import StratifiedGroupKFold
+        splitter = StratifiedGroupKFold(n_splits=n_splits, shuffle=True,
+                                        random_state=seed)
+        train_idx, val_idx = next(splitter.split(X, y, groups=groups))
+    except Exception:
+        splitter = GroupShuffleSplit(n_splits=1, test_size=test_size,
+                                     random_state=seed)
+        train_idx, val_idx = next(splitter.split(X, y, groups=groups))
+
+    n_groups = len(set(groups))
+    shared = set(groups[train_idx]) & set(groups[val_idx])
+    print(f"   Grouped by source recording: {n_groups} groups, "
+          f"{len(shared)} shared across the split")
+    return X[train_idx], X[val_idx], y[train_idx], y[val_idx]
 
 
 def prepare_dataset():
@@ -44,17 +130,21 @@ def prepare_dataset():
     print("\n Converting to Mel-Spectrograms...")
     
     species_specs = {}
+    # Source file per clip, kept so the train/validation split can group clips
+    # that came from the same recording. load_species_data already returns it.
+    species_paths = {}
     for species_name, audio_list in species_data.items():
         print(f"\n   Processing {species_name}...")
         specs = []
-        for i, (audio, _) in enumerate(audio_list):
+        for i, (audio, _path) in enumerate(audio_list):
             mel_spec = preprocessing.audio_to_melspectrogram(audio)
             specs.append(mel_spec)
-            
+
             if (i + 1) % 50 == 0:
                 print(f"   Converted {i + 1}/{len(audio_list)}...")
-        
+
         species_specs[species_name] = specs
+        species_paths[species_name] = [p for _a, p in audio_list]
         print(f"  Converted {len(specs)} spectrograms")
     
     # Convert background
@@ -91,15 +181,28 @@ def prepare_dataset():
     # Step 5: Normalize for model input
     X_images = preprocessing.preprocess_for_model(X_images)
     
-    # Step 6: Train/validation split
+    # Step 6: Train/validation split, grouped by source recording.
+    #
+    # A random split here is not a validation set. Every clip becomes
+    # AUGMENTATION_MULTIPLIER (7, or 9 for Colobus) augmented images, so with a
+    # 20 % random split the chance that all of one clip's variants land in
+    # training is 0.8**7 = 0.21 -- about 79 % of clips put a near-duplicate of a
+    # validation image into training. The Colobus class compounds it: its 617
+    # windows are cut from 172 source recordings at a 1 s hop, so adjacent
+    # windows share half their audio before augmentation even starts.
+    #
+    # That is the gap between 98.12 % validation accuracy and 41.0 % field
+    # precision. Grouping on the source recording closes both leaks at once:
+    # every image derived from one recording, however augmented or windowed,
+    # falls on the same side of the split.
     print("\n Splitting into Train/Validation Sets")
-    X_train, X_val, y_train, y_val = train_test_split(
-        X_images, y_aug,
+    groups = build_source_groups(sample_info, species_paths, background_data)
+    X_train, X_val, y_train, y_val = grouped_split(
+        X_images, y_aug, groups,
         test_size=config.VALIDATION_SPLIT,
-        random_state=config.RANDOM_SEED,
-        stratify=y_aug
+        seed=config.RANDOM_SEED,
     )
-    
+
     print(f"   Training samples: {len(X_train)}")
     print(f"   Validation samples: {len(X_val)}")
     
