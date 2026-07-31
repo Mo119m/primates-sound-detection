@@ -63,3 +63,8 @@ outputs/
 # Manual-review tables (per-site Kaleidoscope exports). These are field data,
 # not code, and stay local -- scripts/summarize_review.py reads them from here.
 /reviews/
+
+# Human labels are the one thing in data/ that is not reproducible: they are
+# listening hours. Version them.
+!/data/labels/
+!/data/labels/*.csv
