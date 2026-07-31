@@ -10,6 +10,30 @@ wrong, and validated by a split that could not detect it.
 
 ---
 
+## START HERE
+
+**Do these three things, in order, and report back before starting anything long.**
+
+1. `python scripts/check_gpu.py` — and read what it says about throughput. This
+   machine has an **RTX 5070 Laptop** (Blackwell, compute capability 12.0), which
+   is newer than TensorFlow's released wheels. If throughput is not well above
+   40 images/s, the GPU is not doing the work; say so rather than starting a run
+   that will take days.
+2. Find where the external drive with the field recordings is mounted, and set
+   `DRIVE` at the top of `scripts/build_v13_dataset.py` to it. On the machine
+   this was written on it was `/Volumes/Gabon CNN`; under WSL it will be
+   something like `/mnt/d/...`. Confirm
+   `<DRIVE>/Gabon raw acoustic data National Park/` holds 16 `IPA*` folders.
+3. Read section 4 below — the open work, in priority order — and say which item
+   you are about to start and roughly what it will cost in wall-clock time.
+
+**Do not** kick off the 16-fold sweep or a full re-detection before reporting.
+The full re-detection is 5.4 M windows; on a CPU that is 156 hours, and the
+staged plan in section 3d exists so that nobody pays it to find out whether the
+model improved.
+
+---
+
 ## 1. What was found
 
 ### The validation split was measuring memorisation
