@@ -136,46 +136,64 @@ def fold_masks(index, station):
     return train.to_numpy(), evaluate.to_numpy()
 
 
-class MemmapBatches:
+def _make_batches_class():
     """
-    Keras Sequence over a feature memmap, reading one batch at a time.
+    Build the batch reader on top of whichever base class Keras offers.
 
-    The cache is 25 GB and this machine has 16 GB, so ``feats[rows]`` -- the
-    obvious way to gather a fold's training set -- would materialise 22 GB and
-    die. Reading batches keeps the working set at a few tens of megabytes and
-    costs nothing but sequential disk reads, which is what a memmap is for.
-    Rows are sorted so each epoch walks the file forwards rather than seeking.
+    It has to be a Keras dataset object, not a generator wrapped in
+    ``tf.data.Dataset.from_generator``. Keras 3 consumes such a dataset **once**
+    and then stops with "Your input ran out of data; interrupting training", so
+    a run asked for 15 epochs silently trains for one. That failure prints a
+    warning in the middle of normal output and otherwise looks like a completed
+    run -- it produced smoke-test numbers here that read as a badly performing
+    model rather than as a broken loop. ``PyDataset`` is re-iterated properly
+    every epoch and gets ``on_epoch_end`` called.
     """
+    import keras
+    base = getattr(keras.utils, "PyDataset", None) or keras.utils.Sequence
 
-    def __init__(self, feats, rows, labels, batch_size=32, shuffle=False):
-        self.feats = feats
-        self.rows = np.sort(np.asarray(rows))
-        self.labels = np.asarray(labels)
-        self.batch_size = batch_size
-        self.shuffle = shuffle
-        self._order = np.arange(len(self.rows))
+    class MemmapBatches(base):
+        """
+        Batches read from a feature memmap, one at a time.
 
-    def __len__(self):
-        return int(np.ceil(len(self.rows) / self.batch_size))
+        The cache is 25 GB and this machine has 16 GB, so ``feats[rows]`` -- the
+        obvious way to gather a fold's training set -- would materialise 22 GB
+        and die. Reading per batch keeps the working set at tens of megabytes,
+        which is what a memmap is for. Rows are sorted so an epoch walks the
+        file forwards instead of seeking.
+        """
 
-    def __getitem__(self, i):
-        sel = self._order[i * self.batch_size:(i + 1) * self.batch_size]
-        sel = np.sort(sel)
-        r = self.rows[sel]
-        return (np.asarray(self.feats[r], dtype="float32"), self.labels[sel])
+        def __init__(self, feats, rows, labels, batch_size=32, shuffle=False,
+                     **kwargs):
+            try:
+                super().__init__(**kwargs)
+            except TypeError:      # keras.utils.Sequence takes no kwargs
+                super().__init__()
+            self.feats = feats
+            self.rows = np.sort(np.asarray(rows))
+            self.labels = np.asarray(labels)
+            self.batch_size = batch_size
+            self.shuffle = shuffle
+            self._order = np.arange(len(self.rows))
 
-    def on_epoch_end(self):
-        if self.shuffle:
-            np.random.shuffle(self._order)
+        def __len__(self):
+            return int(np.ceil(len(self.rows) / self.batch_size))
 
-    def as_dataset(self, feature_shape):
-        import tensorflow as tf
-        ds = tf.data.Dataset.from_generator(
-            lambda: (self[i] for i in range(len(self))),
-            output_signature=(
-                tf.TensorSpec(shape=(None,) + tuple(feature_shape), dtype=tf.float32),
-                tf.TensorSpec(shape=(None,), dtype=tf.int64)))
-        return ds.prefetch(tf.data.AUTOTUNE)
+        def __getitem__(self, i):
+            sel = np.sort(self._order[i * self.batch_size:
+                                      (i + 1) * self.batch_size])
+            r = self.rows[sel]
+            return (np.asarray(self.feats[r], dtype="float32"),
+                    self.labels[sel])
+
+        def on_epoch_end(self):
+            if self.shuffle:
+                np.random.shuffle(self._order)
+
+    return MemmapBatches
+
+
+MemmapBatches = _make_batches_class()
 
 
 def train_head(feats, rows, labels, groups, class_names, epochs, seed,
@@ -205,10 +223,16 @@ def train_head(feats, rows, labels, groups, class_names, epochs, seed,
 
     train_seq = MemmapBatches(feats, rows[tr], labels[tr], shuffle=True)
     val_seq = MemmapBatches(feats, rows[va], labels[va])
-    head.fit(train_seq.as_dataset(shape),
-             validation_data=val_seq.as_dataset(shape),
-             epochs=epochs, class_weight=class_weight, verbose=verbose)
-    val_acc = head.evaluate(val_seq.as_dataset(shape), verbose=0)[1]
+    hist = head.fit(train_seq, validation_data=val_seq, epochs=epochs,
+                    class_weight=class_weight, verbose=verbose)
+    ran = len(hist.history.get("loss", []))
+    if ran < epochs:
+        raise RuntimeError(
+            f"training stopped after {ran} of {epochs} epochs -- the input "
+            f"pipeline is being consumed once instead of per epoch, and the "
+            f"resulting numbers would look like a weak model rather than a "
+            f"broken loop")
+    val_acc = head.evaluate(val_seq, verbose=0)[1]
     return head, float(val_acc)
 
 
