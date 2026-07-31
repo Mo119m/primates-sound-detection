@@ -85,6 +85,17 @@ def build_coord_map():
     the fourteen folds that hold out neither.
     """
     if not os.path.isdir(RAW_AUDIO):
+        # The map is what proves which station a clip came from. Falling back to
+        # the hardcoded list still marks the coordinate-less stations correctly,
+        # but the eleven stations that DO stamp coordinates would go
+        # unattributed, and unattributed clips are excluded from no fold at all
+        # -- so every leave-one-station-out number would quietly include the
+        # station it claims to hold out.
+        print(f"  ! {RAW_AUDIO} not mounted: falling back to the hardcoded "
+              f"no-GPS station list.\n"
+              f"    Clips from the eleven coordinate-stamped stations will not "
+              f"be attributable,\n    which makes leave-one-station-out unsafe. "
+              f"Mount the drive before trusting a fold.")
         return {}, NO_COORD_STATIONS
     seen = {}
     no_coord = set()
@@ -281,8 +292,19 @@ def collect_birdnet(coord_map, no_coord, review):
     calls occupy roughly 0.3 % of recorded time, which bounds the residual risk.
     """
     if not os.path.isdir(BIRDNET):
-        print(f"  ! {BIRDNET} not mounted -- skipping bird negatives")
-        return pd.DataFrame()
+        # Loudly, not as a warning in a wall of output. Without the drive this
+        # silently writes a manifest missing 17 101 of its 31 021 clips -- more
+        # than half the negative pool -- and every downstream number would be
+        # computed on it without anyone noticing which run they were looking at.
+        raise SystemExit(
+            f"\nThe external drive is not mounted at:\n  {DRIVE}\n\n"
+            f"That folder supplies 17 101 BirdNET negatives and the "
+            f"coordinate->station map.\nWithout it this would write a manifest "
+            f"missing more than half its negatives,\nwhich looks like a "
+            f"successful run.\n\n"
+            f"Set DRIVE at the top of this script to wherever the drive is "
+            f"mounted\n(macOS: /Volumes/<name>; WSL: /mnt/d/<name>), or pass "
+            f"--no-birdnet if you\nreally intend to build without them.\n")
 
     calls = review[review["verdict"] == "call"] if len(review) else pd.DataFrame()
     call_windows = {}
