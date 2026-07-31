@@ -212,13 +212,25 @@ def train_head(feats, rows, labels, groups, class_names, epochs, seed,
     return head, float(val_acc)
 
 
-def score_fold(head, feats, rows, truth, class_names, threshold):
+def score_fold(head, feats, rows, truth, class_names, threshold,
+               match_recall=0.95):
     """
     Re-classify one station's reviewed windows and compare with the review.
 
-    A window "still fires" when the model's top class is Cernic at or above the
-    deployment confidence threshold -- the same rule that produced the detection
-    in the first place, so the comparison is like for like.
+    Scored two ways, because one operating point is not a comparison. A model
+    that fires less often removes false positives and loses calls together, so
+    "68 % of false positives removed" means nothing without the recall it was
+    bought at -- the degenerate model that predicts Background for everything
+    removes 100 % of them.
+
+    - At the deployment threshold: what the pipeline would actually do today.
+    - At **matched recall**: the threshold that keeps ``match_recall`` of this
+      station's confirmed calls, and the precision that buys. This is the honest
+      comparison against V12, which kept 100 % of them by construction (every
+      clip here is a window V12 fired on).
+
+    The full sweep is returned too, so the trade-off can be read rather than
+    argued about.
     """
     order = np.argsort(rows)
     truth = np.asarray(truth)[order]
@@ -226,25 +238,49 @@ def score_fold(head, feats, rows, truth, class_names, threshold):
     probs = np.concatenate([head.predict(seq[i][0], verbose=0)
                             for i in range(len(seq))])
     cernic = class_names.index("Cernic")
-    fires = (probs.argmax(axis=1) == cernic) & (probs[:, cernic] >= threshold)
+    score = probs[:, cernic]
+    top_is_cernic = probs.argmax(axis=1) == cernic
 
     is_call = truth == "call"
     n_call, n_fp = int(is_call.sum()), int((~is_call).sum())
-    kept_call = int((fires & is_call).sum())
-    kept_fp = int((fires & ~is_call).sum())
-    kept = kept_call + kept_fp
-    return {
+
+    def at(t, require_top=True):
+        fires = (score >= t) & (top_is_cernic if require_top else True)
+        kc, kf = int((fires & is_call).sum()), int((fires & ~is_call).sum())
+        return kc, kf
+
+    kc, kf = at(threshold)
+    kept = kc + kf
+    row = {
         "detections": n_call + n_fp,
         "calls": n_call,
         "false_positives": n_fp,
         "v12_precision": round(n_call / max(n_call + n_fp, 1), 4),
-        "kept_calls": kept_call,
-        "kept_false_positives": kept_fp,
-        "calls_retained": round(kept_call / n_call, 4) if n_call else None,
-        "fps_removed": round(1 - kept_fp / n_fp, 4) if n_fp else None,
-        "v13_precision": round(kept_call / kept, 4) if kept else None,
+        "kept_calls": kc,
+        "kept_false_positives": kf,
+        "calls_retained": round(kc / n_call, 4) if n_call else None,
+        "fps_removed": round(1 - kf / n_fp, 4) if n_fp else None,
+        "v13_precision": round(kc / kept, 4) if kept else None,
         "review_reduction": round(1 - kept / max(n_call + n_fp, 1), 4),
     }
+
+    # Matched recall: the lowest score that still keeps `match_recall` of the
+    # calls. Ignore the argmax rule here -- at a low threshold the question is
+    # how the Cernic score ranks calls against false positives, not which class
+    # happens to win.
+    if n_call:
+        call_scores = np.sort(score[is_call])
+        k = int(np.floor((1 - match_recall) * n_call))
+        t_match = float(call_scores[min(k, n_call - 1)])
+        kc_m, kf_m = at(t_match, require_top=False)
+        row.update({
+            "matched_threshold": round(t_match, 4),
+            "matched_calls_retained": round(kc_m / n_call, 4),
+            "matched_fps_removed": round(1 - kf_m / n_fp, 4) if n_fp else None,
+            "matched_precision": (round(kc_m / (kc_m + kf_m), 4)
+                                  if kc_m + kf_m else None),
+        })
+    return row
 
 
 def main():
@@ -329,19 +365,27 @@ def main():
         row.update(station=station, grouped_val_accuracy=round(val_acc, 4),
                    minutes=round((time.time() - t0) / 60, 1))
         results.append(row)
-        print(f"  grouped val acc {val_acc:.4f}   "
-              f"precision {row['v12_precision']:.3f} -> "
-              f"{row['v13_precision']}   "
-              f"calls kept {row['calls_retained']}   "
+        print(f"  grouped val acc {val_acc:.4f}")
+        print(f"  at the deployment threshold: precision "
+              f"{row['v12_precision']:.3f} -> {row['v13_precision']}, "
+              f"calls kept {row['calls_retained']}, "
               f"FPs removed {row['fps_removed']}")
+        if "matched_precision" in row:
+            print(f"  at {100 * 0.95:.0f}% recall (score >= "
+                  f"{row['matched_threshold']}): precision "
+                  f"{row['matched_precision']}, "
+                  f"FPs removed {row['matched_fps_removed']}")
 
     if not results:
         sys.exit("no fold produced a score")
 
-    df = pd.DataFrame(results)[
-        ["station", "detections", "calls", "false_positives", "v12_precision",
-         "kept_calls", "kept_false_positives", "calls_retained", "fps_removed",
-         "v13_precision", "review_reduction", "grouped_val_accuracy", "minutes"]]
+    cols = ["station", "detections", "calls", "false_positives", "v12_precision",
+            "kept_calls", "kept_false_positives", "calls_retained", "fps_removed",
+            "v13_precision", "review_reduction", "matched_threshold",
+            "matched_calls_retained", "matched_fps_removed", "matched_precision",
+            "grouped_val_accuracy", "minutes"]
+    df = pd.DataFrame(results)
+    df = df[[c for c in cols if c in df.columns]]
     df.to_csv(args.out, index=False)
     print(f"\n{df.to_string(index=False)}")
 
