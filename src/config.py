@@ -202,25 +202,53 @@ NMS_IOU_THRESHOLD = 0.5  # Non-maximum suppression overlap threshold
 # LOW-FREQUENCY SPECTRAL-ENERGY GATE (post-processing for Colobus detections)
 # A detected Colobus clip is kept only if the fraction of its spectral energy
 # below LOWFREQ_GATE_CUTOFF (within the FMIN-FMAX band) is at least
-# LOWFREQ_GATE_THRESHOLD. Real C. guereza roars are overwhelmingly low-frequency
-# (p5 ~ 0.41 on the 617 reference clips), whereas the dominant out-of-distribution
-# false positives (insects, cicadas at 2-5 kHz) are high-frequency (median ~0.01),
-# so the gate removes the latter without touching real calls. It runs at
-# detection time and adds a `low_freq_ratio` column to every Colobus detection,
-# which doubles as a RANKING signal: sorting detections by this ratio surfaces the
-# genuine low-frequency roar candidates (high ratio) for manual review and pushes
-# the insect false positives (near-zero ratio) to the bottom. No retraining needed.
+# LOWFREQ_GATE_THRESHOLD. It runs at detection time and adds a `low_freq_ratio`
+# column to every Colobus detection, which doubles as a RANKING signal: sorting
+# by this ratio surfaces the low-frequency candidates for review and pushes the
+# insect false positives (near-zero ratio) to the bottom. No retraining needed.
 #
-# The gate cannot create true positives -- it only removes false ones; the model
-# must still fire on a real roar in the first place (that is what the V12
-# high-frequency-nuisance augmentation above is for). Calibrate LOWFREQ_GATE_THRESHOLD
-# with detection.lowfreq_energy_ratio (NOT the ad-hoc <1 kHz / full-spectrum metric)
-# so the number matches the deployed gate; pick it below the reference-clip p5 and
-# above the field false-positive p95 to keep real calls while cutting insects.
+# THRESHOLD HISTORY -- read this before changing the number.
+# The original 0.20 was calibrated against the Colobus_confuser clips, whose
+# ratios top out at 0.092: against insects and the pulsed high-frequency forest
+# sound the gate is close to perfect, and 0.20 sat in a wide empty gap. The
+# field then produced a negative population that calibration never saw. Of the
+# 253 C. guereza detections the 16-station deployment returned, manual listening
+# found no genuine roar at all -- they are thunder and other low-frequency noise.
+# Thunder is not a high-frequency intruder a low-frequency test can reject: it is
+# itself low-frequency, median ratio 0.396 and upper quartile 0.826, which
+# overlaps the reference roars the gate exists to protect.
+#
+# Recalibrated against that population (scripts/calibrate_colobus_gate.py):
+#
+#     threshold   reference roars kept   field detections kept
+#         0.20                  97.6 %                  89.3 %   <- original
+#         0.40                  93.4 %                  49.4 %   <- current
+#         0.50                  90.9 %                  41.1 %
+#
+# 0.40 removes 45 % of the field detections for 4.2 points of reference recall.
+# Going further has a poor exchange rate, and the recall side of that trade is
+# the side that is not measured (see below).
+#
+# WHAT THIS NUMBER DOES NOT REST ON. "Roars kept" is measured on the 617
+# reference windows, cut from 172 expert-labelled source clips. No field
+# detection has ever been confirmed as a genuine roar, so field recall for
+# C. guereza is unmeasured, and the gate can only be scored on how much of a
+# known-bad population it removes. The gate is a mitigation, not the fix: a
+# detector that fires confidently on thunder (median confidence 0.927) has a
+# training problem, and the 253 clips are hard negatives for the next model.
+#
+# A second criterion was searched for and is NOT used. Low-band spectral
+# flatness, crest factor, envelope variability and onset rate all separate the
+# two populations at AUC 0.46-0.59, i.e. not at all. Envelope modulation in the
+# 1-8 Hz pulse band reaches 0.715, real but modest, and buying field rejection
+# with it costs reference recall fast (lf 0.40 + pulse 2.38 -> 83.5 % roars kept,
+# 32.4 % field kept). With no confirmed field positive to check the recall cost
+# against, that trade is not worth making blind.
 LOWFREQ_GATE_ENABLED = True    # apply the gate inside detect_in_long_audio
 LOWFREQ_GATE_CUTOFF = 1500     # Hz
-LOWFREQ_GATE_THRESHOLD = 0.20  # calibrated: FP max=0.092, Colobus p05=0.261;
-                               # 0.20 cuts 100% FP, keeps 97.6% TP (gap 0.11 wide)
+LOWFREQ_GATE_THRESHOLD = 0.40  # recalibrated against the 253 field detections;
+                               # keeps 93.4% of reference roars, cuts field
+                               # detections from 89.3% to 49.4% (was 0.20)
 
 # AUTO-CLEANUP FILTERS
 # The YAMNet cross-check is off by default: measured against the manual review
