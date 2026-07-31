@@ -33,20 +33,34 @@ def main():
     parser.add_argument('--threshold', type=float,
                         default=config.DETECTION_CONFIDENCE_THRESHOLD,
                         help='Confidence threshold')
+    # The deployment that produced the 6189 reviewed detections ran over the
+    # whole day: 81.5% of those detections fall outside 05:30-10:30, so a run
+    # with the filter on reproduces less than a fifth of them and cannot be
+    # compared with the review. The paper also settled on not using the filter
+    # at all. Off is therefore the default, and turning it on is the choice that
+    # has to be made explicitly.
+    parser.add_argument('--time-filter', action='store_true',
+                        help=f'Only process files starting between '
+                             f'{config.TIME_FILTER_START} and '
+                             f'{config.TIME_FILTER_END}. Off by default: the '
+                             f'field results were produced over all 24h.')
     parser.add_argument('--no-time-filter', action='store_true',
-                        help='Disable time filtering (process all 24h)')
+                        help=argparse.SUPPRESS)   # accepted, now the default
     parser.add_argument('--output', type=str, default=None,
                         help='Output directory for CSVs (default: detections/<station>)')
     args = parser.parse_args()
 
     # --- Load model ---
-    from tensorflow import keras
-    print(f"Loading model from {args.model}")
-    model = keras.models.load_model(args.model)
+    # Via model.load_trained_model, not keras.models.load_model: the V11/V12
+    # 'temporal_freqpos' head contains a custom FrequencyCoord layer, and a bare
+    # load raises on it.
+    import model as model_module
+    model = model_module.load_trained_model(args.model)
     print(f"Model loaded — {config.N_CLASSES} classes: {config.CLASS_NAMES}")
 
     # --- Gather files ---
-    use_filter = not args.no_time_filter
+    use_filter = args.time_filter
+    print(f"Time filter: {'ON (' + config.TIME_FILTER_START + '-' + config.TIME_FILTER_END + ')' if use_filter else 'OFF (all 24h, as deployed)'}")
     files = data_loader.get_ipa_station_files(args.station, time_filter=use_filter)
     if not files:
         print("No files found. Check IPA_ROOT and station name.")

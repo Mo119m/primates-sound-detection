@@ -159,16 +159,58 @@ calls together, so "removed 68 % of false positives" means nothing without the
 recall it was bought at — the degenerate model that answers Background to
 everything removes 100 % of them, which is what the CPU smoke runs did.
 
-### 3d. The thing only this machine can do
+### 3d. Re-detection, in stages
 
-The 3 014 field recordings are **444 GB** on the external drive and cannot go to
-Colab. Re-detection over them is ~5.4 M windows: about **170 h on a CPU**, a few
-hours on a working GPU. It is the only way to measure **recall** — a call V12
-never fired on was never exported and never reviewed, so no experiment on the
-6 189 reviewed clips can see it.
+Re-detection is the expensive thing and the only thing that can measure recall.
+Do not run it on all 3 014 recordings to find out whether the model improved.
+Each 30-minute recording is 1 800 windows, which makes the unit costs:
 
-If recall on the full set is too expensive, `scripts/recall_sample.py plan|budget|score`
-bounds it from a few hours of exhaustively annotated audio instead.
+| Scope | windows | CPU (9.6/s) | GPU (~300/s) |
+|---|---|---|---|
+| one recording | 1 800 | 3 min | 6 s |
+| **one station** (192 files) | 345 600 | 10 h | **20 min** |
+| all 16 stations | 5 400 000 | 156 h | ~5 h |
+
+**One station is twenty minutes on a working GPU**, so there is no choice to make
+between "run it all" and "run none of it". And because all 16 stations were
+already reviewed detection by detection, a single station's re-run is scorable
+immediately, with no new listening:
+
+```bash
+python scripts/run_detection_ipa.py --station IPA11ST \
+    --model data/outputs/models/best_model_v13.h5 \
+    --output data/outputs/detections_v13/IPA11ST
+python scripts/compare_detection_to_review.py --station IPA11ST \
+    --detections data/outputs/detections_v13/IPA11ST
+```
+
+The comparison reports, per station: confirmed calls still detected, confirmed
+calls **lost**, false positives still made, false positives removed, and the
+count of detections on ground the review never covered. Verified against V12's
+own detections on five stations — it reproduces 100 % of the reviewed windows
+with nothing spurious, so a real difference is the model's and not the tool's.
+
+Suggested order, each stage gating the next:
+
+1. **IPA11ST** — the hardest station (20.8 % precision, 42 calls / 160 false
+   positives). If V13 cannot help here, it cannot help.
+2. **IPA1ST, IPA17ST, IPA20ST** — 36.6 %, 70.0 %, 93.1 %, spanning the range.
+   Four stations is ~80 GPU-minutes and covers the shape of the problem.
+3. **Listen to the "new ground" detections** these produce. This is the only
+   place absolute recall can be shown to improve — and the only place a new
+   kind of false positive can hide, since the precision figures above say
+   nothing about windows nobody has heard.
+4. **The full run**, only once 1–3 hold up.
+
+Two traps in `run_detection_ipa.py`, both now fixed, both worth knowing about
+because older invocations carry them: it loaded models with
+`keras.models.load_model`, which raises on the V11/V12 `FrequencyCoord` layer;
+and its time filter defaulted **on** (05:30–10:30), while **81.5 % of the
+reviewed detections fall outside that window**, so a default run reproduced less
+than a fifth of the deployment and could not be compared with the review.
+
+If full recall is still too expensive at the end, `scripts/recall_sample.py
+plan|budget|score` bounds it from a few hours of exhaustively annotated audio.
 
 ---
 
