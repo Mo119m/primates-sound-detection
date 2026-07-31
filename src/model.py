@@ -68,6 +68,131 @@ class FrequencyCoord(layers.Layer):
         return tuple(input_shape[:-1]) + (input_shape[-1] + 1,)
 
 
+def build_temporal_pool(fmap, pooling, tap='block4_conv4'):
+    """
+    Everything between the VGG19 tap and the dense tail, as one graph.
+
+    Split out of build_model so a training path that feeds *stored*
+    block4_conv4 activations straight in -- skipping the frozen base, which
+    on a CPU costs more than the rest of an epoch put together -- runs exactly
+    the layers the production model runs. A second copy of this graph would
+    drift the first time either was edited, and the drift would be silent:
+    both would train, and only the reported numbers would be wrong.
+
+    Args:
+        fmap: the (batch, freq, time, channels) feature map at the tap.
+        pooling: one of 'temporal', 'temporal_freq', 'temporal_freqpos'.
+        tap: name of the tapped layer, for the log line only.
+
+    Returns:
+        The pooled feature vector, ready for build_dense_tail().
+    """
+    if pooling == 'temporal_freqpos':
+        # Stamp absolute frequency position onto every cell, then fuse it
+        # with the texture features via a 3x3 Conv2D so downstream pooling
+        # operates on frequency-AWARE features rather than position-blind
+        # VGG textures.
+        fmap = FrequencyCoord(name='freq_coord')(fmap)
+        fmap = layers.Conv2D(128, 3, padding='same',
+                             name='freqpos_fuse_conv')(fmap)
+        fmap = layers.BatchNormalization(name='freqpos_fuse_bn')(fmap)
+        fmap = layers.Activation('relu', name='freqpos_fuse_relu')(fmap)
+
+    n_freq = fmap.shape[1]
+    n_time = fmap.shape[2]
+    n_ch = fmap.shape[3]
+
+    if pooling == 'temporal':
+        # V7 path: average over frequency, keep time only.
+        x = layers.AveragePooling2D(pool_size=(n_freq, 1), name='freq_pool')(fmap)
+        x = layers.Reshape((n_time, n_ch), name='time_sequence')(x)
+        x = layers.Conv1D(256, 3, padding='same', name='temporal_conv1')(x)
+        x = layers.BatchNormalization(name='temporal_bn1')(x)
+        x = layers.Activation('relu', name='temporal_relu1')(x)
+        x = layers.Conv1D(256, 3, padding='same', name='temporal_conv2')(x)
+        x = layers.BatchNormalization(name='temporal_bn2')(x)
+        x = layers.Activation('relu', name='temporal_relu2')(x)
+        x = layers.Bidirectional(
+            layers.LSTM(128, return_sequences=True, dropout=0.3),
+            name='temporal_bilstm')(x)
+        x = layers.Concatenate(name='temporal_pool')([
+            layers.GlobalMaxPooling1D()(x),
+            layers.GlobalAveragePooling1D()(x),
+        ])
+        print(f"   Temporal CRNN head: tap {tap} -> freq-pooled to "
+              f"({n_time} steps x {n_ch} ch) -> Conv1D x2 -> BiLSTM")
+    else:
+        # temporal_freq: split frequency into bands, each gets its own
+        # temporal pathway, then merge.  The model explicitly sees WHICH
+        # frequency band is active at each time step.
+        N_BANDS = 4
+        band_size = n_freq // N_BANDS
+        band_outputs = []
+        band_boundaries = []
+        for b in range(N_BANDS):
+            f_start = b * band_size
+            f_end = n_freq if b == N_BANDS - 1 else (b + 1) * band_size
+            band_boundaries.append((f_start, f_end))
+            bh = f_start
+            crop_top = bh
+            crop_bot = n_freq - f_end
+            band = layers.Cropping2D(
+                ((crop_top, crop_bot), (0, 0)),
+                name=f'freq_band_{b}')(fmap)
+            band_h = f_end - f_start
+            band = layers.AveragePooling2D(
+                pool_size=(band_h, 1),
+                name=f'band_{b}_freq_pool')(band)
+            band = layers.Reshape(
+                (n_time, n_ch),
+                name=f'band_{b}_seq')(band)
+            band = layers.Conv1D(
+                128, 3, padding='same',
+                name=f'band_{b}_conv1')(band)
+            band = layers.BatchNormalization(
+                name=f'band_{b}_bn1')(band)
+            band = layers.Activation(
+                'relu', name=f'band_{b}_relu1')(band)
+            band_outputs.append(band)
+
+        # Stack bands: (batch, time, N_BANDS * 128)
+        x = layers.Concatenate(
+            axis=-1, name='band_merge')(band_outputs)
+        # Cross-band temporal convolution
+        x = layers.Conv1D(256, 3, padding='same',
+                          name='cross_band_conv')(x)
+        x = layers.BatchNormalization(name='cross_band_bn')(x)
+        x = layers.Activation('relu', name='cross_band_relu')(x)
+        # Recurrent layer sees all bands together over time
+        x = layers.Bidirectional(
+            layers.LSTM(128, return_sequences=True, dropout=0.3),
+            name='temporal_bilstm')(x)
+        x = layers.Concatenate(name='temporal_pool')([
+            layers.GlobalMaxPooling1D()(x),
+            layers.GlobalAveragePooling1D()(x),
+        ])
+        coord_note = (" (+frequency-coordinate fusion)"
+                      if pooling == 'temporal_freqpos' else "")
+        print(f"   Temporal-freq CRNN head{coord_note}: tap {tap} -> "
+              f"{N_BANDS} freq bands x {n_time} time steps -> "
+              f"per-band Conv1D -> merge -> cross-band Conv1D -> BiLSTM")
+    return x
+
+
+def build_dense_tail(x, num_classes: int = config.N_CLASSES):
+    """The classifier tail shared by every pooling mode."""
+    # Dense layers
+    x = layers.Dense(512, activation='relu', name='dense_512')(x)
+    x = layers.Dropout(config.DROPOUT_RATE)(x)
+    
+    x = layers.Dense(256, activation='relu', name='dense_256')(x)
+    x = layers.Dropout(config.DROPOUT_RATE)(x)
+    
+    # Output layer
+    outputs = layers.Dense(num_classes, activation='softmax', name='output')(x)
+    return outputs
+
+
 def build_model(num_classes: int = config.N_CLASSES,
                 input_shape: tuple = (config.IMG_HEIGHT, config.IMG_WIDTH, config.IMG_CHANNELS),
                 freeze_base: bool = config.FREEZE_BASE_LAYERS,
@@ -175,107 +300,11 @@ def build_model(num_classes: int = config.N_CLASSES,
                                                     # unfreeze_base_model finds it
         fmap = feat(inputs, training=False)         # (b, freq, time, channels)
 
-        if pooling == 'temporal_freqpos':
-            # Stamp absolute frequency position onto every cell, then fuse it
-            # with the texture features via a 3x3 Conv2D so downstream pooling
-            # operates on frequency-AWARE features rather than position-blind
-            # VGG textures.
-            fmap = FrequencyCoord(name='freq_coord')(fmap)
-            fmap = layers.Conv2D(128, 3, padding='same',
-                                 name='freqpos_fuse_conv')(fmap)
-            fmap = layers.BatchNormalization(name='freqpos_fuse_bn')(fmap)
-            fmap = layers.Activation('relu', name='freqpos_fuse_relu')(fmap)
-
-        n_freq = fmap.shape[1]
-        n_time = fmap.shape[2]
-        n_ch = fmap.shape[3]
-
-        if pooling == 'temporal':
-            # V7 path: average over frequency, keep time only.
-            x = layers.AveragePooling2D(pool_size=(n_freq, 1), name='freq_pool')(fmap)
-            x = layers.Reshape((n_time, n_ch), name='time_sequence')(x)
-            x = layers.Conv1D(256, 3, padding='same', name='temporal_conv1')(x)
-            x = layers.BatchNormalization(name='temporal_bn1')(x)
-            x = layers.Activation('relu', name='temporal_relu1')(x)
-            x = layers.Conv1D(256, 3, padding='same', name='temporal_conv2')(x)
-            x = layers.BatchNormalization(name='temporal_bn2')(x)
-            x = layers.Activation('relu', name='temporal_relu2')(x)
-            x = layers.Bidirectional(
-                layers.LSTM(128, return_sequences=True, dropout=0.3),
-                name='temporal_bilstm')(x)
-            x = layers.Concatenate(name='temporal_pool')([
-                layers.GlobalMaxPooling1D()(x),
-                layers.GlobalAveragePooling1D()(x),
-            ])
-            print(f"   Temporal CRNN head: tap {tap} -> freq-pooled to "
-                  f"({n_time} steps x {n_ch} ch) -> Conv1D x2 -> BiLSTM")
-        else:
-            # temporal_freq: split frequency into bands, each gets its own
-            # temporal pathway, then merge.  The model explicitly sees WHICH
-            # frequency band is active at each time step.
-            N_BANDS = 4
-            band_size = n_freq // N_BANDS
-            band_outputs = []
-            band_boundaries = []
-            for b in range(N_BANDS):
-                f_start = b * band_size
-                f_end = n_freq if b == N_BANDS - 1 else (b + 1) * band_size
-                band_boundaries.append((f_start, f_end))
-                bh = f_start
-                crop_top = bh
-                crop_bot = n_freq - f_end
-                band = layers.Cropping2D(
-                    ((crop_top, crop_bot), (0, 0)),
-                    name=f'freq_band_{b}')(fmap)
-                band_h = f_end - f_start
-                band = layers.AveragePooling2D(
-                    pool_size=(band_h, 1),
-                    name=f'band_{b}_freq_pool')(band)
-                band = layers.Reshape(
-                    (n_time, n_ch),
-                    name=f'band_{b}_seq')(band)
-                band = layers.Conv1D(
-                    128, 3, padding='same',
-                    name=f'band_{b}_conv1')(band)
-                band = layers.BatchNormalization(
-                    name=f'band_{b}_bn1')(band)
-                band = layers.Activation(
-                    'relu', name=f'band_{b}_relu1')(band)
-                band_outputs.append(band)
-
-            # Stack bands: (batch, time, N_BANDS * 128)
-            x = layers.Concatenate(
-                axis=-1, name='band_merge')(band_outputs)
-            # Cross-band temporal convolution
-            x = layers.Conv1D(256, 3, padding='same',
-                              name='cross_band_conv')(x)
-            x = layers.BatchNormalization(name='cross_band_bn')(x)
-            x = layers.Activation('relu', name='cross_band_relu')(x)
-            # Recurrent layer sees all bands together over time
-            x = layers.Bidirectional(
-                layers.LSTM(128, return_sequences=True, dropout=0.3),
-                name='temporal_bilstm')(x)
-            x = layers.Concatenate(name='temporal_pool')([
-                layers.GlobalMaxPooling1D()(x),
-                layers.GlobalAveragePooling1D()(x),
-            ])
-            coord_note = (" (+frequency-coordinate fusion)"
-                          if pooling == 'temporal_freqpos' else "")
-            print(f"   Temporal-freq CRNN head{coord_note}: tap {tap} -> "
-                  f"{N_BANDS} freq bands x {n_time} time steps -> "
-                  f"per-band Conv1D -> merge -> cross-band Conv1D -> BiLSTM")
+        x = build_temporal_pool(fmap, pooling, tap=tap)
     else:
         x = layers.GlobalAveragePooling2D()(x)
 
-    # Dense layers
-    x = layers.Dense(512, activation='relu', name='dense_512')(x)
-    x = layers.Dropout(config.DROPOUT_RATE)(x)
-    
-    x = layers.Dense(256, activation='relu', name='dense_256')(x)
-    x = layers.Dropout(config.DROPOUT_RATE)(x)
-    
-    # Output layer
-    outputs = layers.Dense(num_classes, activation='softmax', name='output')(x)
+    outputs = build_dense_tail(x, num_classes)
     
     # Create model
     model = keras.Model(inputs=inputs, outputs=outputs, name='primate_vocalization_model')
