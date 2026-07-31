@@ -314,29 +314,48 @@ def apply_review(manifest, review):
     """
     Correct the auto-flagged pool against the human verdicts.
 
-    Matching is on (recording, offset, confidence rounded to 2 dp), which is what
-    both filename conventions preserve. A flagged clip the review calls a genuine
-    call is relabelled Cernic; one the review confirms is left as a negative and
-    marked verified, because a filter guess that a person checked is no longer a
-    guess.
+    Matching is on **(recording, offset)** and deliberately ignores confidence.
+    A clip and a reviewed detection that name the same recording and the same
+    second are the same two seconds of audio; the confidence differs only
+    because a different model version scored it, and the hard-negative loop ran
+    across versions while the review was done once, on V12. Keying on confidence
+    as well loses 19 clips that way -- 17 confirmed false positives and 2
+    confirmed calls.
+
+    The looser key is safe because it is not ambiguous here: across the 6 186
+    (recording, second) pairs in the review, **none** carries two different
+    verdicts, so no clip can be pulled toward a label the review does not
+    support. That is checked rather than assumed, because recording names do
+    repeat across the five stations that recorded without GPS.
+
+    A flagged clip the review calls a genuine call is relabelled Cernic; one the
+    review confirms is left a negative and marked verified, because a filter
+    guess that a person checked is no longer a guess.
     """
     if not len(review):
         return manifest, 0
 
-    truth = {}
+    truth, conflicts = {}, 0
     for _, r in review.iterrows():
         m = REVIEW_CLIP_RE.match(r["file"])
-        if m:
-            truth[(m.group(1), int(m.group(2)),
-                   round(float(m.group(3)), 2))] = (r["verdict"], r["site"])
+        if not m:
+            continue
+        key = (m.group(1), int(m.group(2)))
+        if key in truth and truth[key][0] != r["verdict"]:
+            conflicts += 1
+            truth[key] = None          # ambiguous: refuse to label it
+        elif key not in truth:
+            truth[key] = (r["verdict"], r["site"])
+    if conflicts:
+        print(f"  ! {conflicts} (recording, second) pairs carry two verdicts "
+              f"-- left unlabelled")
 
     recovered = 0
     for i, row in manifest[manifest["source"] == "auto_flagged_fp"].iterrows():
         m = FLAGGED_CLIP_RE.match(os.path.basename(row["path"]))
         if not m:
             continue
-        hit = truth.get((m.group(1), int(m.group(2)),
-                         round(float(m.group(3)), 2)))
+        hit = truth.get((m.group(1), int(m.group(2))))
         if hit is None:
             continue
         verdict, site = hit
