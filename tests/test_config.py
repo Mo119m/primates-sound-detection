@@ -63,6 +63,32 @@ def test_lowfreq_gate_threshold_exists():
     assert 0 < config.LOWFREQ_GATE_THRESHOLD <= 1.0
 
 
+# Measured by scripts/calibrate_colobus_gate.py over the 253 C. guereza
+# detections the 16-station deployment produced, none of which manual listening
+# found to be a genuine roar.
+FIELD_FP_MEDIAN_LOWFREQ_RATIO = 0.396
+
+
+def test_lowfreq_gate_threshold_excludes_most_field_false_positives():
+    """
+    The gate must sit above the median of the negatives it actually meets.
+
+    The original 0.20 was calibrated against Colobus_confuser clips, which top
+    out at 0.092, and it separated them perfectly. It was never tested against
+    thunder, which is itself low-frequency: at 0.20 nearly nine in ten of the
+    field detections passed. A threshold below the field median means more than
+    half of a population known to be entirely false is admitted, which is the
+    specific failure this bound exists to prevent -- not a style rule.
+
+    Lowering the threshold is allowed, but only together with evidence about a
+    different negative population, which means updating the constant above.
+    """
+    assert config.LOWFREQ_GATE_THRESHOLD > FIELD_FP_MEDIAN_LOWFREQ_RATIO, (
+        f"threshold {config.LOWFREQ_GATE_THRESHOLD} admits over half the field "
+        f"detections (median ratio {FIELD_FP_MEDIAN_LOWFREQ_RATIO})"
+    )
+
+
 # ------------------------------------------------------------------
 # Audio / spectrogram sanity
 # ------------------------------------------------------------------
