@@ -377,9 +377,14 @@ below. Background-class clips are not augmented, so that the negative class
 reflects the true diversity of ambient sound rather than synthetic variants.
 
 Augmentation is applied to a \emph{target count} rather than as a fixed
-multiplier, again following Sun et al.: each target class is replicated until it
-reaches 3{,}000 examples, cycling through the four operations so that a class
-needing many variants receives a spread rather than repeated draws of one. The
+multiplier, which is a departure from Sun et al.\ and not a borrowing: that
+study augments each vocalisation to 16 samples regardless of how many its class
+already has. Each target class here is instead replicated until it reaches
+3{,}000 examples, cycling through the four operations so that a class needing
+many variants receives a spread rather than repeated draws of one. The reason
+for the change is that the classes differ in size by an order of magnitude --
+150 clips against 3{,}002 -- so a fixed multiplier preserves that imbalance
+while a target count removes it. The
 resulting multipliers are unequal by construction --- 4.5$\times$ for
 \textit{Colobus\_guereza} (665 originals), 3.3$\times$ for
 \textit{Colobus\_confuser} (907), and 20$\times$ for \textit{C\_pogonias}
