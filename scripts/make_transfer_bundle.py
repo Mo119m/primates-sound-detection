@@ -87,7 +87,7 @@ EXTERNAL = [
 # Written record. The numbers in the manuscript cannot be checked without it,
 # and several of these document mistakes that would otherwise be repeated.
 DOCS = [
-    ("paper/methodsx_manuscript.tex", "the manuscript"),
+    ("overleaf/methodsx_manuscript.tex", "the manuscript"),
     ("paper/Figure_1.pdf", "figure 1"),
     ("paper/Figure_2.pdf", "figure 2"),
     ("paper/Figure_3.pdf", "figure 3"),

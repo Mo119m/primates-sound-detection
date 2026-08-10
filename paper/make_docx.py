@@ -13,7 +13,7 @@ import re
 import pathlib
 import pypandoc
 
-SRC = pathlib.Path("methodsx_manuscript.tex")
+SRC = pathlib.Path("../overleaf/methodsx_manuscript.tex")
 TMP = pathlib.Path("_manuscript_png.tex")
 OUT = "methodsx_manuscript.docx"
 
