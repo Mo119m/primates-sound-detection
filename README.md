@@ -5,7 +5,10 @@ Makokou, Gabon. The production model (**V12**) is a four-class classifier
 — *Cernic* (**Cercopithecus nictitans**, putty-nosed monkey), **Colobus
 guereza**, a dedicated hard-negative *confuser* class, and *Background* — built
 on a VGG19 backbone with a **frequency-position-aware** temporal-frequency CRNN
-head (`temporal_freqpos`, 98.12% validation accuracy).
+head (`temporal_freqpos`). Measured leave-one-station-out on 6 189 human-reviewed
+field detections, retraining on those verdicts raises precision from **0.70 to
+0.93** at matched recall. Validation-set accuracy is deliberately not quoted —
+see below.
 
 > **Just want to run it?** → Follow [`SETUP.md`](SETUP.md) to install the
 > environment (one time), download the pretrained model (see below), then open
@@ -21,7 +24,7 @@ head (`temporal_freqpos`, 98.12% validation accuracy).
 
 ## Pretrained Model
 
-The production V12 model (`best_model_v12.h5`, ~80 MB) is required for
+The production V12 model (`best_model_v12.h5`, 142 MiB) is required for
 detection. It is not included in the repository due to file size.
 
 **Download:** <!-- TODO: replace with actual link -->
@@ -100,7 +103,7 @@ python scripts/run_detection_ipa.py --station IPA1ST
 ### Step 4 — Auto-cleanup false positives
 
 Three filters (Mahalanobis OOD, YAMNet cross-check, temporal isolation) sort
-detections into clean vs. suspicious, no manual listening needed.
+detections into clean vs. suspicious.
 
 ```python
 result = auto_cleanup.run_auto_cleanup(detection_dir='data/outputs/detections/IPA1ST')
@@ -108,11 +111,46 @@ result['clean_df']       # passed all filters
 result['suspicious_df']  # flagged, with flag_reason column
 ```
 
+**Two of the three filters do not work, measured against the 6 189 human
+verdicts in `data/outputs/auto_cleanup/cleanup_vs_review.csv`:**
+
+| Filter | What it flags | Verdict |
+|---|---|---|
+| YAMNet | nothing — `USE_YAMNET_FILTER = False` | disabled; it flags 51.8 % of real calls |
+| Mahalanobis | 310 rows, 26.1 % of them genuine calls | ROC area 0.515 = chance. It preferentially flags *loud, unambiguous* calls, which are exactly what sits far from the training distribution. A blind re-listen of 44 clips it exported as false positives judged **all 44 genuine**. |
+| Temporal isolation | 530 rows, 7.5 % genuine | the only one that helps — and it is being wasted, see below |
+
+`flag_isolated` is exactly `n_neighbours == 0`, i.e. a count that ranges 0–58
+collapsed into one bit. Used as a graded value *after* a time gate it is the
+strongest signal in the file (ROC area 0.880, same direction at 16 of 16
+stations). Re-derive both with `scripts/calibrate_cleanup.py`, which fits
+leave-one-station-out so the threshold is never chosen on the station it is
+scored against:
+
+```
+no gate                                  precision 0.410, recall 1.000
+time gate 05:00–19:00                    precision 0.701, recall 0.987
++ n_neighbours (threshold fitted LOSO)   precision 0.869, recall 0.898
+```
+
 ### Step 5 — Retrain with hard negatives
 
-Move flagged clips from `auto_cleanup/auto_flagged_fp/` into a background
-folder, add it to `BACKGROUND_FOLDERS` in `config.py`, go back to Step 2.
-Repeat 3–5 times.
+> **Do not do this the way it used to be described here.** The old instruction
+> was: move everything in `auto_cleanup/auto_flagged_fp/` into a background
+> folder, retrain, repeat 3–5 times. That loop has no ground truth — whatever
+> the filters flagged became a training negative and nobody listened. It fed the
+> model's most confident *genuine* calls back as Background, including 20 clips
+> from IPA19/IPA20, the two stations the configuration holds out.
+> `config.BACKGROUND_EXCLUDE` now blocks the two poisoned subfolders
+> (`mahal/`, `yamnet/`) at load time; read the comment there before touching it.
+
+The station-named subfolders under `auto_flagged_fp/` **are** sound: they were
+mined per station and hand-checked, and cross-matching them against the review
+turns up no contradiction. They load as Background automatically (3 300 clips).
+
+To add genuinely new hard negatives, mine them against human labels rather than
+against a filter — `scripts/mine_field_negatives.py` — and check any new pool
+against `data/outputs/auto_cleanup/cleanup_vs_review.csv` before training on it.
 
 ---
 
@@ -252,18 +290,43 @@ Three false-positive controls target *Colobus* specifically:
 2. **Confuser class** — a dedicated softmax output for the recurring forest sound
    that mimics Colobus, folded into Background at detection time.
 3. **Low-frequency energy gate** — at detection time, a Colobus detection is kept
-   only if most of its spectral energy sits below 1500 Hz (threshold 0.20).
+   only if most of its spectral energy sits below 1500 Hz. The threshold is
+   **0.40** (`config.LOWFREQ_GATE_THRESHOLD`); the 0.20 used in the deployment
+   was calibrated against confuser clips whose ratios top out at 0.09, and it
+   removed **none** of the 253 field detections, whose minimum is 0.2007.
 
-| Class | Accuracy |
-|---|---|
-| Cernic | 96.14% |
-| Colobus guereza | 99.01% |
-| Colobus confuser | 97.81% |
-| Background | 98.38% |
-| **Overall** | **98.12%** |
+### Performance
 
-See the [MethodsX paper](paper/) for full architectural details, design
-rationale, and field validation results.
+**There is no validation-accuracy table here any more, and that is deliberate.**
+Earlier versions of this README quoted 98.12 % overall with a per-class
+breakdown. Those numbers came from a split taken *after* augmentation: with a
+multiplier of seven, a source clip keeps all its variants on one side only
+`0.8^7 = 21 %` of the time, so roughly 79 % of source clips put a near-duplicate
+across the split. They measured memorisation, and the distance between them and
+the 41.0 % precision the model actually achieved in the field is the size of the
+problem.
+
+What replaces them is a field measurement on stations the model never saw
+(`scripts/train_v13_loso.py`, `data/outputs/v13_loso.csv`), macro-averaged over
+all 16 folds at matched 95 % recall:
+
+| | Deployed (V12) | Retrained | |
+|---|---|---|---|
+| Precision | 0.695 | **0.934** | at 95.3 % of the calls retained |
+| False positives removed | — | **82.1 %** | weakest station IPA7ST at 0.759 |
+
+Two free post-processing steps land before the model does any work at all
+(`scripts/calibrate_time_gate.py`, `scripts/calibrate_cleanup.py`):
+
+| Stage | Precision | Recall |
+|---|---|---|
+| ungated | 0.410 | 1.000 |
+| + time gate 05:00–19:00 | 0.701 | 0.987 |
+| + graded `n_neighbours`, LOSO-fitted | 0.869 | 0.898 |
+
+*Colobus guereza* is reported as a **negative result**: 253 field detections, all
+listened to, none genuine. See the [MethodsX paper](paper/) for the four
+independent searches behind that and for architectural details.
 
 ## Adapting to Your Own Species
 

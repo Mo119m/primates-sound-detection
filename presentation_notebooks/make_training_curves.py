@@ -5,9 +5,18 @@ Per-epoch values are taken directly from the recorded V12 training log:
   Stage 1 -- frozen VGG19 base, head training (29 epochs, early stopping).
   Stage 2 -- last two VGG19 blocks unfrozen, fine-tuning (28 epochs).
 The deployed model (best_model_v12.h5) is the best-val-accuracy checkpoint,
-stage-2 epoch 24, val_accuracy 0.98117 (= the reported 98.12 %).
+stage-2 epoch 24.
 
-Style matches the confusion-matrix figure: Liberation Serif, muted palette.
+The checkpoint is marked on the plot but its validation accuracy is NOT printed.
+That figure was withdrawn from the manuscript: the split behind it was taken
+after augmentation, so roughly 79 % of source clips placed a near-duplicate on
+both sides and the number measures memorisation. The curves themselves are kept
+because they document the two-stage training procedure; the caption says
+explicitly that the validation trace is optimistic throughout.
+
+Typography comes from _figstyle, and the figure is drawn at the width it will
+occupy on the page, so a point here is a point in the PDF -- no scaling, and
+nothing to compensate for. Do not add a local fontsize= anywhere in this file.
 
 Outputs:
   figures/training_curves_v12.pdf
@@ -17,14 +26,8 @@ from pathlib import Path
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-_SERIF_PREF = ["Times New Roman", "Liberation Serif", "Nimbus Roman",
-               "STIXGeneral", "DejaVu Serif"]
-mpl.rcParams["font.family"] = "serif"
-mpl.rcParams["font.serif"] = _SERIF_PREF
-mpl.rcParams["mathtext.fontset"] = "stix"
-mpl.rcParams["axes.unicode_minus"] = False
-mpl.rcParams["pdf.fonttype"] = 42  # embed TrueType (avoid Type 3; Elsevier requirement)
-mpl.rcParams["ps.fonttype"] = 42
+import _figstyle
+_figstyle.apply()
 
 OUT = Path(__file__).parent / "figures"
 OUT.mkdir(parents=True, exist_ok=True)
@@ -74,21 +77,21 @@ boundary = n1 + 0.5
 best_global = n1 + 24
 best_val = 0.9812
 
-TRAIN = "#3E5C76"   # muted blue
-VAL = "#99584B"     # muted brick
-INK = "#1E2A32"
-SUBINK = "#5A6670"
-FRAME = "#CBC7BF"
+TRAIN = _figstyle.TRAIN
+VAL = _figstyle.VAL
+INK = _figstyle.INK
+SUBINK = _figstyle.SUBINK
+FRAME = _figstyle.FRAME
 
-fig, (axA, axL) = plt.subplots(1, 2, figsize=(9.4, 4.0), dpi=300)
+fig, (axA, axL) = plt.subplots(1, 2, figsize=(_figstyle.TEXT_WIDTH_IN, 2.9), dpi=300)
 
 
 def style(ax):
     for s in ax.spines.values():
         s.set_color(FRAME)
         s.set_linewidth(0.8)
-    ax.tick_params(length=3, colors=SUBINK, labelsize=12.2)
-    ax.grid(True, color="#ECEAE4", linewidth=0.8, zorder=0)
+    ax.tick_params(length=3, colors=SUBINK)
+    ax.grid(True, color=_figstyle.GRID, linewidth=0.8, zorder=0)
     ax.set_axisbelow(True)
     ax.axvline(boundary, color=SUBINK, linestyle=(0, (4, 3)), linewidth=1.0,
                zorder=1)
@@ -99,17 +102,22 @@ axA.plot(x1, s1_acc, color=TRAIN, linewidth=1.6, label="Training")
 axA.plot(x2, s2_acc, color=TRAIN, linewidth=1.6)
 axA.plot(x1, s1_val, color=VAL, linewidth=1.6, label="Validation")
 axA.plot(x2, s2_val, color=VAL, linewidth=1.6)
-axA.scatter([best_global], [best_val], s=34, facecolor="white",
-            edgecolor=VAL, linewidth=1.4, zorder=5)
-axA.annotate(f"best val {best_val*100:.2f}%",
-             xy=(best_global, best_val), xytext=(best_global - 17, 0.905),
-             fontsize=11.5, color=INK,
-             arrowprops=dict(arrowstyle="-", color=SUBINK, linewidth=0.8))
+# The best-validation checkpoint is marked, but its VALUE is deliberately not
+# printed. That number (98.12 %) has been withdrawn from the manuscript: the
+# split it comes from was taken after augmentation, so ~79 % of source clips
+# put a near-duplicate on both sides and the figure would be advertising a
+# measurement of memorisation. Leaving it on the plot while the text explains
+# why it was retracted is the kind of inconsistency a reviewer notices first.
+axA.scatter([best_global], [best_val], s=42, facecolor="white",
+            edgecolor=VAL, linewidth=1.6, zorder=5)
+# No in-plot label. A leader line long enough to reach clear space cuts
+# diagonally across the data, and the caption has room to say what the marker
+# is. One mark, no annotation, explanation underneath.
 style(axA)
-axA.set_xlabel("Epoch", fontsize=14.2, color=INK)
-axA.set_ylabel("Accuracy", fontsize=14.2, color=INK)
+axA.set_xlabel("Epoch", color=INK)
+axA.set_ylabel("Accuracy", color=INK)
 axA.set_ylim(0.68, 1.005)
-axA.legend(loc="lower right", fontsize=12.2, frameon=False)
+axA.legend(loc="lower right", frameon=False)
 
 # ── loss panel ───────────────────────────────────────────────────────────
 axL.plot(x1, s1_loss, color=TRAIN, linewidth=1.6, label="Training")
@@ -117,19 +125,18 @@ axL.plot(x2, s2_loss, color=TRAIN, linewidth=1.6)
 axL.plot(x1, s1_vloss, color=VAL, linewidth=1.6, label="Validation")
 axL.plot(x2, s2_vloss, color=VAL, linewidth=1.6)
 style(axL)
-axL.set_xlabel("Epoch", fontsize=14.2, color=INK)
-axL.set_ylabel("Loss", fontsize=14.2, color=INK)
-axL.legend(loc="upper right", fontsize=12.2, frameon=False)
+axL.set_xlabel("Epoch", color=INK)
+axL.set_ylabel("Loss", color=INK)
+axL.legend(loc="upper right", frameon=False)
 
 # Stage labels (placed above each panel region).
 for ax in (axA, axL):
     ymax = ax.get_ylim()[1]
-    ax.text(n1 / 2, ymax, "Stage 1: head training",
-            ha="center", va="bottom", fontsize=10.8, color=SUBINK, style="italic")
-    ax.text(n1 + n2 / 2, ymax, "Stage 2: fine-tuning",
-            ha="center", va="bottom", fontsize=10.8, color=SUBINK, style="italic")
+    ax.text(n1 / 2, ymax, "Stage 1", ha="center", va="bottom", color=SUBINK)
+    ax.text(n1 + n2 / 2, ymax, "Stage 2", ha="center", va="bottom",
+            color=SUBINK)
 
-fig.suptitle("V12 two-stage training history", fontsize=16.9, color=INK,
+fig.suptitle("V12 two-stage training history", color=INK,
              y=1.02)
 plt.tight_layout()
 

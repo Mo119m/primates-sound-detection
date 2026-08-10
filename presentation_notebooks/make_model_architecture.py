@@ -17,13 +17,8 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, FancyArrowPatch
 
-_SERIF_PREF = ["Times New Roman", "Liberation Serif", "Nimbus Roman",
-               "STIXGeneral", "DejaVu Serif"]
-mpl.rcParams["font.family"] = "serif"
-mpl.rcParams["font.serif"] = _SERIF_PREF
-mpl.rcParams["axes.unicode_minus"] = False
-mpl.rcParams["pdf.fonttype"] = 42  # embed TrueType (avoid Type 3; Elsevier requirement)
-mpl.rcParams["ps.fonttype"] = 42
+import _figstyle
+_figstyle.apply()
 
 OUT = Path(__file__).parent / "figures"
 OUT.mkdir(parents=True, exist_ok=True)
@@ -33,14 +28,13 @@ FRAME = "#8C8C8C"
 FILL = "#F0EFEC"
 SHAPE = "#555555"
 
-fig, ax = plt.subplots(figsize=(7.2, 9.2), dpi=300)
+fig, ax = plt.subplots(figsize=(5.33, 6.81), dpi=300)
 ax.set_xlim(0, 100)
 ax.set_ylim(0, 100)
 ax.axis("off")
 fig.patch.set_facecolor("white")
 
-ax.text(50, 97.5, "Model architecture", ha="center", va="center",
-        fontsize=16.5, color=INK)
+ax.text(50, 97.5, "Model architecture", ha="center", va="center", color=INK)
 
 CX, BW = 46, 50          # box centre-x and width
 LX = CX - BW / 2         # left edge
@@ -50,14 +44,14 @@ SHX = CX + BW / 2 + 2    # x for shape annotation (right of box)
 def box(cy, h, lines, shape=None, note=None, fill=FILL):
     ax.add_patch(Rectangle((LX, cy - h / 2), BW, h, facecolor=fill,
                            edgecolor=FRAME, linewidth=0.9, zorder=3))
-    ax.text(CX, cy, lines, ha="center", va="center", fontsize=10.1,
+    ax.text(CX, cy, lines, ha="center", va="center",
             color=INK, linespacing=1.3, zorder=4)
     if shape:
-        ax.text(SHX, cy, shape, ha="left", va="center", fontsize=9.0,
+        ax.text(SHX, cy, shape, ha="left", va="center",
                 color=SHAPE, family="monospace")
     if note:
-        ax.text(LX - 2, cy, note, ha="right", va="center", fontsize=9.0,
-                color=INK, style="italic", linespacing=1.1)
+        ax.text(LX - 2, cy, note, ha="right", va="center",
+                color=INK, style="normal", linespacing=1.1)
 
 
 def varrow(y1, y2):
@@ -78,7 +72,7 @@ box(71.0, 7.6,
 
 # ── four-band split ────────────────────────────────────────────────────────
 ax.text(CX, 63.2, "split mel axis into 4 bands · average-pool frequency",
-        ha="center", va="center", fontsize=9.0, color=INK, style="italic")
+        ha="center", va="center", color=INK, style="normal")
 band_y = 57.0
 band_h = 5.6
 band_w = 9.5
@@ -87,8 +81,7 @@ for i, bx in enumerate(band_cxs):
     ax.add_patch(Rectangle((bx - band_w / 2, band_y - band_h / 2), band_w,
                            band_h, facecolor="white", edgecolor=FRAME,
                            linewidth=0.8, zorder=3))
-    ax.text(bx, band_y, f"band {i+1}", ha="center", va="center",
-            fontsize=8.0, color=INK)
+    ax.text(bx, band_y, f"band {i+1}", ha="center", va="center", color=INK)
     # fan-out from CoordConv box, fan-in to concat box
     ax.add_patch(FancyArrowPatch((CX, 67.2), (bx, band_y + band_h / 2),
                  arrowstyle="-|>,head_length=3.5,head_width=2.4",
@@ -98,10 +91,9 @@ for i, bx in enumerate(band_cxs):
                  arrowstyle="-|>,head_length=3.5,head_width=2.4",
                  color=INK, linewidth=0.7, zorder=2,
                  connectionstyle="arc3,rad=0.0"))
-ax.text(SHX, band_y, "4 × (28×128)", ha="left", va="center", fontsize=9.0,
+ax.text(SHX, band_y, "4 × (28×128)", ha="left", va="center",
         color=SHAPE, family="monospace")
-ax.text(LX - 2, band_y, "per-band\nConv1D(128, 3)", ha="right", va="center",
-        fontsize=8.3, color=INK, style="italic", linespacing=1.1)
+ax.text(LX - 2, band_y, "per-band\nConv1D(128, 3)", ha="right", va="center", color=INK, style="normal", linespacing=1.1)
 
 box(46.5, 7.0, "Concatenate + cross-band\nConv1D(256, 3) + BN + ReLU",
     shape="28×512 → 28×256")
