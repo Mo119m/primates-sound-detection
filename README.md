@@ -181,6 +181,7 @@ pip install jupyter
 ```
 src/                           Core library modules
 scripts/                       Command-line entry points
+tools/                         Standalone browser tools (see Audio Labeler below)
 data/                          Local drop-in workspace (put your audio here; git-ignored)
 main_pipeline_notebooks/       Notebooks: local + Colab versions
 presentation_notebooks/        Figures and slides for the paper
@@ -264,6 +265,62 @@ All paths, parameters, and species definitions in one place.
 | `tune_threshold.py` | Sweep confidence thresholds and report precision/recall |
 | `summarize_review.py` | Aggregate the per-site manual-review CSVs (Kaleidoscope `MANUAL ID`) into per-station / per-species detection, confirmed-call, false-positive, and precision tallies for the paper |
 | `evaluate_cleanup.py` | Score the auto-cleanup against those manual labels (ground truth): false positives removed, genuine calls retained, precision before vs. after |
+
+---
+
+## Audio Labeler (`tools/labeler.html`)
+
+**A single HTML file for labelling a folder of audio by ear. No install, no
+server, no network — open it in a browser and go.**
+
+It is not specific to this project or to primates: point it at any folder of
+audio, define whatever categories your question needs, and export a CSV.
+
+```
+open tools/labeler.html
+```
+
+1. **Choose a folder** — subfolders included; WAV, MP3, OGG, FLAC and M4A are read.
+2. **Define the categories** — type your own, or start from a preset. Keys
+   <kbd>1</kbd>–<kbd>9</kbd> map to them in order.
+3. **Label** — <kbd>space</kbd> replays, arrows move, it advances automatically.
+4. **Export CSV.**
+
+Spectrograms are computed in the page (small radix-2 FFT), so any folder works
+with nothing prepared in advance. Nothing is uploaded; the files never leave the
+machine, and answers persist per folder in the browser, so a half-finished pass
+survives a closed tab.
+
+Three defaults exist because of what went wrong without them:
+
+- **Order is shuffled** (seeded, so it is stable across sessions). Clips cut from
+  one recording arrive adjacent, and labelling a run of them invites a run of
+  identical judgements.
+- **Filenames can be hidden.** Ours carry the model's confidence, and a listener
+  who knows the model was certain labels differently — which defeats the purpose
+  of an independent opinion.
+- **Gain up to 15×.** Field recordings are quiet, and a faint call at the edge of
+  an analysis window is easy to miss at 1×.
+
+### Sending a batch to someone else
+
+A `file://` path resolves on the *recipient's* machine, so sending a colleague a
+path sends them a path to files they do not have.
+`scripts/make_annotation_tool.py --standalone` builds one self-contained HTML
+with the audio and spectrograms embedded — put it in Drive, they download and
+double-click it, and it works offline.
+
+```bash
+python scripts/make_annotation_tool.py --clips <folder> --standalone \
+    --labels "Thunderstorm,Wood cut,Rain,Bird or insect,Real call,Unknown" \
+    --parts 3            # 3 emailable files instead of one large one
+```
+
+Audio is re-encoded to 22.05 kHz Ogg Vorbis for this (the analysis band ends at
+8 kHz, so nothing audible to the task is lost), which takes a 250-clip page from
+hundreds of megabytes to about 18 MB.
+
+---
 
 ## Notebooks (`main_pipeline_notebooks/`)
 
