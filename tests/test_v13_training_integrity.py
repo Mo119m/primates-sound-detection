@@ -36,6 +36,14 @@ def _drop_stub_modules():
 
 def _trainer_module():
     _drop_stub_modules()
+    # CI installs the scientific stack but deliberately not TensorFlow, to avoid
+    # a multi-hundred-megabyte download on every push; see .github/workflows.
+    # train_v13_loso imports keras at module scope, so these three tests cannot
+    # run there and should say so rather than fail. They were written on a
+    # feature branch and CI only runs on main, so the first push of main after
+    # they were added was the first time anything noticed.
+    pytest.importorskip("tensorflow",
+                        reason="the V13 trainer imports keras at module scope")
     script = Path(__file__).resolve().parents[1] / "scripts" / "train_v13_loso.py"
     spec = importlib.util.spec_from_file_location("train_v13_loso_test", script)
     module = importlib.util.module_from_spec(spec)
