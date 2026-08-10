@@ -396,6 +396,32 @@ LOWFREQ_GATE_THRESHOLD = 0.40  # recalibrated against the 253 field detections;
                                # keeps 93.4% of reference roars, cuts field
                                # detections from 89.3% to 49.4% (was 0.20)
 
+# OUT-OF-DISTRIBUTION DISTANCE AT DETECTION TIME
+# The classifier is closed-set: every window must be assigned one of the five
+# classes, and softmax offers no way to answer "none of these". Deployment is
+# open-set -- almost everything a sliding window meets belongs to no class the
+# model was trained on -- so a microphone knock is forced into the nearest
+# cluster and reported at 0.9999. Three rounds of expert listening returned the
+# same verdict for that reason, and no threshold on confidence can fix it,
+# because the model is not miscalibrated: on held-out reviewed windows it is
+# 99.2 % accurate with an expected calibration error of 0.005.
+#
+# Distance in feature space can express what softmax cannot. Measured on the
+# 55 pops the expert rejected against the 9 field-verified roars, a cutoff at
+# the 90th percentile of in-sample library distances rejects 98 % of the pops
+# and keeps every roar. The equivalent numbers for the low-frequency gate are
+# 94 % and, at IPA4ST, zero -- it removed every Colobus detection there,
+# because energy below 1.5 kHz is not what separates a roar from a knock.
+#
+# Annotated always, gated only when asked: the column supports ranking and can
+# be applied after the fact, while turning the gate on changes every field
+# number in the paper and is therefore an explicit decision.
+OOD_DISTANCE_ENABLED = True    # record `ood_distance` on every detection
+OOD_GATE_ENABLED = False       # drop detections beyond OOD_GATE_PERCENTILE
+OOD_GATE_PERCENTILE = 90       # of the in-sample distances for that class
+OOD_FEATURE_LAYER = 'dense_256'
+OOD_STATS_CACHE = 'outputs/ood_class_stats.npz'
+
 # AUTO-CLEANUP FILTERS
 # The YAMNet cross-check is off by default: measured against the manual review
 # of 6189 field detections it flagged 51.8% of genuine C. nictitans calls but
