@@ -670,7 +670,7 @@ MemmapBatches = _make_batches_class()
 
 
 def train_head(feats, rows, labels, groups, class_names, epochs, seed,
-               verbose=0, pooling="temporal_freqpos"):
+               verbose=0, pooling="temporal_freqpos", patience=3):
     import tensorflow as tf
     from sklearn.utils.class_weight import compute_class_weight
     import model as model_module
@@ -709,15 +709,39 @@ def train_head(feats, rows, labels, groups, class_names, epochs, seed,
 
     train_seq = MemmapBatches(feats, rows[tr], labels[tr], shuffle=True)
     val_seq = MemmapBatches(feats, rows[va], labels[va])
+
+    # Early stopping on validation loss, which Sun et al. apply and this pipeline
+    # did not: "Overfitting and generalization errors would appear if we trained
+    # the model for too many epochs [...] we applied early stopping". Running a
+    # fixed fifteen epochs on a task the head solves to 99 % in-sample spends the
+    # later epochs pushing already-correct examples further from the boundary.
+    # restore_best_weights matters more than the stopping itself -- without it
+    # the weights kept are the last ones, not the best ones.
+    callbacks = []
+    if patience:
+        callbacks.append(tf.keras.callbacks.EarlyStopping(
+            monitor="val_loss", patience=patience, restore_best_weights=True,
+            verbose=verbose))
+
     hist = head.fit(train_seq, validation_data=val_seq, epochs=epochs,
-                    class_weight=class_weight, verbose=verbose)
+                    class_weight=class_weight, callbacks=callbacks,
+                    verbose=verbose)
     ran = len(hist.history.get("loss", []))
-    if ran < epochs:
+    # A short run means one of two very different things. Early stopping firing
+    # is the intended behaviour; the input pipeline being consumed once instead
+    # of per epoch is the bug this guard was written for, and it produced runs
+    # that looked like a weak model rather than a broken loop. The callback's
+    # stopped_epoch separates them: it is 0 when early stopping never fired.
+    stopped_early = any(getattr(c, "stopped_epoch", 0) for c in callbacks)
+    if ran < epochs and not stopped_early:
         raise RuntimeError(
-            f"training stopped after {ran} of {epochs} epochs -- the input "
-            f"pipeline is being consumed once instead of per epoch, and the "
-            f"resulting numbers would look like a weak model rather than a "
-            f"broken loop")
+            f"training stopped after {ran} of {epochs} epochs without early "
+            f"stopping firing -- the input pipeline is being consumed once "
+            f"instead of per epoch, and the resulting numbers would look like "
+            f"a weak model rather than a broken loop")
+    if stopped_early:
+        best = int(np.argmin(hist.history["val_loss"])) + 1
+        print(f"   early stop after {ran} epochs, best val_loss at epoch {best}")
     val_acc = head.evaluate(val_seq, verbose=0)[1]
     # `va` is returned so the caller can calibrate a threshold on rows the head
     # never took a gradient step on. Calibrating on the rest of the training
@@ -1043,6 +1067,13 @@ def main():
                          "deployed head. Everything is downstream of the "
                          "cached features, so a comparison costs only the head "
                          "training.")
+    ap.add_argument("--patience", type=int, default=3,
+                    help="Early-stopping patience on validation loss, with the "
+                         "best weights restored. Sun et al. stop early for the "
+                         "reason that applies here: the head reaches 99 % "
+                         "in-sample, so later epochs only push correct examples "
+                         "further from the boundary. 0 disables it and "
+                         "reproduces the fixed-epoch runs.")
     ap.add_argument("--verbose", type=int, default=0)
     ap.add_argument("--max-train", type=int, default=None,
                     help="Cap the training pool per fold. For checking that the "
@@ -1311,7 +1342,8 @@ def main():
         t0 = time.time()
         head, val_acc, inner_val_rows = train_head(
             feats, tr_rows, labels_tr, groups_tr, class_names, args.epochs,
-            args.seed, args.verbose, pooling=args.pooling)
+            args.seed, args.verbose, pooling=args.pooling,
+            patience=args.patience)
         as_truth = (lambda m: index.loc[m, "label"].map(
             lambda l: "call" if l == "Cernic" else "fp"))
 

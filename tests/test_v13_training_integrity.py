@@ -9,7 +9,33 @@ import pandas as pd
 import pytest
 
 
+def _drop_stub_modules():
+    """Remove empty stand-ins for tensorflow/keras left in sys.modules.
+
+    Two other test modules install ``types.ModuleType("tensorflow")`` at import
+    time so they can exercise auto_cleanup without paying for the real library.
+    The stub is never removed, so whether the trainer here can import Keras
+    depends on whether those modules were imported first: these three tests pass
+    when run alone and fail when run with the suite, with a
+    ``ModuleNotFoundError: 'tensorflow' is not a package`` that points nowhere
+    near the cause.
+
+    A stub is recognisable by having no ``__file__``. Dropping only those leaves
+    a genuine import untouched.
+    """
+    import sys
+    import types
+    for name in list(sys.modules):
+        root = name.split(".")[0]
+        if root not in ("tensorflow", "tensorflow_hub", "keras"):
+            continue
+        mod = sys.modules.get(name)
+        if isinstance(mod, types.ModuleType) and getattr(mod, "__file__", None) is None:
+            del sys.modules[name]
+
+
 def _trainer_module():
+    _drop_stub_modules()
     script = Path(__file__).resolve().parents[1] / "scripts" / "train_v13_loso.py"
     spec = importlib.util.spec_from_file_location("train_v13_loso_test", script)
     module = importlib.util.module_from_spec(spec)
