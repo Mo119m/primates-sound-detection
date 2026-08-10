@@ -3,6 +3,7 @@ Detection Module
 Detect primate vocalizations in long audio files using sliding window approach
 """
 
+import glob
 import numpy as np
 import os
 from typing import List, Tuple, Dict
@@ -145,24 +146,9 @@ _OOD_STATS = None
 _OOD_EXTRACTOR = None
 
 
-def _load_ood_stats():
-    """Class means, inverse covariance and cutoffs, or None if not built yet.
-
-    Returning None rather than fitting on the spot is deliberate: the statistics
-    define what "in distribution" means and belong to the training set, so
-    computing them from whatever happens to be at hand would make two runs of
-    the same command disagree. ``scripts/build_ood_stats.py`` writes them.
-    """
-    global _OOD_STATS
-    if _OOD_STATS is not None:
-        return _OOD_STATS if _OOD_STATS is not False else None
-    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                        "data", config.OOD_STATS_CACHE)
-    if not os.path.exists(path):
-        _OOD_STATS = False
-        return None
+def _read_stats_file(path):
     z = np.load(path, allow_pickle=False)
-    _OOD_STATS = {
+    return {
         "class_means": z["class_means"],
         "inv_cov": z["inv_cov"],
         "class_names": [str(s) for s in z["class_names"]],
@@ -170,8 +156,48 @@ def _load_ood_stats():
         "cutoffs": z["cutoffs"],
         "head_fingerprint": (str(z["head_fingerprint"])
                              if "head_fingerprint" in z.files else None),
+        "path": path,
     }
-    return _OOD_STATS
+
+
+def _load_ood_stats(fingerprint=None):
+    """Class means, inverse covariance and cutoffs for the head in use.
+
+    Every LOSO fold trains its own head and their 256-d feature spaces are
+    unrelated, so one set of statistics cannot serve them all -- and a single
+    configured cache path meant that scanning a second station silently loaded
+    the wrong one. Statistics are therefore looked up by the fingerprint of the
+    head that produced them, across every file in the stats directory, and a
+    scan with no matching file gets no annotation rather than a wrong one.
+
+    Fitting on the spot is not an option: the statistics define what "in
+    distribution" means and belong to the training set, so deriving them from
+    whatever is at hand would make two runs of the same command disagree.
+    ``scripts/build_ood_stats.py`` writes them, one per model.
+    """
+    global _OOD_STATS
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _OOD_STATS is None:
+        _OOD_STATS = []
+        legacy = os.path.join(root, "data", config.OOD_STATS_CACHE)
+        candidates = sorted(glob.glob(os.path.join(
+            root, "data", getattr(config, "OOD_STATS_DIR", "outputs/ood_stats"),
+            "*.npz")))
+        if os.path.exists(legacy):
+            candidates.append(legacy)
+        for p in candidates:
+            try:
+                _OOD_STATS.append(_read_stats_file(p))
+            except Exception:
+                continue
+    if not _OOD_STATS:
+        return None
+    if fingerprint is None:
+        return _OOD_STATS[0]
+    for s in _OOD_STATS:
+        if s.get("head_fingerprint") == fingerprint:
+            return s
+    return None
 
 
 def _head_fingerprint(model):
@@ -205,18 +231,13 @@ def annotate_ood_distance(detections_df: pd.DataFrame,
     """
     if len(detections_df) == 0:
         return detections_df
-    stats = _load_ood_stats()
+    stats = _load_ood_stats(_head_fingerprint(model))
     if stats is None:
-        detections_df = detections_df.copy()
-        detections_df["ood_distance"] = np.nan
-        return detections_df
-
-    want = stats.get("head_fingerprint")
-    if want and _head_fingerprint(model) != want:
-        print("\n ! OOD statistics were fitted on a different head; every LOSO "
-              "fold has its\n   own feature space, so the distances would be "
-              "meaningless. Leaving the\n   ood_distance column empty. Rebuild "
-              "with scripts/build_ood_stats.py --model\n   <this model>.")
+        print("\n ! No OOD statistics fitted on this head. Every LOSO fold has "
+              "its own\n   feature space, so statistics from another fold would "
+              "give meaningless\n   distances; leaving the ood_distance column "
+              "empty instead. Build them with\n   scripts/build_ood_stats.py "
+              "--model <this model>.")
         detections_df = detections_df.copy()
         detections_df["ood_distance"] = np.nan
         return detections_df
@@ -268,15 +289,22 @@ def apply_ood_gate(detections_df: pd.DataFrame,
                          f"available: {stats['percentiles']}")
     col = list(stats["percentiles"]).index(q)
     names = stats["class_names"]
-    absolute = getattr(config, "OOD_GATE_ABSOLUTE", {}) or {}
+    by_class = getattr(config, "OOD_GATE_PERCENTILE_BY_CLASS", {}) or {}
 
     def cutoff_for(species):
-        # An explicit cutoff wins over the percentile. Colobus has one because
-        # its pop and roar distributions touch, so no percentile of the
-        # in-sample distances lands in the gap -- see the note in config.
-        if species in absolute:
-            return float(absolute[species])
-        return float(stats["cutoffs"][names.index(species)][col])
+        # A per-class percentile wins over the global one. Colobus has one
+        # because its pop and roar distributions touch, so the default lands
+        # inside the roars -- see the note in config. Stated as a percentile,
+        # not a distance, because a distance is a coordinate in one head's
+        # feature space and every fold has its own.
+        q_cls = by_class.get(species, q)
+        if q_cls not in stats["percentiles"]:
+            raise ValueError(
+                f"no cutoff fitted at percentile {q_cls} for {species}; "
+                f"available: {stats['percentiles']}. Rebuild the statistics "
+                f"with that percentile included.")
+        return float(stats["cutoffs"][names.index(species)]
+                     [stats["percentiles"].index(q_cls)])
 
     keep = []
     for _, row in detections_df.iterrows():

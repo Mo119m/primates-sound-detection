@@ -50,8 +50,13 @@ def main():
     import model as model_module
     import auto_cleanup
 
+    # One file per head, named after the model, because each LOSO fold has its
+    # own feature space and a shared path meant the second station silently
+    # loaded the first station's statistics.
+    stem = os.path.splitext(os.path.basename(args.model))[0]
     out = os.path.abspath(args.out or os.path.join(
-        REPO, "data", config.OOD_STATS_CACHE))
+        REPO, "data", getattr(config, "OOD_STATS_DIR", "outputs/ood_stats"),
+        f"{stem}.npz"))
     os.makedirs(os.path.dirname(out), exist_ok=True)
 
     images = np.load(os.path.join(args.run, "v13_images.npy"), mmap_mode="r")
@@ -94,7 +99,7 @@ def main():
         d = feats_by_class[ci] - means[ci]
         d2 = np.einsum("ij,jk,ik->i", d, inv_cov, d)
         cuts[lab] = {int(q): float(np.percentile(d2, q))
-                     for q in (50, 75, 90, 95, 99)}
+                     for q in (50, 75, 90, 95, 96, 97, 98, 99)}
         print(f"  {lab:18s} in-sample distance  median {np.median(d2):8.1f}   "
               f"p90 {cuts[lab][90]:8.1f}   p99 {cuts[lab][99]:8.1f}")
 
