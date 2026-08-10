@@ -1,0 +1,2 @@
+station,detections,calls,false_positives,v12_precision,kept_calls,kept_false_positives,calls_retained,fps_removed,v13_precision,review_reduction,matched_threshold,matched_calls_retained,matched_fps_removed,matched_precision,grouped_val_accuracy,minutes
+IPA11ST,202,42,160,0.2079,41,12,0.9762,0.925,0.7736,0.7376,0.9593,0.9524,0.975,0.9091,0.9702,114.5

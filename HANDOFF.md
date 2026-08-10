@@ -238,6 +238,33 @@ plan|budget|score` bounds it from a few hours of exhaustively annotated audio.
 
 ---
 
+## 3e. The first fold, already run
+
+`IPA11ST`, held out completely, 15 epochs on 30 146 clips, 114 minutes on a CPU.
+The hardest of the sixteen stations: 202 detections, 42 confirmed calls, 160
+confirmed false positives, V12 precision 0.208.
+
+| | V12 | V13 |
+|---|---|---|
+| precision | 0.208 | **0.774** |
+| confirmed calls kept | 100 % by construction | **97.6 %** (41/42) |
+| false positives removed | — | **92.5 %** (160 → 12) |
+| review burden | 202 clips | **−73.8 %** |
+
+At matched 95 % recall: precision **0.909**, false positives removed **97.5 %**.
+Grouped validation accuracy 0.9702 — under the honest split, not comparable with
+the old leaky 98.12 %.
+
+Leakage was checked rather than assumed: no training clip shares a
+(recording, second) with any evaluation window, and none of IPA11ST's 27
+recordings appears anywhere in the 489 recordings the fold trained on.
+
+**Read this as one fold, not a result.** 42 calls is a small denominator — 41/42
+and 42/42 differ by a single clip — and IPA11ST is the station with the most room
+to improve, so the other fifteen will not all look like this. It is enough to say
+the approach is worth the GPU time, and nothing more. It also says nothing about
+recall: a call V12 never fired on is invisible here.
+
 ## 4. Open, in priority order
 
 1. **Re-measure V12 under the grouped split.** The paper's accuracy table
