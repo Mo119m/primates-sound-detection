@@ -268,13 +268,23 @@ def apply_ood_gate(detections_df: pd.DataFrame,
                          f"available: {stats['percentiles']}")
     col = list(stats["percentiles"]).index(q)
     names = stats["class_names"]
+    absolute = getattr(config, "OOD_GATE_ABSOLUTE", {}) or {}
+
+    def cutoff_for(species):
+        # An explicit cutoff wins over the percentile. Colobus has one because
+        # its pop and roar distributions touch, so no percentile of the
+        # in-sample distances lands in the gap -- see the note in config.
+        if species in absolute:
+            return float(absolute[species])
+        return float(stats["cutoffs"][names.index(species)][col])
+
     keep = []
     for _, row in detections_df.iterrows():
         sp, d = row["species"], row.get("ood_distance", np.nan)
         if sp not in names or not np.isfinite(d):
             keep.append(True)          # never drop on a missing measurement
             continue
-        keep.append(d <= stats["cutoffs"][names.index(sp)][col])
+        keep.append(d <= cutoff_for(sp))
     return detections_df[np.array(keep)].reset_index(drop=True)
 
 

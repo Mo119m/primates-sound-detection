@@ -390,7 +390,17 @@ NMS_IOU_THRESHOLD = 0.5  # Non-maximum suppression overlap threshold
 # with it costs reference recall fast (lf 0.40 + pulse 2.38 -> 83.5 % roars kept,
 # 32.4 % field kept). With no confirmed field positive to check the recall cost
 # against, that trade is not worth making blind.
-LOWFREQ_GATE_ENABLED = True    # apply the gate inside detect_in_long_audio
+# Turned off in favour of the out-of-distribution distance below. The evidence
+# is the three rounds of expert listening: this gate removed 33 of 35 dawn
+# detections at IPA1ST and all 7 at IPA4ST, and every one of the survivors was
+# still a microphone knock, so it was not selecting for roars -- it was
+# selecting for low frequency, which knocks also have. The measurement that
+# settles it is on the nine field-verified roars: at the shipped cutoff this
+# gate keeps 93.4 % of reference roars but rejected 100 % of the field Colobus
+# detections it was applied to, while the OOD distance keeps every field roar.
+# Left in the code and re-enabled by one line, because it is a published result
+# and the ablation in the paper depends on being able to reproduce it.
+LOWFREQ_GATE_ENABLED = False   # apply the gate inside detect_in_long_audio
 LOWFREQ_GATE_CUTOFF = 1500     # Hz
 LOWFREQ_GATE_THRESHOLD = 0.40  # recalibrated against the 253 field detections;
                                # keeps 93.4% of reference roars, cuts field
@@ -417,10 +427,28 @@ LOWFREQ_GATE_THRESHOLD = 0.40  # recalibrated against the 253 field detections;
 # be applied after the fact, while turning the gate on changes every field
 # number in the paper and is therefore an explicit decision.
 OOD_DISTANCE_ENABLED = True    # record `ood_distance` on every detection
-OOD_GATE_ENABLED = False       # drop detections beyond OOD_GATE_PERCENTILE
-OOD_GATE_PERCENTILE = 90       # of the in-sample distances for that class
+OOD_GATE_ENABLED = True        # drop detections beyond the cutoff below
+OOD_GATE_PERCENTILE = 90       # default: percentile of that class's own
+                               # in-sample distances
 OOD_FEATURE_LAYER = 'dense_256'
 OOD_STATS_CACHE = 'outputs/ood_class_stats.npz'
+
+# Absolute cutoffs that override the percentile, per class. Colobus needs one
+# because no fitted percentile is right for it, and the reason is worth stating:
+# the nine field-verified roars sit at distances 97 to 321 while the 55 pops the
+# expert rejected start at 293, so the two distributions touch. p95 (274.7)
+# rejects every pop and loses a roar; p99 (558.3) keeps every roar and readmits
+# a quarter of the pops. 321 is the smallest cutoff that keeps all nine, and it
+# rejects 98 % of the pops.
+#
+# Two things about that number are honest to say. It is fitted on nine clips,
+# which is the entire field record for the species, so it is a measurement with
+# almost no margin. And it is set to the worst of those nine deliberately: a
+# rejected roar is a lost detection of a species we can barely evidence, while
+# an admitted pop is one more clip in a review queue.
+OOD_GATE_ABSOLUTE = {
+    'Colobus_guereza': 321.0,
+}
 
 # AUTO-CLEANUP FILTERS
 # The YAMNet cross-check is off by default: measured against the manual review
