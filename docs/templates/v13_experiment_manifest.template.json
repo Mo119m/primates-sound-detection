@@ -1,0 +1,176 @@
+{
+  "$schema_version": "v13-experiment-manifest/v1",
+  "run_id": "REQUIRED_YYYYMMDDThhmmssZ_reranker_verified_primary",
+  "created_utc": "REQUIRED_ISO_8601_UTC",
+  "experiment_kind": "primary_verified_only",
+  "task": "candidate_reranker",
+  "parent_run_id": null,
+  "description": "REQUIRED: concise prespecified question",
+  "output_dir": "REQUIRED: data/outputs/v13_runs/<run_id>",
+  "code": {
+    "repository_commit": "REQUIRED_git_commit",
+    "python_executable": "C:/Users/Fudap/miniconda3/envs/primates/python.exe",
+    "trainer": "scripts/train_v13_loso.py --verified-only --artifact-lock <immutable-full-hash-lock>",
+    "integrity_checker": "scripts/check_v13_artifacts.py",
+    "trainer_sha256": "REQUIRED",
+    "checker_sha256": "REQUIRED",
+    "model_sha256": "REQUIRED_src/model.py",
+    "config_sha256": "REQUIRED_src/config.py",
+    "package_lock_sha256": "REQUIRED_requirements-frozen.txt"
+  },
+  "artifacts": {
+    "manifest": {
+      "path": "REQUIRED",
+      "sha256": "REQUIRED",
+      "bytes": "REQUIRED",
+      "rows": "REQUIRED",
+      "row_order_sha256": "REQUIRED"
+    },
+    "index": {
+      "path": "REQUIRED",
+      "sha256": "REQUIRED",
+      "bytes": "REQUIRED",
+      "rows": "REQUIRED",
+      "row_order_sha256": "REQUIRED"
+    },
+    "images": {
+      "path": "REQUIRED",
+      "sha256": "REQUIRED",
+      "bytes": "REQUIRED",
+      "shape": ["REQUIRED_n", 224, 224, 3],
+      "dtype": "REQUIRED"
+    },
+    "feature_cache": {
+      "path": "REQUIRED",
+      "sha256": "REQUIRED",
+      "bytes": "REQUIRED",
+      "shape": ["REQUIRED_n", 28, 28, 512],
+      "dtype": "float16",
+      "tap_layer": "block4_conv4"
+    },
+    "artifact_lock": {
+      "path": "REQUIRED: immutable lock created with --full-hash --write-lock",
+      "sha256": "REQUIRED",
+      "full_hash_verified": true
+    },
+    "review_ground_truth": {
+      "path": "data/outputs/auto_cleanup/cleanup_vs_review.csv",
+      "sha256": "REQUIRED",
+      "bytes": "REQUIRED",
+      "rows": "REQUIRED"
+    }
+  },
+  "eligibility": {
+    "verified_field": "verified",
+    "primary_filter": "verified == true; any additional source restriction must be stated explicitly",
+    "source_allowlist": [],
+    "source_exclude": [
+      "BirdNET_unlistened",
+      "random_forest_unverified",
+      "auto_flagged_unverified"
+    ],
+    "label_provenance_sha256": "REQUIRED",
+    "eligible_rows": "REQUIRED",
+    "class_counts": {
+      "REQUIRED_each_selected_label": "REQUIRED_count"
+    },
+    "identity_fields_checked": [
+      "path",
+      "label",
+      "station",
+      "possible_stations",
+      "source",
+      "verified",
+      "period",
+      "aug",
+      "row"
+    ]
+  },
+  "labels_and_classes": {
+    "class_order": [
+      "REQUIRED: exact sorted class_names emitted by the frozen trainer input"
+    ],
+    "class_policy": "REQUIRED: explicitly state every retained/folded class, including the C_pogonias policy",
+    "detection_groups": {
+      "REQUIRED": "copy exact config.DETECTION_GROUPS"
+    },
+    "positive_review_label": "call",
+    "negative_review_label": "false_positive"
+  },
+  "split": {
+    "outer_protocol": "leave_one_station_out",
+    "folds": ["REQUIRED: exact station IDs or all frozen station IDs"],
+    "station_field": "station",
+    "withhold_rule": "held-out station is contained in possible_stations",
+    "possible_stations_field": "possible_stations",
+    "inner_validation": {
+      "method": "REQUIRED",
+      "group_field": "REQUIRED",
+      "seed": "REQUIRED_integer"
+    },
+    "overlap_check": "zero train/evaluation overlap required for every fold"
+  },
+  "model": {
+    "backbone": "VGG19 ImageNet frozen",
+    "tap_layer": "block4_conv4",
+    "input_shape": [224, 224, 3],
+    "preprocessing_id": "REQUIRED: spectrogram/preprocessing implementation and parameters",
+    "pooling": "temporal_freqpos",
+    "head_architecture_id": "REQUIRED",
+    "epochs": "REQUIRED_integer",
+    "batch_size": "REQUIRED_integer",
+    "optimizer": "REQUIRED",
+    "loss": "sparse_categorical_crossentropy",
+    "class_weight_policy": "REQUIRED: exact policy and numeric weights or balanced",
+    "augmentation": {
+      "enabled": "REQUIRED_boolean",
+      "policy": "REQUIRED: exact frozen aug value/count map, or an explicit audited aug == 0 selection",
+      "scope": "REQUIRED: how augmentation variants are kept out of held-out partitions"
+    }
+  },
+  "randomness": {
+    "global_seed": "REQUIRED_integer",
+    "numpy_seed": "REQUIRED_integer",
+    "tensorflow_seed": "REQUIRED_integer",
+    "python_hash_seed": "REQUIRED_integer",
+    "determinism_notes": "REQUIRED"
+  },
+  "operating_point": {
+    "time_window_local": {
+      "start_inclusive": "05:00",
+      "end_exclusive": "19:00",
+      "timezone": "REQUIRED"
+    },
+    "decision_rule": "REQUIRED: grouped argmax / exact rule",
+    "confidence_score": "Cernic softmax probability",
+    "threshold_policy": "fit only on eligible non-held-out calibration rows",
+    "threshold_target": {
+      "metric": "REQUIRED",
+      "value": "REQUIRED"
+    },
+    "held_out_labels_used_to_fit_threshold": false
+  },
+  "metrics": {
+    "primary": [
+      "macro station-held-out candidate precision",
+      "macro calls retained among reviewed V12 candidates",
+      "macro false positives removed among reviewed V12 candidates"
+    ],
+    "prohibited_labels": ["field recall", "continuous-audio recall", "scanner precision"],
+    "aggregation": "unweighted mean across stations with valid evaluation data"
+  },
+  "weak_negative_policy": {
+    "mode": "excluded",
+    "audit_manifest_path": null,
+    "audit_manifest_sha256": null,
+    "sources": [],
+    "rows_by_source": {},
+    "station_leakage_rule": "same possible_stations exclusion as primary"
+  },
+  "notes": [
+    "Primary verified-only run: do not change inputs or hyperparameters after the receipt is issued.",
+    "verified-only filters verified labels; it does not by itself remove augmented rows or impose a four-class head.",
+    "For a weak-negative ablation, set experiment_kind to weak_negative_ablation, set parent_run_id to the completed primary run, and change only weak_negative_policy plus expected artifact hashes/counts.",
+    "For a continuous-audio scanner, use a different manifest schema and output root."
+  ]
+}

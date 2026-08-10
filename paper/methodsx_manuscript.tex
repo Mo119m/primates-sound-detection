@@ -67,15 +67,26 @@ informing their conservation \textbf{[Santi --- please review / expand this
 conservation-significance framing]}, but it produces thousands of hours of
 audio that cannot be annotated by hand. The obstacle is precision: a classifier
 trained on curated clips also fires on untrained forest sounds, so every
-detection must be checked by ear. We detect \textit{Cercopithecus nictitans}
-and \textit{Colobus guereza} at Makokou, Gabon. Mel-spectrograms are classified
-by a VGG19 transfer-learning model whose frequency-position-aware CRNN head
-keeps forest birds and insects from being mistaken for the target, reaching
-98\% validation accuracy with zero confusion between the species. A cleanup,
-measured against a review of every field detection, proves most useful not as a
-filter but as a way to organise listening: counting a run of detections as one
-decision cuts the review to a quarter of the clips while discarding nothing,
-and ordering what remains recovers 90\% of the recoverable calls from half.
+detection must be checked by ear. We target \textit{Cercopithecus nictitans}
+and \textit{Colobus guereza} in Ivindo National Park, Gabon; only
+\textit{C.\ nictitans} was
+confirmed in the field, and the \textit{C.\ guereza} branch is reported as a
+negative result. Mel-spectrograms are classified by a VGG19 transfer-learning
+model with a frequency-position-aware CRNN head. Validated by a 16-fold
+leave-one-station-out sweep over 6\,189 manually reviewed field detections,
+retraining on human verdicts rather than filter guesses raises precision from
+0.70 to 0.92 at a threshold fitted on the training stations, removing 79\,\% of
+false positives while keeping 95\,\% of calls. The fitted threshold varies widely
+across held-out stations, so the fitting procedure transfers but its value does
+not. Run as a scanner over raw audio rather than as a re-ranker, and checked by
+ear, the retrained model reaches 92.7\,\% precision above 0.95 (51/55 detections
+at two stations) --- and does so within 0.3 percentage points at the easiest and
+hardest station, which the deployed model separates by 24. A cleanup measured
+against that same review
+proves most useful not as a filter but as a way to organise listening: counting
+a run of detections as one decision cuts the review to a quarter of the clips
+while discarding nothing, and ordering what remains recovers 90\% of the
+recoverable calls from half.
 
 \begin{itemize}
 \item A VGG19 transfer-learning model with a frequency-position-aware CRNN
@@ -156,11 +167,25 @@ the original training set. The result is a detector with a high false-positive
 rate, and verifying every detection by hand reintroduces exactly the
 manual-listening bottleneck that automation was meant to remove.
 
-This method addresses that problem for two primate species recorded at
-Makokou, Gabon: \textit{Cercopithecus nictitans},
+This method addresses that problem for two primate species recorded in Ivindo
+National Park, Gabon: \textit{Cercopithecus nictitans},
 whose repertoire includes acoustically distinct ``hack'', ``kek'', and
-``pyow'' call types \textbf{[cite the putty-nosed call-type source --- confirm
+``pyow'' call types \textbf{[cite the putty-nosed call-type source, confirm
 the reference with the species expert]}, and \textit{Colobus guereza}.
+
+Two colobines have range records covering this area. \textit{C.\ guereza} ssp.
+\textit{occidentalis} is listed as occurring in Ivindo National Park, and the
+Ogooué River south of the park marks the lower elevation limit of its
+range~\cite{iucnguereza2025}; \textit{C.\ satanas} ssp. \textit{anthracinus},
+the Gabon black colobus, also has range covering
+Gabon~\cite{iucnsatanas2020}. The two vocalise very differently, so a detector
+built on reference material from one is not evidence about the other, and the
+result reported here concerns \textit{C.\ guereza} alone. The area is
+otherwise poorly surveyed: most published work on \textit{C.\ satanas} in
+Gabon comes from Lopé National Park rather than from Ivindo, and no systematic
+biodiversity inventory covers these stations. That gap is the reason a null
+acoustic result here carries information rather than merely failing to confirm
+what was already known.
 %% TODO(Santi): expand the background below.
 \textbf{[Santi --- please add more background here, e.g.\ the conservation /
 IUCN status of the two species and why acoustic monitoring matters for their
@@ -195,7 +220,7 @@ code.
 
 Field recordings are continuous WAV files collected at fixed acoustic stations
 (denoted IPA1ST, IPA2ST, \dots; one subfolder per recording date) in
-rainforest near Makokou, Gabon.
+rainforest in Ivindo National Park, Gabon, near Makokou.
 
 The model is trained on short reference clips organized into four classes
 (Table~\ref{tab:traindata}):
@@ -232,21 +257,70 @@ before augmentation.}
 \toprule
 Class & Clips & Composition \\
 \midrule
-Cernic            & 370          & putty-nose 25, hack 101, kek 124, pyow 101,
-                                   field-confirmed 19 \\
-Colobus\_guereza  & 617          & \textit{Colobus guereza} reference calls \\
-Colobus\_confuser & 654          & field hard-negatives, human-reviewed \\
-Background        & $\sim$5{,}900 & ambient noise, non-target animals,
-                                   recycled false positives \\
+Cernic            & 3{,}002      & 2{,}535 reviewed field detections, 397
+                                   reference calls (putty-nose, hack, kek,
+                                   pyow), 70 recycled false positives \\
+Colobus\_guereza  & 665          & roar pulses segmented from
+                                   \textit{C.\ guereza} reference recordings \\
+C\_pogonias       & 150          & \textit{C.\ pogonias} clips, field-verified \\
+Colobus\_confuser & 907          & 654 curated hard-negatives, 253
+                                   field false positives, all human-reviewed \\
+Background        & 25{,}891     & 16{,}826 BirdNET bird detections from the
+                                   wider Gabon recording programme (\S\,below),
+                                   3{,}654 reviewed non-calls, 3{,}460
+                                   recycled false positives, 1{,}951 reference
+                                   recordings of non-target species \\
 \midrule
-\textbf{Total}    & $\sim$7{,}541 & \\
+\textbf{Total}    & 30{,}615     & \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\noindent These are raw clip counts. Augmentation (\S\,Data augmentation) and the
-train/validation split (\S\,Model training) expand them into the per-class validation
-totals reported later in Table~\ref{tab:val}.
+\noindent These are raw clip counts, before augmentation
+(\S\,Data augmentation). Per-class validation totals are deliberately not
+reported; see \S\,Model training for why a validation accuracy on this pool was
+withdrawn, and Table~\ref{tab:loso} for what replaces it.
+
+\paragraph{Where the bird negatives come from.} The largest single block of the
+Background class, 16\,826 clips, is BirdNET output from the wider recording
+programme this study sits inside, and it is worth being exact about the overlap
+with the deployment, because "detections on the deployment audio" would be the
+natural assumption and it is wrong. Only 1\,475 of those clips (8.6\,\%) carry
+the coordinates of one of the sixteen analysed stations, and only 2\,068
+(12.1\,\%) fall in the February 2021 window the deployment covers; the rest were
+recorded at other points in the same programme in July 2021 and in January,
+February and June 2022. They are the same recorder model, the same forest and
+the same bird community, but they are not this deployment.
+
+That is a limitation and an advantage at once. It means the negative class does
+not describe the exact soundscape of the sixteen stations, so it cannot be
+claimed to. It also means the model is not being taught the bird community of
+those sixteen points specifically, which is the failure mode a same-site
+negative class invites. The residual risk is unchanged by either: both target
+species range across Gabon, so a monkey call recorded at another site is as
+damaging a negative as one recorded here, which is why these clips are screened
+below rather than trusted.
+
+\paragraph{Screening the negative class.} A target call filed as a negative is
+the one labelling error that more data cannot undo, because the model is told
+with the full weight of a label that the thing it exists to find is not there.
+Two thirds of the Background class was selected by a bird detector rather than
+by a person and cannot be listened to individually, so it was screened instead:
+every Background clip was scored by the current model under the same
+grouped-argmax rule deployment uses, and clips scoring $\ge$0.5 on a target
+group were removed. That removed 432 clips.
+
+The screen is deliberately restricted to rows whose Background label is a
+machine's opinion --- BirdNET segments and unreviewed detector output --- and
+never applied to a row a person has listened to and judged. On human-labelled
+negatives the model flags 2{,}713 clips at the same threshold, at rates reaching
+72\,\% on reviewed non-calls and 65\,\% on curated recordings of other primates,
+and those are kept: a high score there is the model's error, not the label's,
+and they are precisely the hard negatives it most needs. Applying the screen by
+score alone would have deleted them in proportion to how badly the model was
+already failing on them. Restricting it correctly requires an exact-match test
+on the source field rather than a prefix test, because a reviewed clip is
+recorded as a suffixed variant of the machine source it came from.
 
 \noindent All training clips underwent human verification. Because the
 Background class is loaded as a single pooled negative (with no internal
@@ -284,18 +358,51 @@ two feature distributions comparable.
 
 \subsection*{Data augmentation}
 
-To expand the reference set and make the classifier robust to field
-conditions, each target-class spectrogram is expanded into seven training
-examples (a 7$\times$ multiplier; Fig.~\ref{fig:augmentation}A): one unaltered
-copy; three copies mixed with
-randomly chosen background spectrograms at a signal-to-noise ratio drawn
-uniformly from $-5$ to 10\,dB; one time-axis crop and one frequency-axis crop
-(each removing 10--30\,\% from a randomly chosen edge, then resized back to the
-original shape); and one frequency translation of $\pm$20 mel bins.
-Background-class clips are not augmented, so that the negative class reflects
-the true diversity of ambient sound rather than synthetic variants. These
-spectrogram-domain operations are adapted from the rainforest-CNN
-data-augmentation pipeline of Sun et al.\ \cite{sun2022}.
+Two augmentation schemes appear in this work and it matters which produced
+which number, so both are described.
+
+Each target-class spectrogram is expanded by four operations
+(Fig.~\ref{fig:augmentation}A): mixing with a randomly chosen background
+spectrogram at a signal-to-noise ratio drawn uniformly from $-5$ to 10\,dB; a
+time-axis crop; a frequency-axis crop (each removing 5--10\,\% from a randomly
+chosen edge, then resized back to the original shape); and a frequency
+translation of $\pm$9 mel bins. These spectrogram-domain operations are adapted
+from the rainforest-CNN pipeline of Sun et al.\ \cite{sun2022}, and the crop and
+translation ranges follow that study rather than departing from it: it modifies
+each spectrogram by 5--10\,\% of its size on the grounds that this is the range
+of variation found in nature, and $\pm$9 bins is 7\,\% of the 128 mel rows used
+here. An earlier version of this pipeline cropped 10--30\,\% and translated
+$\pm$20 bins, well outside that range; it is not what produced the results
+below. Background-class clips are not augmented, so that the negative class
+reflects the true diversity of ambient sound rather than synthetic variants.
+
+Augmentation is applied to a \emph{target count} rather than as a fixed
+multiplier, again following Sun et al.: each target class is replicated until it
+reaches 3{,}000 examples, cycling through the four operations so that a class
+needing many variants receives a spread rather than repeated draws of one. The
+resulting multipliers are unequal by construction --- 4.5$\times$ for
+\textit{Colobus\_guereza} (665 originals), 3.3$\times$ for
+\textit{Colobus\_confuser} (907), and 20$\times$ for \textit{C\_pogonias}
+(150) --- and the last is the weakest point in the training set: 8\,\% of the
+packed dataset derives from 150 acoustic events, so that class is balanced in
+count without being diverse in content. Cernic is left unaugmented, having
+3{,}002 originals already. Replicated variants inherit their original's station
+attribution, so a variant is withheld whenever its original is
+(\S\,Leave-one-station-out validation) and no replicate crosses a fold boundary;
+no replicate enters the evaluation pool, which is drawn from reviewed field
+detections only.
+
+What augmentation does not replace is the embedding step: a clip
+shorter than the 2\,s window is placed at a random position inside a real
+ambient bed drawn from the deployment recordings, at a level drawn from
+$-6$ to $+9$\,dB. That range is measured rather than chosen. In the roar band
+against the 2--8\,kHz soundscape band, the field-verified \textit{C.\ guereza}
+clips sit at a median of $-1.0$\,dB with an interquartile range of $-4.5$ to
+$+3.1$; the range above reproduces that distribution and extends past its hard
+quartile. Zero-padding instead of embedding is what this replaces, and it is not
+a cosmetic difference: measured on the packed images, padding left every clip of
+an all-short class carrying a block of digital silence that no field recording
+contains, which made the class separable by the padding rather than by the call.
 
 \paragraph{High-frequency nuisance augmentation for \textit{Colobus}.}
 The curated \textit{Colobus} reference clips carry incidental high-frequency
@@ -316,11 +423,12 @@ frequencies and must keep their high band intact.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=\linewidth]{augmentation_v12.pdf}
-\caption{Spectrogram data augmentation. (A)~Standard augmentation expands each
-target-class clip into seven variants (one original, three background mixes at
-$-5$ to 10\,dB SNR, a time crop, a frequency crop, and a $\pm$20-mel-bin
-frequency shift). (B)~High-frequency nuisance augmentation adds two further
+\includegraphics[width=\linewidth]{Figure_1.pdf}
+\caption{Spectrogram data augmentation. (A)~Each target-class clip is expanded
+by four operations, cycled until the class reaches 3{,}000 examples: a
+background mix at $-5$ to 10\,dB SNR, a time crop, a frequency crop (each
+5--10\,\% of the axis), and a $\pm$9-mel-bin frequency shift.
+(B)~High-frequency nuisance augmentation adds two further
 variants for \textit{Colobus guereza} only: the mel band above 1.5\,kHz is
 replaced with the high band of a random background clip while the
 low-frequency roar is kept, decorrelating high-frequency texture from the
@@ -385,7 +493,7 @@ Colobus\_confuser, Background).
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.82\linewidth]{model_architecture_v12.pdf}
+\includegraphics[width=0.82\linewidth]{Figure_2.pdf}
 \caption{Model architecture. A VGG19 backbone (the block4\_conv4
 feature map) is augmented with a frequency-coordinate (CoordConv) channel, then
 split into four mel-frequency bands processed by per-band and cross-band 1-D
@@ -456,14 +564,25 @@ below 1.5\,kHz is measured. Genuine \textit{Colobus} roars concentrate almost
 all of their energy in the low band and sit well above the gate threshold,
 whereas the high-frequency bird and insect sounds that the classifier
 occasionally mis-fires on carry almost all of their energy above 1.5\,kHz.
-Detections whose low-frequency ratio falls below the threshold (0.20) are
-dropped from the detection list (i.e.\ treated as non-target Background). The
-threshold was calibrated jointly on the curated \textit{Colobus} reference
-clips and the field false positives: it sits above the highest low-frequency
-ratio observed among the insect and bird false positives ($\sim$0.09) and below
-the fifth percentile of the reference clips ($\sim$0.26), so it removes
-essentially all of these false positives while retaining roughly 98\% of
-genuine reference clips. The low-frequency ratio is also written as a column
+Detections whose low-frequency ratio falls below the threshold are dropped from
+the detection list (i.e.\ treated as non-target Background).
+
+The deployment reported here used a threshold of 0.20. That value was
+calibrated on the curated \textit{Colobus} reference clips together with the
+\textit{Colobus\_confuser} training clips, whose low-frequency ratios do not
+exceed 0.09; 0.20 therefore sat in a wide empty gap and retained 97.6\,\% of
+the reference clips. The calibration did not survive contact with the field.
+Of the 253 \textit{Colobus} detections the deployment returned, \emph{none}
+has a low-frequency ratio below 0.20 (minimum 0.2007, median 0.4231, upper
+quartile 0.8365, maximum 0.9831), so the gate removed none of them. The
+dominant field confuser is not a high-frequency insect or bird but thunder,
+which is itself low-frequency and therefore passes the gate by the same
+criterion that admits a roar. The repository now sets the threshold to 0.40
+(\texttt{LOWFREQ\_GATE\_THRESHOLD}, \texttt{src/config.py}), which retains
+93.4\,\% of the reference clips and 133 of the 253 field detections
+(52.6\,\%). The gate should be read as a partial mitigation against one
+high-frequency confuser, not as a control on the \textit{Colobus} false
+positives actually observed. The low-frequency ratio is also written as a column
 in the output CSV for every retained detection, so detections can be ranked or
 re-inspected by it.
 
@@ -641,81 +760,72 @@ validation split. The model was trained in two stages
 (Fig.~\ref{fig:training}): a frozen-base stage that trains only the
 classifier head, followed by a fine-tuning stage in which the last two VGG19
 blocks are unfrozen. Both stages use early stopping and learning-rate
-reduction on a validation-accuracy plateau; the deployed checkpoint is the
-epoch with the highest validation accuracy (98.12\,\%).
-Table~\ref{tab:val} summarizes per-class results and
-Table~\ref{tab:confusion} gives the full confusion matrix.
+reduction on a validation-accuracy plateau.
+
+\paragraph{We do not report a validation accuracy, and the reason is a result.}
+Earlier versions of this manuscript reported 98.12\,\% overall accuracy on a
+stratified validation split, with per-class figures and a confusion matrix whose
+cross-species off-diagonal was zero. Those numbers measured memorisation and
+have been withdrawn. The split was taken \emph{after} augmentation: with an
+augmentation multiplier of seven, a source clip keeps all of its variants on one
+side of an 80/20 split only $0.8^{7} = 21\,\%$ of the time, so roughly 79\,\% of
+source clips placed a near-duplicate of a validation image into training. The
+\textit{Colobus} class was worse again, its windows cut at a 1\,s hop so that
+neighbours share half their audio before augmentation is applied at all. The
+distance between that 98\,\% and the 41.0\,\% field precision reported in
+\S\,Field deployment is the size of what the split was hiding.
+
+The zero cross-species confusion deserves a separate warning, because it is the
+kind of number that survives into abstracts. It was not evidence that the model
+separates the two species. Every \textit{C.\ guereza} training clip is archival
+library media and every \textit{C.\ nictitans} clip was recorded at the study
+site, so that cell separated two recording channels, not two animals.
+
+The immediate remedy is to split on the source recording rather than on the
+image, so that no clip and no augmented variant of it can appear on both sides
+(\texttt{train.grouped\_split}); in the dataset as it stood at that point the
+617 \textit{Colobus} windows collapsed to their 172 source recordings and the
+17\,106 archival segments to 3\,222, and
+a simulation that reproduces 79\,\% leakage under the original split yields
+none. Doing that raises the honest question rather than answering it. Under the
+grouped split the same architecture reaches 95.8\,\% mean validation accuracy
+across the sixteen folds reported below, but the validation set is 85.7\,\%
+Background, so answering Background to everything scores 85.7\,\%, and the
+model's real margin over doing nothing is about ten points. More importantly,
+any validation split is drawn from the same curated pool the model was trained
+on, and the deployment is not. We therefore replace the validation table with a
+field measurement on stations the model has never heard
+(Table~\ref{tab:loso}), and recommend that reuse of this pipeline be judged the
+same way. A curated-pool accuracy, honestly split or otherwise, did not predict
+what happened in the forest.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=\linewidth]{training_curves_v12.pdf}
+\includegraphics[width=\linewidth]{Figure_3.pdf}
 \caption{Two-stage training history of the V12 model: training and validation
 accuracy (left) and loss (right) per epoch. The dashed line marks the
 transition from frozen-base head training (Stage~1) to fine-tuning of the last
-two VGG19 blocks (Stage~2). The deployed model is the best-validation-accuracy
-checkpoint (98.12\,\%).}
+two VGG19 blocks (Stage~2). The deployed model is the checkpoint with the
+highest validation accuracy. The validation curve itself is drawn from a split
+taken after augmentation and is therefore optimistic throughout; it is shown to
+document the training procedure, not to quantify performance
+(\S\,Model training).}
 \label{fig:training}
 \end{figure}
 
 
-\begin{table}[H]
-\centering
-\caption{Per-class validation-set performance of the final (V12) four-class
-model.}
-\label{tab:val}
-\begin{tabular}{lrrr}
-\toprule
-Class & Samples & Accuracy (\%) & Avg Conf \\
-\midrule
-Cernic            & 518  & 96.14 & 0.9608 \\
-Colobus\_guereza  & 1111 & 99.01 & 0.9894 \\
-Colobus\_confuser & 915  & 97.81 & 0.9748 \\
-Background        & 1173 & 98.38 & 0.9830 \\
-\midrule
-\textbf{Overall}  & \textbf{3717} & \textbf{98.12} & --- \\
-\bottomrule
-\end{tabular}
-\end{table}
 
-\begin{table}[H]
-\centering
-\caption{Validation-set confusion matrix of the V12 model. Rows are true
-classes, columns are predicted classes (Cer = Cernic, C\_g =
-Colobus\_guereza, C\_c = Colobus\_confuser, Bg = Background).}
-\label{tab:confusion}
-\begin{tabular}{lrrrr}
-\toprule
-True $\backslash$ Pred & Cer & C\_g & C\_c & Bg \\
-\midrule
-Cernic            & 498 & 0   & 9   & 11   \\
-Colobus\_guereza  & 0   & 1100 & 5   & 6    \\
-Colobus\_confuser & 5   & 2   & 895 & 13   \\
-Background        & 8   & 4   & 7   & 1154 \\
-\bottomrule
-\end{tabular}
-\end{table}
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.75\linewidth]{confusion_matrix_v12.pdf}
-\caption{Row-normalised confusion matrix of the V12 model on the validation
-set ($n = 3717$). Diagonal cells show count and per-class accuracy; off-diagonal
-cells show misclassification counts. Cross-species confusion between Cernic and
-\textit{Colobus guereza} is exactly zero.}
-\label{fig:confusion}
-\end{figure}
 
-\noindent Overall accuracy is 98.12\,\% (loss 0.0994) across 3717 validation
-clips (Fig.~\ref{fig:confusion}). Two features of the confusion matrix are
-central to the method. First,
-cross-species confusion between the two primate classes is exactly zero: no
-Cernic clips are called \textit{Colobus} and no \textit{Colobus} clips are
-called Cernic (0 of 1629 primate clips). Second, the dedicated confuser class
-is well separated from real \textit{Colobus}: of 1111 genuine \textit{Colobus}
-clips only 5 are assigned to the confuser, and of 915 confuser clips only 2
-are assigned to real \textit{Colobus}. Because the confuser group is folded
-into Background at detection time, these confuser windows do not produce
-\textit{Colobus} detections.
+
+
+
+\noindent One design element does survive the withdrawal of those numbers,
+because it is a routing decision rather than a performance claim: the dedicated
+confuser class is folded into the Background group at detection time
+(\texttt{config.DETECTION\_GROUPS}), so a window the model assigns to it cannot
+produce a \textit{Colobus} detection. That is a property of how the softmax is
+read, not something a validation split establishes.
 
 \paragraph{Field deployment.}
 The V12 model is run on the continuous recordings from all available acoustic
@@ -732,16 +842,189 @@ positives. The final (V12) model adds the high-frequency nuisance augmentation
 and the calibrated low-frequency gate on top of this encoding and is the
 version deployed across all stations.
 %% ---------------------------------------------------------------------
-%% FIELD-DEPLOYMENT RESULTS -- numbers from the per-station manual-review
-%% tables, aggregated by scripts/summarize_review.py. Regenerate with:
-%%   python scripts/summarize_review.py --dir reviews/
+%% FIELD-DEPLOYMENT RESULTS -- every figure below comes from
+%%   data/outputs/auto_cleanup/cleanup_vs_review.csv
+%% which is in the repository and carries one row per reviewed detection with
+%% the reviewer's verdict and every cleanup signal. That file is the ground
+%% truth for this section; it is what to cite and what to re-run against.
+%%
+%% The raw per-station Kaleidoscope exports (reviews/, gitignored) are NOT
+%% needed to reproduce anything here. They were checked: their MANUAL ID column
+%% holds the single value "Noise" for all 3 654 false positives, so the merge
+%% into the file above discarded nothing. summarize_review.py still reads them
+%% if you have them locally.
 %% The review covers C. nictitans only; see the scope sentence below.
 %% ---------------------------------------------------------------------
 The final (V12) model was deployed across 16 acoustic stations. This section
 reports the \textit{Cercopithecus nictitans} detections, every one of which was
-verified by ear; \textit{Colobus guereza} detections were produced by the same
-run but their manual verification is still in progress and is not included
-here. The model produced 6\,189 \textit{C.\ nictitans} detections across the 16
+verified by ear. The same run produced 253 \textit{Colobus guereza} detections
+(median confidence 0.953). All 253 were subsequently verified by ear and
+\emph{none} is a genuine roar: field precision for that class is 0.0\,\%, and
+because the field record therefore contains no confirmed positive, field recall
+for \textit{C.\ guereza} is not estimable from these data. We report this as a
+negative result; \S\,Limitations discusses what it does and does not license.
+
+\paragraph{The \textit{Colobus} detections are spatially impossible for one
+animal.} A verdict that rests on listening rests on one person's ears. The array
+supplies an independent test that does not. AudioMoth writes the deployment
+lat/lon into every filename, which recovers coordinates for 11 of the 16
+stations, a grid spanning 6.68\,km at its widest and 2.49\,km between a
+median pair. A guereza roar carries about 1.6\,km, so two recorders that both hear the
+same calling animal cannot be more than roughly 3.2\,km apart. Whether a group
+of near-simultaneous detections could have come from a single source is then
+arithmetic rather than judgement.
+
+Grouped into five-minute slots, \textbf{61.5\,\% of the \textit{Colobus}
+detections fall in slots spanning more than 3.2\,km}, against \textbf{24.0\,\%
+for \textit{C.\ nictitans}}, a species confirmed present whose 2\,535
+verified calls make it the control that decides whether the test measures
+anything at all. The two largest \textit{Colobus} slots are 2021-02-24 15:10,
+seven stations across 4.73\,km, and 19:30 the same day, five stations across
+4.41\,km.
+
+The choice of a five-minute slot is not free, and the sweep across slot widths
+is the result rather than a robustness check:
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Slot width & \textit{Colobus} & \textit{C.\ nictitans} & Difference \\
+\midrule
+30\,min & 71.8\,\% & 74.8\,\% & $-3.0$ \\
+15\,min & 63.5\,\% & 52.2\,\% & $+11.3$ \\
+\textbf{5\,min} & \textbf{61.5\,\%} & \textbf{24.0\,\%} & $\mathbf{+37.5}$ \\
+1\,min & 35.9\,\% & 8.0\,\% & $+27.9$ \\
+30\,s & 1.3\,\% & 5.6\,\% & $-4.4$ \\
+15\,s & 0.0\,\% & 3.8\,\% & $-3.8$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+At half an hour every slot pools independent callers and the two species are
+indistinguishable; a window that coarse would have produced the opposite
+conclusion. Below a minute the sign reverses, and that reversal is the
+informative half: a genuine chorus does reach neighbouring recorders within
+seconds, so \textit{C.\ nictitans} rises, while the \textit{Colobus} detections
+do not, because thunder rolls and rain arrives progressively and a front is
+minutes wide rather than seconds wide. Five minutes is where the two mechanisms
+are furthest apart, and it is the crossing time of a squall over an array this
+size. Reproduce with \texttt{scripts/spatial\_extent\_test.py -{}-sweep}.
+
+This does not identify what the detector fired on; it establishes that most of
+it cannot have been one animal, using geometry, a published carrying distance
+and a positive control, and not an ear.
+
+\paragraph{Two targeted searches of the raw audio, and what they found instead.}
+A detector that never fires on a species establishes nothing about the species
+until you have looked for it another way. We therefore searched the raw
+recordings twice more, choosing the search windows from the published behaviour
+rather than from the deployment: guereza roaring bouts occur mainly at night and
+at dawn, and a roaring phrase is about fifteen pulses of roughly 0.7\,s -- a
+1.4\,Hz pulse train sustained for some ten seconds, a temporal signature that
+thunder, a single decaying transient, cannot produce.
+
+The first search scored every 2\,s window of the dawn period, 05:00--08:00, at
+all 16 stations: 390 recordings, 194\,h, 698\,007 windows
+(\texttt{scripts/colobus\_dawn\_probe.py}). Rather than thresholding, we recorded
+the score distribution, because a threshold chosen elsewhere returning nothing
+is indistinguishable from an absent animal. 124 windows exceeded 0.10 on the
+\textit{Colobus} output. Of those, 117 have more than 95\,\% of their energy
+above 1.5\,kHz and cannot be a low-frequency roar whatever the model says; the
+strongest of them scores 0.9995 with a low-frequency ratio of 0.010. The
+remaining seven come from a single recording and were listened to: they are real
+animal vocalisations, low and guttural, and not \textit{C.\ guereza}.
+\textit{C.\ nictitans} was scored on the same audio in the same forward pass as a
+positive control and returns confident detections in 84 of the 390 recordings,
+so the silence is a property of the \textit{Colobus} channel and not of the
+pipeline.
+
+The second search dropped the classifier entirely and looked for the pulse train
+directly in 630\,h of night audio, 19:00--05:00, 1\,269 recordings, 453\,677
+windows (\texttt{scripts/scan\_roar\_pulse.py}). This has the advantage of not
+depending on a model whose every \textit{Colobus} training example is archival:
+it asks a question about the audio instead. Only 57 of the 1\,269 recordings
+contain any window at all in which low-frequency energy dominates. Ranking those
+by the strength of 1--2\,Hz amplitude modulation and listening to the top ten:
+every one is a bird. The feature works: it recovered the most strongly
+periodic low-frequency vocalisations in the corpus, and none of them is a
+roar.
+
+Four independent lines therefore agree, and their agreement is the result:
+the deployment's own 253 detections (none genuine), the dawn model search (no
+plausible candidate), the model-free night search (birds), and the spatial test
+above (61.5\,\% of detections unreachable by a single source). Across roughly
+1\,000\,h of audio and four methods that do not share a failure mode, no
+acoustic evidence of \textit{C.\ guereza} was recovered at this site.
+
+Two limitations bound all of it. First, a roar at the edge of its 1.6\,km range
+arrives faint and may not retain measurable periodicity, so absence of evidence
+here is weaker than it looks, because the searches would miss a distant animal.
+What they do establish is that no near or mid-range roaring bout occurred in the
+periods searched, which for a species whose males roar to advertise territory is
+the period in which one would expect to find them.
+
+Second, and more restrictive, the result is about \textit{C.\ guereza} only.
+\textit{C.\ satanas} also has range covering this area~\cite{iucnsatanas2020}
+and the two vocalise very differently, so nothing here bears on whether the
+black colobus is present: every reference clip the detector was built from is
+\textit{C.\ guereza}, and the pulse-train criterion was derived from published
+descriptions of the \textit{C.\ guereza} roar. A search for \textit{C.\ satanas}
+would need its own reference material and its own acoustic criterion, and would
+be worth doing: the acoustic literature for that species comes almost entirely
+from Lopé National Park, several hundred kilometres to the southwest.
+
+\paragraph{A positive control, and how far it resolves the null.}
+A null from a detector admits two readings: the animal did not vocalise, or the
+detector cannot recognise it under field conditions. Separating them requires a
+positive control, a recording in which the species is known by ear to be calling,
+scored by the same detector. For most of this work none was available. Every
+\textit{C.\ guereza} clip in the training set is archival library media, and no
+field-verified roar was known to the species expert consulted here.
+
+One became available after the analysis above was complete. The expert supplied
+nine three-second clips of black-and-white colobus, verified by ear and cut from
+an independent passive-acoustic deployment: a different recorder, a different
+forest, and a project unconnected to this one. They are field recordings in the
+sense that matters here, ambient passive units in humid forest, which is the
+recording channel this detector was suspected of failing on. Each clip also
+carries the confidence its own project's detector had assigned to it, which
+turns out to be informative.
+
+Scored by the classifier described above, the \textit{Colobus} output reaches
+0.5 on three of the nine, at 1.0000, 1.0000 and 0.9963. The \textit{C.\
+nictitans} output stays at or below 0.0025 on all nine, so the response is
+specific to the class rather than a general reaction to loud low-frequency
+sound. The three that fire are all drawn from the five clips the originating
+detector had scored at 1.000; of the four it scored between 0.903 and 0.917,
+none exceeds 0.0001 here. Taken at face value that is a per-clip recall of three
+in nine. Restricted to the subset the originating detector was itself certain
+of, it is three in five, and the two misses in that subset returned 0.0138 and
+0.0378.
+
+Two limits bound what those figures mean. The nine clips are not a random sample
+of guereza vocalisations but calls that another detector had already flagged, so
+the recall describes agreement on calls that were detectable to begin with
+rather than recall over everything the animal produces. Nine clips also cannot
+support a precise estimate of either quantity.
+
+What they do support is the reading of the null. The detector responds to
+\textit{C.\ guereza} in passive field audio, and when it responds it does so at
+full confidence rather than marginally. The absence of a single confirmed roar
+in 630 hours is therefore better explained by the species not calling within
+range of these stations than by a detector unable to cross from archival to
+field recordings. That is a reduction of the ambiguity and not its removal: a
+detector missing more than half of the calls another detector found can still
+miss a rare caller, and sixteen stations sample a small part of a large forest.
+Readers holding further confirmed roars can extend the test with
+\texttt{scripts/colobus\_dawn\_probe.py} and
+\texttt{scripts/scan\_roar\_pulse.py}.
+
+The contrast with \textit{C.\ nictitans} remains instructive. That species had
+2\,535 field-verified calls behind it, and every claim made about it here is
+testable against them. \textit{C.\ guereza} has nine, obtained late and from
+elsewhere, which is enough to interpret a null and not enough to characterise a
+detector.
+The model produced 6\,189 \textit{C.\ nictitans} detections across the 16
 stations, of which 2\,535 were confirmed as genuine calls and 3\,654 were
 non-target forest sounds, an overall precision of 41.0\,\%
 (Table~\ref{tab:field}).
@@ -771,6 +1054,173 @@ the 6\,189 windows are 2\,103 call events and the 2\,535 confirmed windows are
 \textbf{755 confirmed \textit{C.\ nictitans} vocalizations}: a window count
 overstates vocal activity here by a factor of 3.36. Any use of these data as a
 measure of calling activity should use the event counts.
+
+\subsection*{Leave-one-station-out validation}
+
+Because a validation split of any kind is drawn from the same curated pool the
+model was trained on, the only measurement that speaks to deployment is one
+taken on a station the model has never heard. We therefore retrained the
+classifier sixteen times, once per station, each time withholding every
+training clip that could have come from that station and scoring only that
+station's reviewed detections (\texttt{scripts/train\_v13\_loso.py}). Station
+attribution is not optional here: eleven stations stamp a unique lat/lon into
+each filename, but IPA1, IPA2, IPA4, IPA6 and IPA7 recorded with GPS disabled
+and write identical names, so the 1\,008 clips that could belong to any of them
+sit out every fold they might contaminate. The sixteen held-out folds partition
+the 6\,189 reviewed detections exactly.
+
+Scoring is restricted to the recalibrated deployment window 05:00--19:00
+(\S\,Sliding-window detection), which retains 3\,571 of the 6\,189 detections
+and 2\,503 of the 2\,535 confirmed calls.
+
+The operating point is the part of this design that is easiest to get wrong, so
+it is stated explicitly. A threshold chosen to retain a fixed share of the
+held-out station's own confirmed calls compares the two models at equal recall,
+which is the right question when asking whether the retrained model \emph{ranks}
+calls above false positives better. It is not an operating point. Choosing it
+needs the answers, and across the sixteen folds the value that retains 95\,\% of
+the calls ranges from 0.004 to 0.9964, so no single number of that kind could be
+handed to anyone. Table~\ref{tab:loso} therefore reports a threshold fitted the
+way a practitioner would fit one: on the reviewed detections of the other fifteen
+stations, then applied unchanged to the held-out sixteenth, under the same
+grouped-argmax rule the deployment uses. Recall becomes a measured outcome
+instead of a constraint, which is why the calls-kept column varies.
+
+\begin{table}[H]
+\centering
+\caption{Leave-one-station-out validation, one fold per acoustic station,
+ordered by the precision of the deployed model. All figures are inside the
+05:00--19:00 detection window. The threshold is fitted on the fifteen training
+stations to retain 95\,\% of their calls and then applied to the held-out
+station, so both the precision and the calls-kept column are out-of-sample.
+Stations are averaged unweighted, so the macro-average estimates a
+\emph{typical} station rather than the pooled corpus.
+$^\dagger$The threshold row is the median, not the mean, and the spread is the
+result that matters more than its centre: fitting the same 95\,\% recall rule
+on fifteen stations gives thresholds from 0.044 to 0.995 depending on which
+station is held out. A single number carried to a new site is therefore not
+supported by this table; what transfers is the fitting procedure, and it
+requires labelled calls at the new site to run.}
+\label{tab:loso}
+\begin{tabular}{lrrrrrr}
+\toprule
+Station & Detections & Deployed prec. & Threshold & Retrained prec. & FP removed (\%) & Calls kept (\%) \\
+\midrule
+IPA1ST & 277 & 0.437 & 0.985 & 0.970 & 98.1 & 79.3 \\
+IPA11ST & 93 & 0.452 & 0.722 & 0.820 & 82.3 & 97.6 \\
+IPA16ST & 324 & 0.565 & 0.717 & 0.846 & 77.3 & 96.2 \\
+IPA8ST & 257 & 0.599 & 0.675 & 0.968 & 95.2 & 96.8 \\
+IPA7ST & 114 & 0.605 & 0.971 & 0.753 & 55.6 & 88.4 \\
+IPA19ST & 196 & 0.607 & 0.265 & 0.887 & 80.5 & 99.2 \\
+IPA14ST & 236 & 0.661 & 0.535 & 0.889 & 77.5 & 92.3 \\
+IPA18ST & 182 & 0.681 & 0.951 & 1.000 & 100.0 & 96.8 \\
+IPA4ST & 131 & 0.695 & 0.995 & 0.957 & 90.0 & 96.7 \\
+IPA17ST & 520 & 0.696 & 0.984 & 0.920 & 81.7 & 92.5 \\
+IPA13ST & 238 & 0.773 & 0.939 & 0.956 & 85.2 & 93.5 \\
+IPA2ST & 82 & 0.780 & 0.044 & 0.926 & 72.2 & 98.4 \\
+IPA15ST & 189 & 0.868 & 0.971 & 0.941 & 60.0 & 96.3 \\
+IPA6ST & 171 & 0.883 & 0.768 & 0.956 & 65.0 & 100.0 \\
+IPA10ST & 116 & 0.888 & 0.953 & 0.981 & 84.6 & 98.1 \\
+IPA20ST & 445 & 0.935 & 0.949 & 0.967 & 51.7 & 97.8 \\
+\midrule
+\textbf{Macro-average} & --- & \textbf{0.695} & 0.944$^\dagger$ & \textbf{0.921} & \textbf{78.6} & \textbf{95.0} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Precision improves at all sixteen stations, from a macro-average of 0.695 to
+0.921, removing 78.6\,\% of the false positives while retaining 95.0\,\% of the
+calls. The weakest fold is IPA7ST at 0.753; the strongest, IPA18ST, removes every
+false positive it was given.
+
+The fitted thresholds are the part of this table a reader is most likely to want
+to reuse, and they do not support that. Fitting the same 95\,\% recall rule on
+the fifteen training stations gives a median of 0.944 but an interquartile range
+of 0.706 to 0.971 and a full range of 0.044 to 0.995; seven of sixteen folds fall
+below 0.9 and two below 0.5. No single value can be recommended as a starting
+point. What the spread reflects is that the score distribution a station produces
+depends on that station's own noise floor, so the number that buys 95\,\% recall
+on fifteen stations is not the number that buys it on the sixteenth. The
+procedure transfers; the constant does not, and running the procedure at a new
+site requires labelled calls from that site. An earlier version of this table,
+built before augmentation and before the negative-class screen was corrected,
+showed thresholds clustered between 0.939 and 0.998 and drew the opposite
+conclusion; that clustering did not survive either change and should not be
+relied on.
+
+Five limits must be read with these numbers.
+First, this is a \emph{precision} measurement on the windows the deployment
+already fired on. It is not a recall measurement and says nothing about calls
+neither model produced.
+
+What it is not is a re-ranking result only, and an earlier version of this
+section said it was. Reassembled into a whole model and run over raw audio, the
+retrained head was scanned rather than re-ranked at two stations chosen as the
+extremes of Table~\ref{tab:loso}: IPA20ST, where the deployed model reaches
+0.935, and IPA4ST, where it reaches 0.695. Every detection at or above 0.95 in a
+stratified sample was listened to by the species expert. At IPA20ST 25 of 27
+were genuine calls; at IPA4ST, 26 of 28; pooled, 51 of 55, a scanning precision
+of 92.7\,\% (Wilson 95\,\% interval 82.7--97.1). All four errors sat at the
+bottom of that band, near 0.95, and the fold-fitted threshold at IPA4ST (0.995)
+excludes them.
+
+The comparison between the two stations is the part worth keeping. The deployed
+model's precision differs between them by 24 percentage points; the retrained
+model's ear-verified scanning precision differs by 0.3. Whatever makes IPA4ST
+hard for the deployed detector, the retrained head is not subject to it at high
+confidence --- which is the property a method claiming to transfer to a new site
+has to demonstrate, and it could not be demonstrated from Table~\ref{tab:loso}
+alone, because that table scores both models on the same candidate list.
+
+Two things still bound the claim. It is measured at $\ge$0.95 only, so it
+describes what a user would review at the operating threshold rather than the
+whole detection set; and it is precision, so a call the model never fires on is
+invisible to it. Recall on raw audio remains unmeasured and needs an
+independently annotated stretch of continuous recording, which this study does
+not have.
+Second, the review supplying the labels covers four consecutive days
+(22--25 February 2021) and is entirely \textit{C.\ nictitans}; nothing here
+generalises to other seasons.
+Third, the \textit{Colobus} class contributes no evaluation positive to any of
+the sixteen folds, because the field record contains none, so this table
+measures nothing whatever about that species. The positive control described
+above is the only evidence bearing on it, and scoring those nine clips with the
+sixteen retrained heads rather than the deployed model gives a weaker response,
+not a stronger one: a majority of heads fire on one clip where the deployed
+model fired on three, and the same clip can score 0.0001 under one fold's head
+and 0.9881 under another's. Read that alongside the fourth limit below before
+concluding anything from it.
+Fourth, the retrained model keeps the VGG19 trunk frozen at its ImageNet
+weights, where the deployed model fine-tuned it; the comparison is therefore
+one-sided. A gain measured this way is real, but a deficit measured this way
+would not have been interpretable, which is exactly the situation the
+\textit{Colobus} response above is in. The choice of an ImageNet trunk is
+deliberate and worth stating plainly: it keeps the procedure runnable by anyone
+with a standard vision stack, and every result in this paper other than the raw
+classifier accuracy is independent of it. It is not the strongest available
+option. Embeddings from bioacoustics-pretrained models transfer better to taxa
+they were never trained on, and the gap is largest exactly where our
+\textit{Colobus} class is weakest, at a few hundred examples of a non-avian
+species \cite{ghani2023}. Substituting such a backbone is a one-line change to
+the feature-extraction step and would leave the fold structure, the fitted
+threshold and the post-processing chain untouched; we did not make it here
+because the contribution is the protocol around the classifier, not the
+classifier.
+Fifth, holding out a station does not by itself hold out an event. A
+\textit{C.\ nictitans} call carries far enough to reach two recorders, and a bout
+that appears at a training station and at the held-out station would let the
+model recognise something it has already heard rather than generalise to a new
+site. We measured this on the review rather than assuming it away: of the 2\,535
+confirmed calls, the fraction having a confirmed call of the same species at a
+\emph{different} station is 2.5\,\% within $\pm$2\,s and 5.0\,\% within
+$\pm$5\,s, rising to 58\,\% only at $\pm$5\,min, which is far longer than a bout
+and long enough for unrelated animals to coincide. A same-station control gives
+93.5\,\% at $\pm$2\,s, confirming the measure detects real bout structure rather
+than returning zero everywhere. Same-event recognition is therefore bounded at
+roughly 5\,\% of the held-out positives. The station pairs responsible are the
+adjacent ones (IPA17ST/IPA8ST, IPA1ST/IPA20ST, IPA19ST/IPA1ST,
+IPA16ST/IPA20ST), so a leave-one-neighbourhood-out variant is available to anyone
+wanting the residual removed rather than bounded.
 
 The consolidation also separates the two classes, which is why it is not merely
 bookkeeping. Genuine calls span 3.40 windows on average and false positives
@@ -822,7 +1272,9 @@ Total   & 6189 & 2535 & 41.0 \\
 
 %% ---------------------------------------------------------------------
 %% CLEANUP EFFECT. Numbers from
-%%   python scripts/evaluate_cleanup.py --review reviews/ --cleanup <dir>
+%%   python scripts/evaluate_cleanup.py \
+%%       --review data/outputs/auto_cleanup/cleanup_vs_review.csv --cleanup <dir>
+%% (the raw reviews/ exports are not required -- see the note above)
 %% The manual review above was done on the raw detections, before cleanup, so
 %% it is ground truth for scoring the cleanup, and every filter subset is
 %% derivable from the per-detection flags of a single run.
@@ -913,9 +1365,12 @@ It also makes extending the ordering cheap to test, because a candidate signal
 enters as a within-station rank with no weight attached and so cannot fail to
 transfer the way a threshold can. We used that to ask whether the temporal
 structure the episodes expose adds anything as a per-detection signal, deriving
-six further quantities from the detection times alone --- the size, duration,
-internal spacing and density of the episode a detection belongs to, its position
-within that episode, and the distance to the nearest same-species detection.
+nine further quantities from the detection times alone. Six describe the
+episode: the size, duration, internal spacing and density of the episode a
+detection belongs to, its position within that episode, and the distance to the
+nearest same-species detection. Three describe the call event the detection sits
+in: how many windows it spans, its duration, and the detection's position within
+it.
 Read on its own, the size of the episode a detection sits in reaches an average
 precision of 0.827 across the fifteen stations, not far below the 0.845 of the
 detector's own confidence: how a detection clusters in time, computed without
@@ -929,13 +1384,35 @@ station is the hard case.
 
 Added to the four signals already in use, however, these features gain nothing
 that survives scrutiny. Forward selection run leave-one-station-out improves
-mean average precision by 0.011 (bootstrap 95\,\% CI $-0.004$ to $+0.027$), and
-two of the fifteen stations supply almost all of it: setting those two aside
-leaves 0.002. Twelve of fifteen stations improved, which is not evidence when
+mean average precision by 0.0152 (bootstrap 95\,\% CI $-0.0012$ to $+0.0353$),
+and two of the fifteen stations supply almost all of it: setting those two aside
+leaves 0.0045. Thirteen of fifteen stations improved, which is not evidence when
 the improvements are this small. The neighbour count already carries the
 temporal structure these features measure, so the reported ordering keeps the
 four signals and the episode grouping stays what it is --- a unit of review
 effort rather than another signal.
+
+One of these features nonetheless deserves stating plainly, because a reader who
+re-runs the experiment will find it. Used \emph{alone}, the number of windows an
+event spans reaches an average precision of \textbf{0.9039}, marginally above
+the 0.8997 of the four-signal ordering we report. It uses no audio and no model
+output at all, only detection timestamps. We keep the four-signal ordering
+because a gap of 0.004 is well inside the spread we measure between stations and
+because four signals of different kinds are less likely to fail together than
+one, but the honest summary is that most of what the ordering achieves here is
+recoverable from timing alone.
+
+That comparison requires one methodological caution. \texttt{event\_windows} is
+a small integer: it takes 38 distinct values over the 6\,189 detections, its
+largest tied group holds 17.8\,\% of them, and every detection sits in a tie of
+some size. The ranking is materialised with a stable sort, so tied detections
+keep their original row order, which is grouped by recording, where genuine
+calls cluster. Left uncorrected that inflates the figure to 0.9098. All values
+quoted for it here use random tie-breaking (mean of 20 shuffles); the effect is
+$+0.0057$. The four-signal ordering is unaffected, because its composite score
+is effectively continuous: stable and randomised tie-breaking give the same
+0.8997 to four decimal places. Any single-signal ranking over a coarse integer
+should be reported this way.
 
 \paragraph{Which filters survive held-out evaluation.}
 Of the three filters originally implemented only the two domain-specific ones
@@ -943,11 +1420,30 @@ carry signal; a general-purpose audio tagger (YAMNet) was also tried and is
 disabled, because it labels putty-nosed calls with the same AudioSet classes as
 the surrounding forest noise and so flagged more genuine calls than false
 positives.
-Both are strongly selective for false positives. Temporal isolation flags
-32.8\,\% of false positives against 1.6\,\% of genuine calls across the fifteen
-stations, and the Mahalanobis distance 4.8\,\% against 3.2\,\%; the ratio of
-those two rates --- how much more often a filter fires on noise than on a call
---- is 21.0 and 1.5 respectively. Pooled over all sixteen stations the same
+They are not equally selective, and the weaker of the two should not have been
+shipped as a filter. Temporal isolation flags 32.8\,\% of false positives
+against 1.6\,\% of genuine calls across the fifteen stations, and the
+Mahalanobis distance 4.8\,\% against 3.2\,\%; the ratio of those two rates
+(how much more often a filter fires on noise than on a call) is 21.0 and 1.5
+respectively.
+
+A lift of 1.5 is close to no selectivity at all, and a direct test confirms it:
+as a binary decision, \texttt{flag\_mahal} has an ROC area of \textbf{0.485}
+over the 6\,189 reviewed detections, which is chance. The failure has a
+mechanism. Mahalanobis distance flags whatever is far from the training
+distribution, and a loud, close, unambiguous call is exactly that, so the
+filter preferentially removes the detections a reviewer would most want to keep.
+A second listener labelled 68 disputed clips by ear with no model output shown
+(\texttt{data/labels/disputed\_68\_labels.csv}); of the 44 that this filter had
+exported as false positives, \textbf{44 of 44 were genuine calls.}
+
+The distinction that matters for anyone reusing this is between the filter and
+the quantity underneath it. The \emph{continuous} distance is a real if modest
+ranking signal (ROC area 0.763 in the same comparison), and it stays in the
+ordering for that reason. It is the thresholding that destroys it: the cut was
+never fitted against the human verdicts, and collapsing a graded distance into
+one bit discards the only part that worked. The same is true of temporal
+isolation in the opposite direction; see below. Pooled over all sixteen stations the same
 rates are 13.4\,\% against 1.6\,\% and 6.3\,\% against 3.2\,\% (lift 8.5 and
 2.0, Table~\ref{tab:ablation}); the difference is entirely the station discussed
 below, where the false positives are neither isolated in time nor distant in
@@ -958,6 +1454,42 @@ from 41.0\,\% to 46.6\,\% across all sixteen stations, and from 65.5\,\% to
 9\,\% reaches 83.4\,\% precision on those fifteen stations, and a 15\,\% loss
 reaches 86.6\,\%; the full retention-versus-precision trade-off is available
 from the evaluation script rather than fixed in advance.
+
+\paragraph{The isolation filter throws away most of its own signal.}
+\texttt{flag\_isolated} is exactly \texttt{n\_neighbours == 0}, verified over
+all 6\,189 rows with no disagreement, so a count that ranges from 0 to 58
+enters the pipeline as a single bit. Kept graded, and applied after the
+detection-time window of \S\,Sliding-window detection, it is monotone and it is
+the strongest signal in the table:
+
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+\texttt{n\_neighbours} & Detections & Precision \\
+\midrule
+0     &  384 & 0.104 \\
+1     &  437 & 0.249 \\
+2--3  &  366 & 0.577 \\
+4--7  &  594 & 0.806 \\
+$\geq$8 & 1790 & 0.930 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Its ROC area inside the window is 0.880, above the detector's own confidence
+(0.771) and above the Mahalanobis distance (0.706), and its direction is the
+same at 16 of 16 stations. That last property is why it generalises where
+earlier thresholds did not: it is an unnormalised count rather than a distance,
+so it carries no per-station scale to be calibrated away.
+
+The order of application is not interchangeable. Applied on its own,
+\texttt{n\_neighbours} $\geq 2$ reaches only 0.465 precision: the nocturnal
+insect chorus that supplies most of the false positives is the \emph{densest}
+material in the recording, not the most isolated, so the time gate has to remove
+it first. Applied afterwards, with the cut fitted leave-one-station-out
+(\texttt{scripts/calibrate\_cleanup.py}), the two together give held-out
+precision \textbf{0.869} at 89.8\,\% recall, against 0.701 for the gate alone
+and 0.410 ungated. Two integer comparisons, no audio, no model, no retraining.
 
 These filters are worth comparing against the simplest alternative available,
 since the detector already scores every window: discarding the least confident
@@ -1107,14 +1639,19 @@ V12 adds two data-level defences: (i)~a targeted high-frequency nuisance
 augmentation that replaces the band above 1.5\,kHz with random background
 content in two additional variants per \textit{Colobus} clip, decorrelating the
 high-frequency shortcut from the label (see \S\,Data augmentation); and (ii)~a
-calibrated low-frequency energy gate at detection time (threshold 0.20;
-see \S\,Sliding-window detection) that catches residual high-frequency false
-positives whose energy lies almost entirely above 1.5\,kHz. An earlier version
-of the gate with a higher threshold (0.40) was too aggressive and flagged
-genuine \textit{Colobus} clips whose ambient insect energy lowered the
-low-frequency ratio; the 0.20 threshold sits below the fifth percentile of the
-reference clips and above the field false-positive maximum, retaining the large
-majority of genuine calls while still removing the insect false positives.
+low-frequency energy gate at detection time (see \S\,Sliding-window detection)
+intended to catch high-frequency false positives whose energy lies almost
+entirely above 1.5\,kHz. The deployment reported here used a threshold of
+0.20, chosen because the \textit{Colobus\_confuser} clips it was calibrated on
+have low-frequency ratios of at most 0.09. The field false positives proved not
+to be of that kind: every one of the 253 \textit{Colobus} detections has a
+ratio above 0.20, with a median of 0.4231 and a maximum of 0.9831, so the gate
+as deployed removed none of them. The threshold is now 0.40, which removes 120
+of the 253 at a cost of 4.2 points of reference-clip recall
+(\texttt{scripts/calibrate\_colobus\_gate.py}). Neither setting separates a
+roar from thunder, because the two overlap in the band the gate measures; we
+report the gate as a mitigation that was calibrated against the wrong negative
+and state the \textit{Colobus} field result as the negative it is.
 
 %% =====================================================================
 \section*{Limitations}
@@ -1132,6 +1669,36 @@ exploit the fact that the target species occupy distinct frequency ranges
 (low-frequency \textit{Colobus} roars versus high-frequency birds and insects),
 and they therefore offer little leverage against a confuser that overlaps the
 target in both frequency and temporal structure.
+
+The obvious remedy is to stop the class from being missing. The species expert
+identified the daytime false positives by ear as \textit{Cercopithecus
+pogonias}, a congener of the target, so we added it as a fifth trained class
+built from 150 library recordings and routed to Background at detection time in
+the same way as the confuser class, and repeated the entire sixteen-fold sweep.
+It changes almost nothing. Precision moves from 0.954 to 0.953 and recall from
+0.860 to 0.866, an F-measure of 0.904 against 0.907. Ten of sixteen folds improve
+and six worsen, with a median change of $+0.0005$ and no fold moving by more than
+0.05 in either direction. The class is neither the fix nor a liability; it is
+absent from the result. This ablation was measured on the unaugmented dataset and
+before the negative-class screen was corrected, so its two arms are internally
+comparable but neither matches Table~\ref{tab:loso}; the null is what is being
+reported, not the level.
+
+Two things plausibly explain the null and both are worth stating, because this
+intervention is the one a reader is most likely to try. The 150 clips are
+archival library media being used to treat a confusion that occurs in field
+recordings, which is the same archival-to-field gap that limits the
+\textit{Colobus} class elsewhere in this paper. And a negative class generalises
+only to the negatives it was given: adding \textit{C.\ pogonias} addresses
+\textit{C.\ pogonias} and offers no protection against \textit{C.\ cephus},
+\textit{Lophocebus} or any other unenumerated congener \cite{bisgin2024}. Neither
+explanation is tested here, and a fifth class built from field recordings of the
+congener rather than from a library remains worth trying.
+
+Table~\ref{tab:loso} reports the configuration without this class, on the
+grounds that it is simpler to reproduce and requires no additional audio, not on
+the grounds that it performs better. We report the attempt because a null result
+on the obvious fix is more useful to a practitioner than its absence.
 
 The automatic cleanup carries its own caveats. It introduces a circular bias,
 because hard negatives are scored by the same model that produced them, so
@@ -1158,10 +1725,21 @@ removes the need to listen. It orders the listening, and how much of it can be
 skipped is a decision for whoever bears the cost of a missed call.
 
 Finally, the model favours precision over recall and is therefore conservative
-on weak or short calls: on the validation set Cernic recall is 96.1\,\%, with
-the misclassified clips (mostly brief hacks and pyows in loud ambient noise)
-split between the confuser class and Background, and the fixed 2\,s analysis
-window can truncate or split long vocalizations such as \textit{Colobus} roars.
+on weak or short calls; the clips it misses are mostly brief hacks and pyows in
+loud ambient noise. We give no recall figure for this: the only recall number
+the pipeline ever produced came from the withdrawn validation split
+(\S\,Model training), and field recall is not estimable here at a cost anyone
+would pay; see the sampling table above.
+
+The fixed 2\,s analysis window is a related limitation, and for one of the two
+target species it is disqualifying rather than merely conservative. A
+\textit{C.\ guereza} roaring phrase is on the order of fifteen pulses of about
+0.7\,s, some ten seconds in total, so a 2\,s window holds fewer than three
+pulses and cannot represent the repetition that defines the call. The reference
+material shares the problem: the archival clips reconstruct to a median of 5\,s
+and a maximum of 6\,s, so no training example contains a complete phrase
+either. Any re-targeting of this pipeline at a species whose call is longer than
+the analysis window should change the window first.
 Recall in the field is not measured here and should not be read off the
 validation figure. The manual review covered the exported detections, not the
 continuous recordings, so it establishes how many detections were genuine but
@@ -1173,9 +1751,38 @@ repository includes the tooling for it: a station-stratified sampler that draws
 segments from a fixed seed, an annotation sheet in which a segment containing no
 calls keeps its row as evidence of effort, and scoring that reports a Wilson
 interval rather than a bare percentage, since a recall estimate from a few dozen
-calls carries more uncertainty than a percentage suggests. Roughly 3.5\,h of
-annotated audio at the call density this review implies would place recall within
-about five percentage points. We report the method rather than the number.
+calls carries more uncertainty than a percentage suggests.
+
+We report the method rather than the number, and the reason is worth stating as
+a quantity because it is the part that transfers. \textit{C.\ nictitans} is a
+sparse target here. The review confirms 755 vocalization events over the 513
+recordings it covers: 2.9 events per hour of audio in recordings the detector
+fired in at all, and 0.50 per hour over the full 1\,506\,h corpus. A Wilson
+interval of half-width $h$ around a recall near 0.9 needs on the order of
+$1.96^{2}\,p(1-p)/h^{2}$ observed calls: 138 for five percentage points, 35 for
+ten, 9 for twenty. Multiplying through:
+
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+Target half-width & Sampling the full corpus & Sampling only active recordings \\
+\midrule
+$\pm5$ points  & 277\,h & 47\,h \\
+$\pm10$ points &  69\,h & 12\,h \\
+$\pm20$ points &  17\,h &  3\,h \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Three to four hours of listening, the amount that sounds reasonable to commit,
+buys an interval of roughly $\pm18$ points even under the more favourable
+sampling, and the favourable column is not a free choice: restricting the sample
+to recordings that already contain detections estimates recall \emph{conditional
+on the species being active}, which is a different and narrower quantity than
+field recall. We judged an interval that wide not worth reporting as a number,
+and state the cost instead. Anyone re-using this pipeline for a denser target
+can read the requirement off the table; anyone re-using it for a target this
+sparse should budget for it before promising a recall figure.
 Re-targeting the pipeline to a new species requires curated reference clips and
 edits to the configuration, and performance on rare or quiet calls with few
 reference examples is not guaranteed. The method also yields detections rather
@@ -1257,6 +1864,17 @@ not used.]
 %% =====================================================================
 \begin{thebibliography}{99}
 
+\bibitem{iucnguereza2025}
+Y.A. de Jong, T.M. Butynski, J.F. Oates, \textit{Colobus guereza}, The IUCN Red
+List of Threatened Species 2025: e.T5143A254878093.
+\url{https://www.iucnredlist.org/species/5143/254878093}
+
+\bibitem{iucnsatanas2020}
+F. Maisels, D.T. Cronin, \textit{Colobus satanas} ssp. \textit{anthracinus},
+Gabon Black Colobus, The IUCN Red List of Threatened Species 2020:
+e.T40012A17983080.
+\url{https://www.iucnredlist.org/species/40012/17983080}
+
 \bibitem{cauzinille2024}
 J. Cauzinille, B. Favre, R. Marxer, A. Rey, Applying machine learning to
 primate bioacoustics: review and perspectives, Am. J. Primatol. (2024) e23666.
@@ -1292,6 +1910,16 @@ M. Plakal, D. Platt, R.A. Saurous, B. Seybold, M. Slaney, R.J. Weiss,
 K. Wilson, CNN architectures for large-scale audio classification, in: IEEE
 International Conference on Acoustics, Speech and Signal Processing (ICASSP),
 2017, pp. 131--135. \url{https://doi.org/10.1109/ICASSP.2017.7952132}
+
+\bibitem{bisgin2024}
+H. Bisgin, A. Palechor, M. Suter, M. G\"unther, Large-scale evaluation of
+open-set image classification techniques, arXiv:2406.09112 (2024).
+\url{https://doi.org/10.48550/arXiv.2406.09112}
+
+\bibitem{ghani2023}
+B. Ghani, T. Denton, S. Kahl, H. Klinck, Global birdsong embeddings enable
+superior transfer learning for bioacoustic classification, Scientific Reports
+13 (2023) 22876. \url{https://doi.org/10.1038/s41598-023-49989-z}
 
 \bibitem{lee2018}
 K. Lee, K. Lee, H. Lee, J. Shin, A simple unified framework for detecting
