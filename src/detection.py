@@ -141,6 +141,143 @@ def apply_lowfreq_gate(detections_df: pd.DataFrame,
     return detections_df[keep].reset_index(drop=True)
 
 
+_OOD_STATS = None
+_OOD_EXTRACTOR = None
+
+
+def _load_ood_stats():
+    """Class means, inverse covariance and cutoffs, or None if not built yet.
+
+    Returning None rather than fitting on the spot is deliberate: the statistics
+    define what "in distribution" means and belong to the training set, so
+    computing them from whatever happens to be at hand would make two runs of
+    the same command disagree. ``scripts/build_ood_stats.py`` writes them.
+    """
+    global _OOD_STATS
+    if _OOD_STATS is not None:
+        return _OOD_STATS if _OOD_STATS is not False else None
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "data", config.OOD_STATS_CACHE)
+    if not os.path.exists(path):
+        _OOD_STATS = False
+        return None
+    z = np.load(path, allow_pickle=False)
+    _OOD_STATS = {
+        "class_means": z["class_means"],
+        "inv_cov": z["inv_cov"],
+        "class_names": [str(s) for s in z["class_names"]],
+        "percentiles": [int(p) for p in z["percentiles"]],
+        "cutoffs": z["cutoffs"],
+        "head_fingerprint": (str(z["head_fingerprint"])
+                             if "head_fingerprint" in z.files else None),
+    }
+    return _OOD_STATS
+
+
+def _head_fingerprint(model):
+    """Fingerprint of the head these statistics must have been fitted on."""
+    import hashlib
+    import auto_cleanup
+    fe = auto_cleanup.build_feature_extractor(model, config.OOD_FEATURE_LAYER)
+    weights = (fe._head_tap.get_weights() if hasattr(fe, "_head_tap")
+               else model.get_weights())
+    h = hashlib.sha256()
+    for w in weights:
+        h.update(np.ascontiguousarray(w, dtype=np.float32).tobytes())
+    return h.hexdigest()
+
+
+def annotate_ood_distance(detections_df: pd.DataFrame,
+                          model,
+                          audio: np.ndarray,
+                          sr: int) -> pd.DataFrame:
+    """Add an ``ood_distance`` column: Mahalanobis distance to the decided class.
+
+    This is the measure the softmax cannot provide. The classifier is closed-set
+    and every window must be assigned one of five classes, so a sound belonging
+    to none of them -- a knock on the housing, an unfamiliar bird, machinery --
+    is placed in the nearest cluster and reported at high confidence. Distance
+    in feature space says how far "nearest" actually was.
+
+    Recorded for every detection regardless of species, because the open-set
+    problem is not specific to one class; the low-frequency ratio beside it is
+    Colobus-only because that gate encodes a fact about roars.
+    """
+    if len(detections_df) == 0:
+        return detections_df
+    stats = _load_ood_stats()
+    if stats is None:
+        detections_df = detections_df.copy()
+        detections_df["ood_distance"] = np.nan
+        return detections_df
+
+    want = stats.get("head_fingerprint")
+    if want and _head_fingerprint(model) != want:
+        print("\n ! OOD statistics were fitted on a different head; every LOSO "
+              "fold has its\n   own feature space, so the distances would be "
+              "meaningless. Leaving the\n   ood_distance column empty. Rebuild "
+              "with scripts/build_ood_stats.py --model\n   <this model>.")
+        detections_df = detections_df.copy()
+        detections_df["ood_distance"] = np.nan
+        return detections_df
+
+    global _OOD_EXTRACTOR
+    if _OOD_EXTRACTOR is None:
+        import auto_cleanup
+        _OOD_EXTRACTOR = auto_cleanup.build_feature_extractor(
+            model, config.OOD_FEATURE_LAYER)
+
+    import preprocessing
+    win = int(round(config.WINDOW_SIZE * sr))
+    clips = []
+    for _, row in detections_df.iterrows():
+        a = int(row["start_time"] * sr)
+        seg = audio[a:a + win]
+        if seg.size < win:
+            seg = np.pad(seg, (0, win - seg.size))
+        clips.append(preprocessing.preprocess_for_model(
+            preprocessing.preprocess_audio(seg)))
+    feats = _OOD_EXTRACTOR.predict(np.stack(clips),
+                                   batch_size=config.BATCH_SIZE, verbose=0)
+
+    names = stats["class_names"]
+    means, inv_cov = stats["class_means"], stats["inv_cov"]
+    out = []
+    for f, sp in zip(feats, detections_df["species"].to_numpy()):
+        if sp not in names:
+            out.append(np.nan)
+            continue
+        d = f - means[names.index(sp)]
+        out.append(float(d @ inv_cov @ d))
+    detections_df = detections_df.copy()
+    detections_df["ood_distance"] = out
+    return detections_df
+
+
+def apply_ood_gate(detections_df: pd.DataFrame,
+                   percentile: int = None) -> pd.DataFrame:
+    """Drop detections whose distance exceeds their class's cutoff."""
+    if len(detections_df) == 0 or "ood_distance" not in detections_df:
+        return detections_df
+    stats = _load_ood_stats()
+    if stats is None:
+        return detections_df
+    q = config.OOD_GATE_PERCENTILE if percentile is None else percentile
+    if q not in stats["percentiles"]:
+        raise ValueError(f"no cutoff fitted at percentile {q}; "
+                         f"available: {stats['percentiles']}")
+    col = list(stats["percentiles"]).index(q)
+    names = stats["class_names"]
+    keep = []
+    for _, row in detections_df.iterrows():
+        sp, d = row["species"], row.get("ood_distance", np.nan)
+        if sp not in names or not np.isfinite(d):
+            keep.append(True)          # never drop on a missing measurement
+            continue
+        keep.append(d <= stats["cutoffs"][names.index(sp)][col])
+    return detections_df[np.array(keep)].reset_index(drop=True)
+
+
 def annotate_lowfreq_ratio(detections_df: pd.DataFrame,
                            audio: np.ndarray,
                            sr: int,
@@ -265,6 +402,19 @@ def detect_in_long_audio(model,
     # column (so detections can be RANKED by it to surface real low-frequency
     # roar candidates); the gate then optionally drops the high-frequency insect
     # false positives. See config LOW-FREQUENCY SPECTRAL-ENERGY GATE notes.
+    # How far each detection sits from the class it was assigned, in feature
+    # space. Recorded before the low-frequency gate so the column exists for
+    # detections that gate would remove, which is what makes the two comparable.
+    if len(df) > 0 and getattr(config, "OOD_DISTANCE_ENABLED", False):
+        df = annotate_ood_distance(df, model, audio, sr)
+        if getattr(config, "OOD_GATE_ENABLED", False):
+            before = len(df)
+            df = apply_ood_gate(df)
+            if before - len(df):
+                print(f"\n OOD gate (p{config.OOD_GATE_PERCENTILE}): dropped "
+                      f"{before - len(df)} detection(s) that resemble no "
+                      f"trained class")
+
     if len(df) > 0:
         df = annotate_lowfreq_ratio(df, audio, sr,
                                     species=config.COLOBUS_HF_AUG_CLASS)
