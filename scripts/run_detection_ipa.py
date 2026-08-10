@@ -46,6 +46,11 @@ def main():
                              f'field results were produced over all 24h.')
     parser.add_argument('--no-time-filter', action='store_true',
                         help=argparse.SUPPRESS)   # accepted, now the default
+    parser.add_argument('--time-window', type=str, default=None,
+                        help="HH:MM-HH:MM overriding config.TIME_FILTER_* when "
+                             "--time-filter is set. Use 05:00-08:00 for a "
+                             "guereza dawn search; the shipped 05:00-19:00 is "
+                             "the whole day-active period.")
     parser.add_argument('--output', type=str, default=None,
                         help='Output directory for CSVs (default: detections/<station>)')
     args = parser.parse_args()
@@ -60,11 +65,30 @@ def main():
 
     # --- Gather files ---
     use_filter = args.time_filter
-    print(f"Time filter: {'ON (' + config.TIME_FILTER_START + '-' + config.TIME_FILTER_END + ')' if use_filter else 'OFF (all 24h, as deployed)'}")
-    files = data_loader.get_ipa_station_files(args.station, time_filter=use_filter)
+    window = tuple(args.time_window.split('-')) if args.time_window else None
+    if window and len(window) != 2:
+        sys.exit(f"--time-window must be HH:MM-HH:MM, got {args.time_window!r}")
+    # Report the window that will actually be used. This line used to describe
+    # only --time-filter and said "OFF (all 24h)" even when --time-window had
+    # restricted the run to a few hours, which is the kind of log that gets
+    # believed later.
+    if window:
+        print(f"Time filter: ON ({window[0]}-{window[1]}, from --time-window)")
+    elif use_filter:
+        print(f"Time filter: ON ({config.TIME_FILTER_START}-"
+              f"{config.TIME_FILTER_END}, from config)")
+    else:
+        print("Time filter: OFF (all 24h, as deployed)")
+    files = data_loader.get_ipa_station_files(args.station, time_filter=use_filter,
+                                              window=window)
     if not files:
-        print("No files found. Check IPA_ROOT and station name.")
-        return
+        # Exit non-zero. This used to `return`, i.e. exit 0, so an overnight
+        # sweep or any wrapper read "no files" as success and produced nothing.
+        # IPA_ROOT defaults to data/field_recordings/, which is empty in a fresh
+        # checkout, so this is the DEFAULT outcome, not an edge case.
+        sys.exit(f"No files found for {args.station} under {config.IPA_ROOT}\n"
+                 f"Set PRIMATE_IPA_ROOT to the drive holding the IPA* folders, "
+                 f"e.g.\n  PRIMATE_IPA_ROOT='D:/Gabon raw acoustic data National Park'")
 
     # --- Output dir ---
     out_dir = args.output or os.path.join(config.DETECTION_OUTPUT_DIR, args.station)

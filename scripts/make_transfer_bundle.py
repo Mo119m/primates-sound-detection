@@ -33,7 +33,7 @@ REPO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 
 ESSENTIAL = [
     ("data/outputs/v13_images.npy",
-     "the 31,678 clips as model-ready images -- the training input"),
+     "every clip as the model-ready image it eats -- the training input"),
     ("data/outputs/v13_index.csv",
      "row in the pack -> clip, label, station"),
     ("data/outputs/v13_manifest.csv",
@@ -44,6 +44,61 @@ ESSENTIAL = [
      "the baseline to beat"),
     ("data/outputs/detections",
      "V12's detections, for comparing a re-detection run"),
+    ("data/outputs/v13_heads",
+     "the per-fold trained heads: 16 models, each blind to one station"),
+]
+
+# Results, and the audio that arrived after the first bundle was cut. Small
+# enough that leaving them out to save space would be false economy, and losing
+# any of them would mean re-running a day of training or re-asking a
+# collaborator for material.
+RESULTS = [
+    ("data/outputs/v13_loso_final.csv",
+     "16-fold sweep, four classes, LOSO-fitted threshold: 0.6953 -> 0.9535"),
+    ("data/outputs/v13_loso_2target.csv",
+     "same, with C. pogonias as its own detection target: 0.9556"),
+    ("data/outputs/v13_loso_5class_final.csv",
+     "same, with C. pogonias folded into Background: the ablation arm"),
+    ("data/outputs/v13_loso_pulses.csv",
+     "same, with Colobus trained on single roar pulses: Cernic 0.9420, "
+     "but 3 of 9 field positives against 1 of 9"),
+    ("data/outputs/roar_pulses",
+     "listening samples: whole recordings beside the pulses cut from them"),
+    ("data/outputs/cluster_reps",
+     "three representatives of each of the four acoustic clusters in the "
+     "Colobus reference class, for the expert to label"),
+    ("data/outputs/spatial_extent.csv", "multi-station co-firing by time slot"),
+    ("data/outputs/unknown_caller_ranking.csv", "the daytime confuser ranking"),
+]
+
+# Material that came from collaborators and exists nowhere else. None of it is
+# reproducible from the repository, so it is essential regardless of size.
+EXTERNAL = [
+    ("C:/Users/Fudap/Downloads", "colobus_from_expert",
+     "the nine field-verified C. guereza clips that are the positive control, "
+     "plus the longer web-audio recordings, exactly as received",
+     lambda n: n.lower().endswith(".wav")
+     and ("S1141_44100H" in n or "olobus" in n or "BWColobus" in n)),
+    ("C:/Users/Fudap/OneDrive/Desktop/C. pogonias", "C_pogonias_as_received",
+     "the 153 C. pogonias clips as delivered, before de-duplication",
+     lambda n: n.lower().endswith(".wav")),
+]
+
+# Written record. The numbers in the manuscript cannot be checked without it,
+# and several of these document mistakes that would otherwise be repeated.
+DOCS = [
+    ("paper/methodsx_manuscript.tex", "the manuscript"),
+    ("paper/Figure_1.pdf", "figure 1"),
+    ("paper/Figure_2.pdf", "figure 2"),
+    ("paper/Figure_3.pdf", "figure 3"),
+    ("paper/graphical_abstract.pdf", "graphical abstract"),
+    ("paper/LITERATURE_2026-08-03.md", "literature sweep, 76 sources"),
+    ("paper/SUBMISSION_CHECKLIST.md", "submission checklist"),
+    ("paper/CORRECTIONS_2026-08-01.md", "earlier round of corrections"),
+    ("SESSION_2026-08-03.md",
+     "what was found and fixed, including the defects that inflated earlier "
+     "numbers"),
+    ("README.md", "how to run any of it"),
 ]
 
 OPTIONAL = [
@@ -94,6 +149,36 @@ def copy(rel, dest_root, dry_run):
     return n
 
 
+def copy_external(src_dir, sub, keep, dest_root, dry_run):
+    """Copy matching files from outside the repository into received/<sub>.
+
+    Kept separate from copy() because these are not repository-relative and
+    because they must land somewhere obviously distinct: they are what a
+    collaborator sent, unmodified, and nothing in the pipeline should be reading
+    them from here. Duplicate downloads (\"name (1).wav\") are dropped.
+    """
+    if not os.path.isdir(src_dir):
+        print(f"  MISSING  {src_dir}")
+        return 0
+    out = os.path.join(dest_root, "received", sub)
+    names = [n for n in sorted(os.listdir(src_dir))
+             if keep(n) and "(1)" not in n
+             and os.path.isfile(os.path.join(src_dir, n))]
+    total = sum(os.path.getsize(os.path.join(src_dir, n)) for n in names)
+    print(f"  {total / 1e9:7.2f} GB  received/{sub}  ({len(names)} files)")
+    if dry_run:
+        return total
+    os.makedirs(out, exist_ok=True)
+    for n in names:
+        shutil.copy2(os.path.join(src_dir, n), os.path.join(out, n))
+    with open(os.path.join(out, "PROVENANCE.txt"), "w", encoding="utf-8") as fh:
+        fh.write(f"Copied verbatim from {src_dir}\n"
+                 f"{len(names)} files, duplicates named \"(1)\" excluded.\n"
+                 f"Nothing in the pipeline reads from this folder; it is the "
+                 f"record of what was received.\n")
+    return total
+
+
 def main():
     ap = argparse.ArgumentParser(
         description=__doc__,
@@ -114,6 +199,16 @@ def main():
     print(f"Bundle -> {dest}\n")
     print("ESSENTIAL")
     total = sum(copy(rel, dest, args.dry_run) for rel, _why in ESSENTIAL)
+
+    print("\nRESULTS")
+    total += sum(copy(rel, dest, args.dry_run) for rel, _why in RESULTS)
+
+    print("\nWRITTEN RECORD")
+    total += sum(copy(rel, dest, args.dry_run) for rel, _why in DOCS)
+
+    print("\nFROM COLLABORATORS (exists nowhere else)")
+    for src_dir, sub, _why, keep in EXTERNAL:
+        total += copy_external(src_dir, sub, keep, dest, args.dry_run)
 
     if args.full:
         print("\nSOURCE AUDIO (only needed to rebuild the pack)")

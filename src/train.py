@@ -30,6 +30,15 @@ except ImportError:  # Allow running as a standalone script (e.g. in Colab)
 _WINDOW_SUFFIX_RE = re.compile(
     r"(__t\d+(?:\.\d+)?s(?:__conf[\d.]+)?"      # colger100__t003.0s / field clips
     r"|__\d+s__conf[\d.]+"                      # review clips: __01540s__conf0.980
+    # Roar segmentation, added after the fact and missing until now. Every
+    # Colobus clip is cut from a library recording as bwcolob53__pulse07,
+    # __chunk0126 or __bout04_3p, and none of those matched the patterns above,
+    # so 665 pulses from 207 recordings were treated as 665 independent
+    # recordings. Two pulses of one roar could then sit on opposite sides of the
+    # inner validation split, which is the exact near-duplicate leak this
+    # function exists to prevent -- and the comment in segment_roar_pulses.py
+    # asserted it was already handled.
+    r"|__pulse\d+|__chunk\d+|__bout\d+_\d+p"
     r"|_\d+\.\d+s_\d+\.\d+s)$"                  # BirdNET: _807.0s_810.0s
 )
 # BirdNET writes its own score and a within-file index ahead of the recording

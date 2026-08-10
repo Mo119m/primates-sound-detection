@@ -53,7 +53,42 @@ SPECIES_FOLDERS = {
         # before it exists; scan_audio_files() warns and skips a missing folder.
         'species/CERNIC field_confirmed',
     ],
-    'Colobus_guereza': 'species/Colobus guereza 2s windows',
+    # Full-length windows carrying a run of roar pulses, not one pulse each.
+    #
+    # Three versions of this class have been tried and the difference is what a
+    # training example is, not how many there are. Fixed 2 s crops (617) had the
+    # right length but arbitrary phase: two crops of the same roar could be cut
+    # half a pulse apart. Single pulses (665) fixed the phase and broke
+    # something worse -- a putty-nosed hack is one 0.08 s event and a window
+    # holding one is a faithful example, but a guereza roar is a train of
+    # ~0.31 s pulses at ~1.7 Hz, so a window holding one pulse is a
+    # low-frequency thump with 1.6 s of borrowed ambient around it. Trained on
+    # those, the model could not learn the rhythm, and the symptom showed up in
+    # deployment: it returned 0.9999 on clips whose energy was 99 % above
+    # 1.5 kHz, which no roar can produce, because a lone thump in a bed was the
+    # only thing it had ever been shown. Every one of its IPA4ST detections was
+    # then discarded by the low-frequency gate -- the gate was carrying the
+    # class.
+    #
+    # Bouts were tried and reverted, and the measurement that reverted them is
+    # the useful part. Windows carrying three library pulses at ~1.7 Hz dropped
+    # field sensitivity from 2/9 to 1/9 on the only field-verified guereza audio
+    # in the project. Measuring those nine clips explains why: in the field a
+    # roar arrives as ONE long low event, median one pulse per 3 s clip at
+    # 0.7-2.5 s each, while the library material is a train of seven ~0.26 s
+    # pulses at ~2 Hz. Distance smears the train into a rumble, and training on
+    # the un-smeared train taught the model to require a rhythm the recorders
+    # never deliver. "More complete call structure" is not the same as "closer
+    # to the field", which is the lesson worth keeping.
+    #
+    # Single pulses are not right either -- they are what the low-frequency gate
+    # ends up carrying -- but a lone 0.37 s event is closer to one long field
+    # event than three fast ones are, and it is what the deployable model uses.
+    # The real fix is to degrade the library material to the field's measured
+    # structure rather than to re-cut it; the bout windows in
+    # 'species/Colobus guereza bouts' are the right raw material for that,
+    # because a smear needs a train to smear.
+    'Colobus_guereza': 'species/Colobus guereza pulses',
     # Dedicated hard-negative class for the low-frequency forest sound that the
     # model repeatedly mis-fires as Colobus (pulsed, <1 kHz, morphologically
     # close to a guereza roar). These clips are ALL the Colobus false positives
@@ -66,6 +101,30 @@ SPECIES_FOLDERS = {
     # time this class is folded into the Background group (see DETECTION_GROUPS)
     # so it never produces a detection.
     'Colobus_confuser': 'species/Colobus_confuser',
+    # Cercopithecus pogonias, the crowned monkey -- a congener of the target that
+    # the species expert identified by ear as the source of the daytime Cernic
+    # false positives, the ones that survive the time gate, the isolation filter
+    # and the V13 retraining alike. A held-out pogonias recording scores 1.0000
+    # on the Cernic output in 23 of 31 windows, so this is a closed-set failure
+    # and not a threshold failure: a classifier with no class for a congeneric
+    # species has nowhere to put its calls except the class they most resemble.
+    # The fix is a class. It began as a confuser folded into Background and is
+    # now a detection target in its own right: see DETECTION_GROUPS below, and
+    # the measurement that decided it. C. pogonias and C. nictitans are both
+    # Near Threatened congeners occurring in Gabon, so a detector for the pair
+    # is worth more than a detector for one plus a discarded class, and giving
+    # pogonias its own group also scored better for Cernic than folding it away
+    # (precision 0.9556 against 0.9530, calls retained 0.8687 against 0.8657).
+    # Provenance: cut from a sound library, not from the deployment, confirmed by
+    # the species expert who supplied them and consistent with fingerprint
+    # matching, which found no match against any clip this repository has
+    # exported. They therefore belong to no station and possible_stations()
+    # returns an empty list, the same encoding the 172 archival Colobus_guereza
+    # clips already carry. That is correct rather than a gap, but it does mean
+    # this class treats a field confusion with archival audio, which is the
+    # archival-to-field gap the Colobus class already suffers from. Whether the
+    # class earns its place is measured by --drop-pogonias, not assumed.
+    'C_pogonias': 'species/C_pogonias',
 }
 
 # Background noise folders (will be combined into single "Background" class)
@@ -89,11 +148,85 @@ BACKGROUND_FOLDERS = [
     # Safe to list before it exists -- scan_audio_files() warns and skips a
     # missing folder.
     'background/field_fp_negatives',
+    # Windows drawn uniformly at random from the deployment recordings, one
+    # per-station subfolder so possible_stations() still holds a station out.
+    #
+    # Everything else in this list was chosen by something: a detector fired on
+    # it, a reviewer judged it, or a person curated it. Measured on the manifest
+    # before these were added, 93 % of Background came from the model's own false
+    # positives or from reviewed detections, and even the 17 101 BirdNET clips
+    # were picked by a detector rather than drawn from the audio. That teaches
+    # the model to separate calls from THINGS A DETECTOR ALREADY REACTED TO,
+    # which is enough to re-rank a candidate list and not enough to scan a
+    # recording: a held-out model turned loose on IPA4ST produced 1 154
+    # detections and the first six checked by ear were all wrong, at confidences
+    # up to 0.988.
+    #
+    # These are what the forest actually sounds like. Screened with the deployed
+    # grouped-argmax rule: 0.7 % of the draws would have produced a detection and
+    # are held back in data/outputs/random_mine_suspect for a person.
+    #
+    # WITHDRAWN until that screen is validated. The screen's reliability equals
+    # the model's recall, which is the one quantity this project has never
+    # measured, so labelling 19 573 clips Background on its say-so is circular:
+    # a call the model misses becomes a negative example teaching it to keep
+    # missing calls. 200 of the not-fired clips are in
+    # data/outputs/random_notfired_sample awaiting a human ear
+    # (data/outputs/LISTEN_3_notfired.csv). Re-enable this line when that comes
+    # back clean; the sweep that used it is data/outputs/v13_loso_randombg.csv
+    # and its numbers should be treated as provisional until then.
+    # 'background/random_forest',
+]
+
+# Subtrees that must NOT be swept into Background even though they sit inside a
+# folder listed above. scan_audio_files() skips these and says so.
+#
+# WHY THIS EXISTS. 'outputs/auto_cleanup/auto_flagged_fp' holds 4 344 clips in
+# two kinds of subfolder. The station-named ones (ipa2st_cernic_bulk_birds,
+# ipa14st_v4_cernic_fp, ...) were mined per station and hand-checked, and
+# cross-matching them against the 6 189 reviewed detections turns up no
+# contradiction at all -- they are good hard negatives and stay.
+#
+# The two named after *filters* are different. Nothing decided their contents
+# except the filter itself, and both audit badly:
+#
+#   mahal/    386 clips, 129 reachable by the review, 44 of 44 listened were
+#             confirmed GENUINE CALLS. Mahalanobis distance flags whatever is
+#             far from the training distribution, and a loud unambiguous call
+#             is exactly that.
+#   yamnet/   658 clips, 20 of 24 listened were genuine. YAMNet is disabled
+#             precisely because it flags 51.8 % of real calls.
+#
+# Loading these as Background trains the model to reject the calls it is most
+# confident about -- 20 of them come from IPA19/IPA20, the two stations the
+# configuration says are held out. This happened on every previous run, with no
+# user action required, because the parent folder is listed above and
+# scan_audio_files() walks it recursively. Do not re-enable them without
+# labelling the 657 unlabelled clips first (data/outputs/unlabelled_dumps).
+BACKGROUND_EXCLUDE = [
+    'outputs/auto_cleanup/auto_flagged_fp/mahal',
+    'outputs/auto_cleanup/auto_flagged_fp/yamnet',
 ]
 
 # AUDIO PARAMETERS
 SAMPLE_RATE = 44100  # Hz
 CLIP_DURATION = 2.0  # seconds — length of every TRAINING clip
+
+# Call-to-background level, in dB, when a short clip is embedded in real ambient
+# (data_loader.embed_in_background). Measured rather than chosen. In the roar
+# band against the 2-8 kHz soundscape band, the nine field-verified C. guereza
+# clips sit at a median of -1.0 dB with an interquartile range of -4.5 to +3.1.
+# The original (3, 15) put every training example at +3.7 dB median, so the
+# easiest field clip was harder than a typical training clip and the class was
+# never shown the case it has to handle. This range reproduces the field
+# distribution and extends past its hard quartile, which is the direction to err
+# in: -1.5 dB median, -6.1 to +6.4.
+#
+# It applies to every class that has short clips, which includes the C. nictitans
+# syllables. That class also has 2 535 field-verified calls carrying real field
+# levels, so it is far less exposed to this than Colobus, which has none. Whether
+# the change costs Cernic anything is visible in the leave-one-station-out sweep.
+EMBED_SNR_DB_RANGE = (-6.0, 9.0)
 # SLIDING-WINDOW DETECTION (preprocessing.extract_sliding_windows)
 # A long field recording is sliced into fixed-length windows that are each
 # classified independently, then high-confidence runs are merged into one
@@ -152,8 +285,21 @@ COLOBUS_HF_CUTOFF_HZ = 1500   # roar lives below this; randomize everything abov
 COLOBUS_HF_AUG_COUNT = 2      # extra high-freq-randomized variants per Colobus clip
 
 # Geometric augmentation parameters
-CHOP_RANGE = (0.1, 0.3)  # Crop 10-30% from edges
-TRANSLATE_RANGE = (-20, 20)  # Frequency bins to shift
+# Geometric augmentation strength, as a fraction of the spectrogram.
+#
+# Sun et al. (2022), the study this augmentation scheme is taken from, modify
+# each spectrogram "by a random number between 5% and 10% of the size of the
+# original spectrogram, as this reflects the approximate range of variation in
+# nature". The values here were 0.1-0.3 and +/-20 of 128 mel rows, which is
+# 10-30% and 15.6%: one and a half to three times the published range, and past
+# the point where the variant is still the same call.
+#
+# The frequency translation matters most. The whole reason the head carries a
+# CoordConv channel is that absolute frequency separates a Colobus roar from a
+# bird trill; shifting a training clip 15.6% up or down teaches the model to
+# ignore exactly the cue the architecture was built to exploit.
+CHOP_RANGE = (0.05, 0.10)          # crop 5-10% from an edge, per Sun et al.
+TRANSLATE_RANGE = (-9, 9)          # 7% of 128 mel rows, inside the same range
 
 # TRAIN/VALIDATION SPLIT
 VALIDATION_SPLIT = 0.2  # 20% for validation
@@ -283,6 +429,51 @@ USE_YAMNET_FILTER = False
 # signal may exist; the gap is not it.
 USE_STATION_REGIME_FILTER = False
 
+# ISOLATION FILTER: how many same-species neighbours a detection needs
+#
+# `flag_isolated` was `n_neighbours == 0` -- verified over all 6 189 reviewed
+# detections with zero disagreement. That collapses a count ranging 0..58 into
+# one bit and throws away everything the count knows. Graded, and applied after
+# TIME_FILTER, it is monotone and it is the strongest signal in the review table
+# (scripts/calibrate_cleanup.py):
+#
+#   n_neighbours 0     384 detections   precision 0.104
+#                1     437             0.249
+#                2-3   366             0.577
+#                4-7   594             0.806
+#               >=8   1790             0.930
+#
+# ROC area 0.880 inside the time window, above the detector's own confidence
+# (0.771) and the Mahalanobis distance (0.706), same direction at 16/16
+# stations -- it is an unnormalised count, not a distance, so it carries no
+# per-station scale that has to be calibrated away. That is why it survives
+# leave-one-station-out where every earlier threshold died.
+#
+# Fitted LOSO the cut lands on 2 or 3 at every fold. Held out, gate + this:
+#   ungated 0.410  ->  time gate 0.701  ->  + isolation 0.869 at 89.8 % recall
+#
+# ORDER MATTERS. On its own `n_neighbours >= 2` reaches only 0.465: the
+# nocturnal insect chorus that supplies most false positives is the DENSEST
+# material in the recording, not the most isolated. The time gate has to remove
+# it first. Set to 1 to restore the old `== 0` behaviour.
+ISOLATION_MIN_NEIGHBOURS = 2
+
+# MAHALANOBIS: a ranking signal, not a filter
+#
+# As a binary decision `flag_mahal` has an ROC area of 0.485 over the 6 189
+# reviewed detections -- chance. It flags whatever is far from the training
+# distribution, and a loud, close, unambiguous call is exactly that. A blind
+# second listener judged 44 of 44 clips it had exported as false positives to be
+# GENUINE CALLS (data/labels/disputed_68_labels.csv).
+#
+# It did real damage: flagged clips fed BACKGROUND_FOLDERS through the Step-5
+# loop, so the model was trained to reject the calls it was most confident
+# about, including 20 clips from the held-out IPA19/IPA20.
+#
+# The continuous distance is NOT chance (ROC area 0.763) and stays in the review
+# ordering. Only the thresholded filter is switched off here.
+USE_MAHALANOBIS_FILTER = False
+
 # TIME FILTER FOR FIELD RECORDINGS
 # Coarse, FILE-LEVEL filter (it does NOT trim audio — it only decides which
 # whole recordings to process). The recording's start time is parsed from its
@@ -299,8 +490,27 @@ USE_STATION_REGIME_FILTER = False
 #   behaviour (e.g. per-station spot-checks). Processes every recording.
 #
 # Set either bound to None to disable filtering entirely.
-TIME_FILTER_START = "05:30"
-TIME_FILTER_END = "10:30"
+#
+# RECALIBRATED against the 6 189 reviewed detections (scripts/calibrate_time_gate.py).
+# The old 05:30-10:30 window was never measured: it keeps only 40.2 % of the
+# confirmed calls, so it discards three fifths of the recall it is meant to
+# protect. Swept over every (start, end) pair at >= 95 % recall, 05:00-19:00 is
+# the optimum:
+#
+#   no gate         6 189 detections, 2 535 calls, precision 0.4096
+#   05:00-19:00     3 571 detections, 2 503 calls, precision 0.7009
+#   dropped         2 618 detections,    32 calls, precision 0.0122
+#
+# 70.8 % of the false positives removed for 1.3 % of the calls. The dropped mass
+# is a nocturnal insect chorus -- hour 03 alone is 1 641 detections and zero
+# calls. As a discriminator this binary (AUC 0.847) beats the model's own
+# confidence (AUC 0.730).
+#
+# CAUTION: 32 confirmed calls DO occur at night. Anything the manuscript says
+# about diel calling patterns must be measured with the gate OFF, or the result
+# is circular -- you would be recovering the window you imposed.
+TIME_FILTER_START = "05:00"
+TIME_FILTER_END = "19:00"
 
 # IPA STATION CONFIGURATION
 # Path to the root containing IPA station folders (IPA1ST, IPA2ST, ...)
@@ -343,6 +553,22 @@ DETECTION_GROUPS = {
     # this keeps the confuser probability OUT of the Colobus_guereza group, so a
     # real guereza window is no longer inflated by confuser energy.
     'Colobus_confuser': 'Background',
+    # C. pogonias is a DETECTION TARGET, not a confuser. It began as the latter,
+    # on the reasoning that a window the model calls pogonias must not become a
+    # Cernic detection. That reasoning still holds and this mapping still
+    # delivers it, because a group of its own keeps pogonias mass out of the
+    # Cernic group just as Background did. What changes is that such a window now
+    # produces a pogonias detection instead of being discarded.
+    #
+    # The species expert asked for this: C. pogonias and C. nictitans are both
+    # Near Threatened congeners occurring in Gabon, and a detector for the pair
+    # is worth more than a detector for one of them plus a discarded class. Note
+    # what it costs to report, though. The 6 189 reviewed windows carry
+    # C. nictitans verdicts only, so there is no field ground truth for pogonias
+    # and no way yet to state its precision the way Table tab:loso states
+    # C. nictitans's. Until those detections are reviewed, this configuration can
+    # be trained and deployed but its pogonias channel cannot be validated.
+    'C_pogonias': 'C_pogonias',
     'Background': 'Background',
 }
 

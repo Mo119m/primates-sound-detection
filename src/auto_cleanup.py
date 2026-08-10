@@ -519,9 +519,22 @@ def filter_mahalanobis(det_df, clips, feature_extractor, class_means, inv_cov,
 
     det_df = det_df.copy()
     det_df['mahalanobis_d2'] = scores
-    det_df['flag_mahal'] = flags
-    if verbose:
-        print(f'Mahalanobis flagged {int(flags.sum())} / {len(det_df)} detections')
+    # The distance is always kept: it is a real if modest ranking signal (ROC
+    # area 0.763 against the 6 189 human verdicts) and review_ranking uses it.
+    # The *flag* is what measures as chance (0.485) and what fed genuine calls
+    # into Background through the Step-5 loop, so it is off by default -- see
+    # config.USE_MAHALANOBIS_FILTER.
+    if getattr(config, 'USE_MAHALANOBIS_FILTER', True):
+        det_df['flag_mahal'] = flags
+        if verbose:
+            print(f'Mahalanobis flagged {int(flags.sum())} / {len(det_df)} detections')
+    else:
+        det_df['flag_mahal'] = False
+        if verbose:
+            print(f'  [off] Mahalanobis FILTER disabled '
+                  f'(config.USE_MAHALANOBIS_FILTER); it would have flagged '
+                  f'{int(flags.sum())}. The distance is still computed and '
+                  f'still used for ranking.')
     return det_df
 
 
@@ -579,8 +592,22 @@ def filter_yamnet(det_df, clips, suspicious=None, verbose: bool = True) -> pd.Da
 
 
 def filter_temporal_isolation(det_df, window_s: float = 30.0,
+                              min_neighbours: int = None,
                               verbose: bool = True) -> pd.DataFrame:
-    """Flag detections with no same-species neighbour within +/- window_s."""
+    """
+    Flag detections with fewer than ``min_neighbours`` same-species neighbours
+    within +/- ``window_s``.
+
+    ``min_neighbours`` defaults to ``config.ISOLATION_MIN_NEIGHBOURS``. It used
+    to be fixed at 1, i.e. "flag only detections with no neighbour at all",
+    which discards everything the count knows: graded and applied after the
+    time gate the same number reaches ROC area 0.880 against the human verdicts,
+    beating the detector's own confidence. See the comment on
+    ``ISOLATION_MIN_NEIGHBOURS`` in config for the calibration and for why the
+    time gate has to come first.
+    """
+    if min_neighbours is None:
+        min_neighbours = getattr(config, 'ISOLATION_MIN_NEIGHBOURS', 1)
     det_df = det_df.copy()
     iso = np.zeros(len(det_df), dtype=bool)
     n_neigh = np.zeros(len(det_df), dtype=int)
@@ -593,11 +620,12 @@ def filter_temporal_isolation(det_df, window_s: float = 30.0,
             diffs[k] = np.inf
             n = int((diffs <= window_s).sum())
             n_neigh[pos[ids[k]]] = n
-            iso[pos[ids[k]]] = (n == 0)
+            iso[pos[ids[k]]] = (n < min_neighbours)
     det_df['n_neighbours'] = n_neigh
     det_df['flag_isolated'] = iso
     if verbose:
-        print(f'Temporal-isolation flagged {int(iso.sum())} / {len(det_df)} detections')
+        print(f'Temporal-isolation flagged {int(iso.sum())} / {len(det_df)} '
+              f'detections (n_neighbours < {min_neighbours})')
     return det_df
 
 

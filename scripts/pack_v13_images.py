@@ -53,6 +53,48 @@ def _start_second(path):
     return float(m.group(1)) if m else 0.0
 
 
+_BG_POOL = None
+
+
+def _seed_for(path):
+    """A stable seed per clip, so re-packing reproduces the same beds.
+
+    The bed is drawn at random and this pack is written once and trained on for
+    many epochs, so an unseeded draw would make the dataset differ between two
+    runs of the same command. Hashing the path keeps it reproducible while still
+    giving every clip a different bed.
+    """
+    import hashlib
+    return int(hashlib.md5(path.encode("utf-8")).hexdigest()[:8], 16)
+
+
+def _background_pool(limit_per_folder=250):
+    """Real ambient waveforms, loaded once per worker process."""
+    global _BG_POOL
+    if _BG_POOL is not None:
+        return _BG_POOL
+    import librosa
+    import config
+    import data_loader
+    data_dir = os.path.join(REPO, "data")
+    pool = []
+    for folder in config.BACKGROUND_FOLDERS:
+        for q in data_loader.scan_audio_files(data_dir, folder)[:limit_per_folder]:
+            try:
+                y, _ = librosa.load(q, sr=config.SAMPLE_RATE, mono=True)
+            except Exception:
+                continue
+            if y.size >= int(config.CLIP_DURATION * config.SAMPLE_RATE):
+                pool.append(y)
+    if not pool:
+        raise RuntimeError(
+            "no background audio available to embed short clips in. Packing "
+            "would zero-pad them, which makes any all-short class separable by "
+            "the silence alone. Fix the background folders before packing.")
+    _BG_POOL = pool
+    return _BG_POOL
+
+
 def load_window(path, source):
     """
     The 2 s analysis window for one clip, as a waveform.
@@ -84,18 +126,82 @@ def load_window(path, source):
         return np.pad(y, (0, clip_len - len(y)))
 
     # Reference and BirdNET clips have no window convention of their own.
-    return data_loader.load_audio_file(path, crop="loudest")
+    # A clip shorter than the window has to be filled, and WHAT it is filled
+    # with decides whether the class is learnable or trivially separable.
+    # Zero-padding leaves a block of digital silence that occurs in no field
+    # recording, so a class made entirely of short clips becomes "the one with
+    # the silence in it". This is not hypothetical: packing the 612 guereza
+    # pulses without a bed gave them a median flat-time-column fraction of 0.799
+    # against 0.000 for every other class, and the 326 Cernic syllables sit at
+    # 0.946. data_loader.embed_in_background exists precisely to prevent this and
+    # was simply never reached from here, because load_audio_file only embeds
+    # when it is handed a pool.
+    # Seeded here rather than through load_audio_file, which has no seed
+    # parameter and is shared with the older training path. A worker renders one
+    # clip at a time and the only draw inside this call is the choice of bed and
+    # SNR, so setting the global seed immediately before it is both sufficient
+    # and contained.
+    np.random.seed(_seed_for(path))
+    return data_loader.load_audio_file(
+        path, crop="loudest", background_pool=_background_pool())
+
+
+_BG_SPECS = None
+
+
+def _background_specs(limit=200):
+    """Mel-spectrograms of real ambient, for the noise-mixing augmentation."""
+    global _BG_SPECS
+    if _BG_SPECS is not None:
+        return _BG_SPECS
+    import preprocessing
+    pool = _background_pool()
+    idx = np.linspace(0, len(pool) - 1, min(limit, len(pool))).astype(int)
+    _BG_SPECS = [preprocessing.audio_to_melspectrogram(pool[i]) for i in idx]
+    return _BG_SPECS
 
 
 def _render(args):
-    """Worker: one clip -> one uint8 image, or None."""
-    path, source = args
+    """Worker: one clip -> one uint8 image, or None.
+
+    ``aug`` selects a variant. 0 is the clip itself; anything higher applies one
+    of the transformations from src/augmentation.py to the mel-spectrogram
+    before it is normalised and resized, which is where those functions expect
+    to operate. The variant index seeds the draw, so the same row always yields
+    the same image and a rebuilt pack is identical to the one it replaces.
+    """
+    path, source, aug = args
     try:
         import preprocessing
         y = load_window(os.path.join(REPO, path), source)
         if y is None or not len(y) or not np.isfinite(y).all():
             return None
-        img = preprocessing.preprocess_audio(y)
+        if not aug:
+            img = preprocessing.preprocess_audio(y)
+            return np.ascontiguousarray(img, dtype=np.uint8)
+
+        import random as _random
+        import augmentation as A
+        spec = preprocessing.audio_to_melspectrogram(y)
+        shape = spec.shape
+        seed = (_seed_for(path) + int(aug) * 7919) % (2 ** 31)
+        _random.seed(seed)
+        np.random.seed(seed)
+        # Cycle the transformations so a class needing twenty variants gets a
+        # spread rather than twenty draws of the same one.
+        kind = int(aug) % 4
+        if kind == 0:
+            bg = _background_specs()
+            spec = A.add_background_noise(spec, _random.choice(bg))
+        elif kind == 1:
+            spec = A.resize_to_original_shape(A.time_chop(spec.copy()), shape)
+        elif kind == 2:
+            spec = A.resize_to_original_shape(A.freq_chop(spec.copy()), shape)
+        else:
+            spec = A.translate(spec.copy())
+        img = preprocessing.spectrogram_to_rgb(
+            preprocessing.resize_spectrogram(
+                preprocessing.normalize_spectrogram(spec)))
         return np.ascontiguousarray(img, dtype=np.uint8)
     except Exception:
         return None
@@ -128,12 +234,22 @@ def main():
     print(f"  {n} x {h}x{w}x{c} uint8 = {n * h * w * c / 1e9:.2f} GB")
     print(f"  {args.workers} workers\n")
 
-    images = np.lib.format.open_memmap(img_path, mode="w+", dtype=np.uint8,
+    # Build both outputs beside the real ones and swap them in together at the
+    # end. The pair has to move as a unit: the index carries the row number that
+    # addresses the image array, so a run killed part-way used to leave a new,
+    # half-written image file next to the *previous* index, and every row the
+    # trainer read after that pointed at the wrong clip. open_memmap also
+    # preallocates, so the half-written file is full-size and full of zeros --
+    # nothing downstream could tell it was incomplete.
+    img_tmp, idx_tmp = img_path + ".partial", idx_path + ".partial"
+    images = np.lib.format.open_memmap(img_tmp, mode="w+", dtype=np.uint8,
                                        shape=(n, h, w, c))
     ok = np.zeros(n, dtype=bool)
 
     from concurrent.futures import ProcessPoolExecutor
-    jobs = list(zip(manifest["path"], manifest["source"]))
+    aug = (manifest["aug"] if "aug" in manifest.columns
+           else pd.Series(0, index=manifest.index))
+    jobs = list(zip(manifest["path"], manifest["source"], aug))
     t0 = time.time()
     done = 0
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
@@ -150,11 +266,15 @@ def main():
                   f"eta {eta:.1f} min  failed {done - int(ok[:done].sum())}",
                   end="", flush=True)
     images.flush()
+    del images
 
     manifest = manifest.reset_index(drop=True)
     manifest["row"] = range(n)
     manifest["ok"] = ok
-    manifest.to_csv(idx_path, index=False)
+    manifest.to_csv(idx_tmp, index=False)
+
+    os.replace(img_tmp, img_path)
+    os.replace(idx_tmp, idx_path)
 
     print(f"\n\nWrote {img_path}")
     print(f"Wrote {idx_path}")
