@@ -432,22 +432,30 @@ OOD_GATE_PERCENTILE = 90       # default: percentile of that class's own
                                # in-sample distances
 OOD_FEATURE_LAYER = 'dense_256'
 OOD_STATS_CACHE = 'outputs/ood_class_stats.npz'
+# One statistics file per head, looked up by fingerprint. A single shared path
+# meant scanning a second station loaded the first station's statistics.
+OOD_STATS_DIR = 'outputs/ood_stats'
 
-# Absolute cutoffs that override the percentile, per class. Colobus needs one
-# because no fitted percentile is right for it, and the reason is worth stating:
-# the nine field-verified roars sit at distances 97 to 321 while the 55 pops the
-# expert rejected start at 293, so the two distributions touch. p95 (274.7)
-# rejects every pop and loses a roar; p99 (558.3) keeps every roar and readmits
-# a quarter of the pops. 321 is the smallest cutoff that keeps all nine, and it
-# rejects 98 % of the pops.
+# Per-class percentile overrides. Colobus needs one because the default p90 is
+# wrong for it in a way that costs detections: the nine field-verified roars sit
+# at distances 97 to 321 in the IPA4ST head's feature space while the 55 pops the
+# expert rejected start at 293, so the two distributions touch and p90 (202.9)
+# would reject two of the nine roars. The smallest cutoff keeping all nine is
+# 321, which is that head's 97th percentile, and it still rejects 98 % of the
+# pops.
 #
-# Two things about that number are honest to say. It is fitted on nine clips,
-# which is the entire field record for the species, so it is a measurement with
-# almost no margin. And it is set to the worst of those nine deliberately: a
-# rejected roar is a lost detection of a species we can barely evidence, while
-# an admitted pop is one more clip in a review queue.
-OOD_GATE_ABSOLUTE = {
-    'Colobus_guereza': 321.0,
+# Expressed as a percentile rather than as 321, because 321 is a coordinate in
+# one head's feature space. Every LOSO fold trains its own head; an absolute
+# number carried to another fold means nothing there, while "the 97th percentile
+# of this class's own in-sample distances" is the same instruction everywhere.
+#
+# Two things about it are honest to state. It is fitted on nine clips, the entire
+# field record for this species, so it has almost no margin. And it is placed at
+# the worst of those nine deliberately: a rejected roar is a lost detection of a
+# species we can barely evidence, while an admitted pop is one more clip in a
+# review queue.
+OOD_GATE_PERCENTILE_BY_CLASS = {
+    'Colobus_guereza': 97,
 }
 
 # AUTO-CLEANUP FILTERS
