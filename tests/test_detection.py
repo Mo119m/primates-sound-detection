@@ -53,35 +53,49 @@ def test_get_detection_groups_indices_cover_all_classes():
 
 # ---- group_probabilities -------------------------------------------
 
+def _pred(**mass):
+    """A softmax vector in CLASS_NAMES order, named by class rather than index.
+
+    The earlier version of these tests wrote the vector out as a literal of four
+    numbers. Adding a fifth class turned every one of them into an IndexError,
+    which is the right failure but for the wrong reason: the tests were pinning
+    the class count, not the grouping behaviour they are named after.
+    """
+    v = np.zeros(len(config.CLASS_NAMES), dtype=float)
+    for name, p in mass.items():
+        v[list(config.CLASS_NAMES).index(name)] = p
+    return v
+
+
 def test_group_probabilities_sums_to_one():
     """Grouped probabilities of a valid softmax vector must still sum to 1."""
     labels, indices = detection.get_detection_groups()
-    pred = np.array([0.1, 0.3, 0.2, 0.4])  # Cernic, Colobus, Confuser, Bg
-    grouped = detection.group_probabilities(pred, labels, indices)
+    v = np.full(len(config.CLASS_NAMES), 1.0 / len(config.CLASS_NAMES))
+    grouped = detection.group_probabilities(v, labels, indices)
     assert abs(grouped.sum() - 1.0) < 1e-6
 
 
 def test_group_probabilities_confuser_adds_to_background():
     """Confuser probability must merge into the Background group."""
     labels, indices = detection.get_detection_groups()
-    # All mass on Colobus_confuser (index 2) and Background (index 3)
-    pred = np.array([0.0, 0.0, 0.3, 0.7])
-    grouped = detection.group_probabilities(pred, labels, indices)
-    bg_idx = labels.index("Background")
-    assert abs(grouped[bg_idx] - 1.0) < 1e-6, (
+    grouped = detection.group_probabilities(
+        _pred(Colobus_confuser=0.3, Background=0.7), labels, indices)
+    assert abs(grouped[labels.index("Background")] - 1.0) < 1e-6, (
         "Confuser + Background should sum to 1.0 in the Background group"
     )
 
 
 def test_group_probabilities_species_passthrough():
-    """Cernic and Colobus_guereza each map to their own group unchanged."""
+    """Each detection target keeps its own probability, ungrouped."""
     labels, indices = detection.get_detection_groups()
-    pred = np.array([0.5, 0.3, 0.1, 0.1])
-    grouped = detection.group_probabilities(pred, labels, indices)
-    cernic_idx = labels.index("Cernic")
-    colobus_idx = labels.index("Colobus_guereza")
-    assert abs(grouped[cernic_idx] - 0.5) < 1e-6
-    assert abs(grouped[colobus_idx] - 0.3) < 1e-6
+    targets = [n for n in config.CLASS_NAMES
+               if config.DETECTION_GROUPS.get(n, n) == n and n != "Background"]
+    assert targets, "no detection targets configured"
+    share = 0.9 / len(targets)
+    grouped = detection.group_probabilities(
+        _pred(Background=0.1, **{n: share for n in targets}), labels, indices)
+    for n in targets:
+        assert abs(grouped[labels.index(n)] - share) < 1e-6, n
 
 
 # ---- lowfreq_energy_ratio ------------------------------------------

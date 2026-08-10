@@ -48,7 +48,9 @@ import pandas as pd  # noqa: E402
 
 REPO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 DATA = os.path.join(REPO, "data")
-DRIVE = "/Volumes/Gabon CNN"
+# External drive (LaCie Rugged Mini USB3, volume "Gabon CNN").
+# Windows: "D:/"   WSL2: "/mnt/d"   macOS: "/Volumes/Gabon CNN"
+DRIVE = "D:/"
 BIRDNET = os.path.join(DRIVE, "Gabon BirdNET segments Birds")
 RAW_AUDIO = os.path.join(DRIVE, "Gabon raw acoustic data National Park")
 
@@ -159,8 +161,16 @@ def _row(path, label, cands, source, verified, period=""):
     """
     if isinstance(cands, str):
         cands = [cands] if cands else []
+    try:
+        rel = os.path.relpath(path, REPO)
+    except ValueError:
+        # Windows raises when the two paths are on different drives, which is
+        # every clip on the external drive. There is no relative form; keep it
+        # absolute. These strings are only ever compared against each other
+        # (load_index intersects the manifest and the index on "path").
+        rel = os.path.abspath(path)
     return {
-        "path": os.path.relpath(path, REPO),
+        "path": rel,
         "label": label,
         "station": cands[0] if len(cands) == 1 else "",
         "possible_stations": ";".join(cands),
@@ -173,6 +183,117 @@ def _row(path, label, cands, source, verified, period=""):
 def _period_of(path):
     m = re.search(r"(\d{4})(\d{2})\d{2}T", os.path.basename(path))
     return f"{m.group(1)}-{m.group(2)}" if m else ""
+
+
+# Only these Background sources may be pruned by model score. Everything else in
+# the class carries a label a person put there, and for those a high score means
+# the model is wrong, not the label. Measured on the current model: it flags
+# 64.9 % of curated Cercocebus recordings, 60.5 % of curated Pan troglodytes, and
+# 72.3 % of the windows a reviewer listened to and judged not a call. Pruning by
+# score would delete exactly the hard negatives the model most needs, and would
+# do it in proportion to how badly the model is failing on them.
+# ``auto_flagged_fp`` itself is raw filter output.  A suffix means that a
+# reviewer has resolved the clip (for example ``:confirmed_fp``), and must
+# never be deleted merely because a model disagrees with that human verdict.
+MACHINE_PRUNABLE_SOURCE = "auto_flagged_fp"
+
+
+def drop_call_like_negatives(df, scores_csv, threshold=0.5):
+    """Remove Background clips the detector thinks are calls, where the label
+    is a machine's opinion rather than a person's.
+
+    17 101 of the Background rows are BirdNET's own detections on the deployment
+    audio, chosen by a bird detector and never listened to individually. Scored
+    with the current model, 98 % of them sit at 0.0000 on every target group, so
+    the class is overwhelmingly what it claims to be. A small tail is not:
+    275 clips reach 0.5 and some reach 1.000.
+
+    Those are dropped rather than kept. A negative that both a bird detector and
+    this detector consider call-like is either a genuine call filed as noise, in
+    which case training on it teaches the model that a call is not a call, or a
+    hard negative, in which case losing 275 of 17 101 costs almost nothing. The
+    asymmetry is the whole argument: one error is unrecoverable and the other is
+    rounding.
+
+    They are dropped, not reassigned. Nobody has listened to them, and moving an
+    unlistened clip into a positive class would repeat the mistake in the other
+    direction. They sit in data/outputs/birdnet_check for a human ear.
+    """
+    if not os.path.exists(scores_csv):
+        print(f"  ! {scores_csv} missing; no call-like negatives dropped")
+        return df
+    s = pd.read_csv(scores_csv)
+    hot = set(s.loc[s.target_score >= threshold, "path"])
+    if not hot:
+        return df
+    source = df["source"].fillna("").astype(str)
+    # Be deliberately conservative with a missing or unfamiliar value: only an
+    # explicitly false verification status is eligible for model-score pruning.
+    # That makes this function safe if it is ever applied before/after review
+    # import or to a CSV whose booleans were round-tripped as strings.
+    verified_text = df["verified"].fillna("").astype(str).str.strip().str.casefold()
+    explicitly_unverified = verified_text.isin({"false", "0", "no", "n"})
+    prunable = (
+        (source.str.startswith("birdnet:") | source.eq(MACHINE_PRUNABLE_SOURCE))
+        & explicitly_unverified
+    )
+    before = len(df)
+    keep = ~(df["label"].eq("Background") & prunable & df["path"].isin(hot))
+    dropped = df[~keep]
+    df = df[keep].reset_index(drop=True)
+    if len(dropped):
+        by = dropped["source"].str.replace(r"birdnet:.*", "birdnet(all)",
+                                           regex=True).value_counts()
+        print(f"  dropped {before - len(df)} Background clips scoring >= "
+              f"{threshold} on a target group:")
+        for src, n in by.items():
+            print(f"    {n:5d}  {src}")
+    spared = int((df["label"].eq("Background") & ~prunable
+                  & df["path"].isin(hot)).sum())
+    if spared:
+        print(f"  kept {spared} human-labelled negatives the model also flags; "
+              f"on those a high score is the model's error, not the label's")
+    return df
+
+
+def augment_to_target(df, target=3000):
+    """Replicate each target class's rows until it holds ``target`` of them.
+
+    Sun et al. (2022) augment to a fixed count per class rather than by a fixed
+    multiplier, and report that transfer learning without augmentation is not
+    enough on small classes: with augmentation their accuracy went 51.4 to 90.4
+    and their F-measure 42.8 to 89.2. This pipeline had no augmentation at all,
+    which puts it in the quadrant that study measured as insufficient.
+
+    Augmenting to a count rather than by a multiplier does a second thing worth
+    having. The classes here span 150 to 26 323 clips, and `balanced` class
+    weights turn that into a 284-fold spread in per-sample weight, which is why
+    adding negatives raised every target class's weight instead of lowering it.
+    Levelling the target classes at one count compresses that spread to about
+    nine-fold without touching the weighting scheme.
+
+    Background is left alone: it is already the largest class, and replicating
+    ambient teaches nothing. The rows carry an ``aug`` index; row 0 is the
+    original and the packer applies a transformation for the rest. Every variant
+    keeps its parent's path, so ``train.source_group`` groups them and no
+    augmented copy can land on the far side of a split from its original.
+    """
+    out = []
+    for label, g in df.groupby("label", sort=False):
+        if label == "Background" or len(g) >= target:
+            out.append(g.assign(aug=0))
+            print(f"  {label:18s} {len(g):5d} -> {len(g):5d}  (unchanged)")
+            continue
+        parts = []
+        k = 0
+        while sum(len(p) for p in parts) < target:
+            parts.append(g.assign(aug=k))
+            k += 1
+        got = pd.concat(parts, ignore_index=True).head(target)
+        out.append(got)
+        print(f"  {label:18s} {len(g):5d} -> {len(got):5d}  "
+              f"({got.aug.max() + 1} variants each)")
+    return pd.concat(out, ignore_index=True)
 
 
 def collect_reference_clips(coord_map, no_coord):
@@ -191,16 +312,79 @@ def collect_reference_clips(coord_map, no_coord):
         ("species/CERNIC keks", "Cernic", True),
         ("species/CERNIC pyows", "Cernic", True),
         ("species/CERNIC field_confirmed", "Cernic", True),
-        ("species/Colobus guereza 2s windows", "Colobus_guereza", True),
-        ("species/Colobus guereza Clips 5s", "Colobus_guereza", True),
+        # Single roar pulses, cut on the envelope and stored raw at 0.26-1.60 s
+        # so load_audio_file embeds each one in a fresh background bed, exactly
+        # as it does for hacks, keks and pyows. This replaces the 617 fixed 2 s
+        # windows that used to stand here. Those were cut at the loudest point
+        # of each recording, so where the crop fell relative to the pulse train
+        # was arbitrary and two clips of one roar could be half a pulse apart.
+        # The species expert, shown isolated pulses, judged one obvious and one
+        # borderline and said the isolation "makes clear the shape/pattern we
+        # are looking for", which is the case for trying it. Whether it helps is
+        # measured against the nine field positive controls, not assumed.
+        # The 5 s clips are gone from this list on purpose, and their pulses are
+        # in the folder above. Anything longer than the 2 s window skips
+        # embed_in_background entirely and is cropped instead, so those 172
+        # clips arrived at a roar-to-soundscape ratio of +12.2 dB against the
+        # +/-1.0 dB the field-verified clips sit at: the easiest examples in a
+        # class that has no hard ones at all. Cernic can carry such clips
+        # because 2 535 of its examples are real field detections at real field
+        # levels. Colobus has none, so every example being easy is the whole
+        # problem.
+        # Reverted from 'Colobus guereza bouts'; see the note in
+        # config.SPECIES_FOLDERS. Three-pulse windows cost field sensitivity
+        # (2/9 -> 1/9) because the field delivers one smeared 0.7-2.5 s event,
+        # not a 1.7 Hz train.
+        ("species/Colobus guereza pulses", "Colobus_guereza", True),
+        # Contiguous 1.8 s windows over the same roaring regions, with no
+        # pulse-count requirement. The pulses above give the class its discrete
+        # form; these give it the continuous one, in whatever mixture the
+        # recordings contain -- 67 % hold a single pulse, 26 % two, the rest
+        # more. That distribution is close to what the field-verified clips show
+        # (median one event per 3 s) and is the opposite of what the bout
+        # experiment enforced (a minimum of two, median three), which is why
+        # bouts made the model demand a rhythm the recorders never deliver.
+        # Having both forms present means neither is necessary to be a roar.
+        ("species/Colobus guereza chunks", "Colobus_guereza", True),
+        # The nine field-verified roars, expert-confirmed, from an independent
+        # passive-acoustic deployment. Until now they were held out as the only
+        # field positive control this class had, and every change to it was
+        # scored on them. They are training data from here on, at the user's
+        # decision, and the reasoning is sound: nine clips is too small to
+        # measure with -- the difference between the two candidate models was a
+        # single clip -- while this class is otherwise 100 % archival, which is
+        # the defect that has limited it all along. Nine real field roars change
+        # what the class is made of; nine test cases were never going to settle
+        # anything. What replaces them as the measurement is a person listening
+        # to detections, which is a stronger standard, not a weaker one.
+        #
+        # They are 3 s and therefore cropped to the loudest 2 s rather than
+        # embedded, which is correct here and only here: these were recorded by
+        # a passive recorder at field distance, so their signal-to-noise is the
+        # real thing rather than something that has to be simulated. Their
+        # coordinates are a different deployment, so possible_stations returns
+        # empty and no fold can leak through them.
+        ("species/Colobus guereza field", "Colobus_guereza", True),
         ("species/Colobus_confuser", "Colobus_confuser", True),
+        # Cercopithecus pogonias, the congener the expert identified by ear as
+        # the source of the daytime Cernic false positives. A trained class but
+        # not a detection target; config.DETECTION_GROUPS folds it into
+        # Background at detection time, exactly like Colobus_confuser.
+        ("species/C_pogonias", "C_pogonias", True),
         ("background/background noise Clips 5sec", "Background", True),
         ("background/Cercocebus torquatus Clips 5s", "Background", True),
         ("background/Pan troglodytes Clips 5sec", "Background", True),
         ("background/wrong classified", "Background", True),
+        # Uniform random draws from the deployment. WITHDRAWN pending human
+        # review of the screen that labelled them; see the note in
+        # config.BACKGROUND_FOLDERS. Re-enable both lines together.
+        # ("background/random_forest", "Background", True),
     ]
+    # Recursive so a curated folder may be organised into subfolders. Every
+    # folder in spec is currently flat, so this changes nothing today.
     for rel, label, verified in spec:
-        for p in sorted(glob.glob(os.path.join(DATA, rel, "*.wav"))):
+        for p in sorted(glob.glob(os.path.join(DATA, rel, "**", "*.wav"),
+                                  recursive=True)):
             rows.append(_row(p, label, possible_stations(p, coord_map, no_coord),
                              f"reference:{os.path.basename(rel)}", verified))
 
@@ -266,11 +450,20 @@ def collect_colobus_detections():
     written to a side file by ``--flag-suspect`` for the same reason: if a
     genuine roar is hiding in here, training it as a negative is the one mistake
     that cannot be undone by adding more data.
+
+    They enter as ``Colobus_confuser`` rather than ``Background``. These are the
+    sounds this model actually mistakes for a guereza roar, recorded in the
+    channel where it makes the mistake, which is what that class exists for; the
+    reasoning in ``config.SPECIES_FOLDERS`` for giving the confuser its own
+    softmax output applies to them exactly. Both labels route to Background at
+    detection time through ``config.DETECTION_GROUPS``, so this changes what the
+    model is taught, not what the pipeline reports.
     """
     rows = []
     for p in sorted(glob.glob(os.path.join(CLIPS_COLOBUS, "*", "*", "*.wav"))):
         station = os.path.relpath(p, CLIPS_COLOBUS).split(os.sep)[0]
-        rows.append(_row(p, "Background", [station], "colobus_field_fp", True))
+        rows.append(_row(p, "Colobus_confuser", [station], "colobus_field_fp",
+                         True))
     return pd.DataFrame(rows)
 
 
@@ -483,6 +676,20 @@ def main():
     ap.add_argument("--out", default=os.path.join(DATA, "outputs/v13_manifest.csv"))
     ap.add_argument("--no-birdnet", action="store_true",
                     help="skip the external-drive bird segments")
+    ap.add_argument("--drop-call-like", type=float, default=0.0, metavar="T",
+                    help="Drop Background clips scoring at or above T on any "
+                         "target group, using data/outputs/birdnet_scores.csv. "
+                         "0 disables. A negative the detector itself calls a "
+                         "call is either a mislabelled call, which is an "
+                         "unrecoverable training error, or a hard negative, "
+                         "which is cheap to lose.")
+    ap.add_argument("--augment-to", type=int, default=0, metavar="N",
+                    help="Replicate each target class up to N rows, marking the "
+                         "copies with an 'aug' index the packer turns into an "
+                         "actual transformation. 0 disables it, which is what "
+                         "this pipeline did until now: every clip entered "
+                         "training exactly once and unaltered, which is the "
+                         "condition Sun et al. (2022) measure as insufficient.")
     args = ap.parse_args()
 
     print("Mapping deployment coordinates to stations...")
@@ -529,6 +736,20 @@ def main():
               f"(kept the human-labelled copy)")
 
     manifest = manifest.reset_index(drop=True)
+    if args.drop_call_like:
+        # background_scores.csv covers every Background source, not just the
+        # BirdNET segments: the instruction is that no target call ends up in
+        # the negative class, and the curated and auto-mined sources have to
+        # clear the same bar as the bird detector's output.
+        for f in ("outputs/background_scores.csv", "outputs/birdnet_scores.csv"):
+            manifest = drop_call_like_negatives(
+                manifest, os.path.join(DATA, f), args.drop_call_like)
+    if args.augment_to:
+        print(f"\nAugmenting the target classes to {args.augment_to} rows each")
+        manifest = augment_to_target(manifest, args.augment_to)
+        manifest = manifest.reset_index(drop=True)
+    else:
+        manifest = manifest.assign(aug=0)
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     manifest.to_csv(args.out, index=False)
     report(manifest)

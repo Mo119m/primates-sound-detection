@@ -16,20 +16,48 @@ import config  # noqa: E402
 # Class structure
 # ------------------------------------------------------------------
 
-def test_n_classes_is_four():
-    """Four softmax outputs: Cernic, Colobus_guereza, Colobus_confuser, Background."""
-    assert config.N_CLASSES == 4
+def test_n_classes_matches_species_folders():
+    """N_CLASSES is the species count plus Background, and must stay derived."""
+    assert config.N_CLASSES == len(config.SPECIES_FOLDERS) + 1
 
 
 def test_class_names_length():
-    """CLASS_NAMES must list exactly N_CLASSES entries."""
-    assert len(config.CLASS_NAMES) == 4
+    """CLASS_NAMES must list exactly N_CLASSES entries, with no duplicates."""
+    assert len(config.CLASS_NAMES) == config.N_CLASSES
+    assert len(set(config.CLASS_NAMES)) == config.N_CLASSES
 
 
 def test_class_names_contents():
-    """Verify the exact class labels in order."""
-    expected = ["Cernic", "Colobus_guereza", "Colobus_confuser", "Background"]
+    """The five softmax outputs, in the order the deployed model was trained in.
+
+    Order is load-bearing, not cosmetic: src/detection.py reads a softmax vector
+    positionally against this list. The V13 leave-one-station-out sweep trains
+    against sorted(labels) instead, which is a DIFFERENT order, so a head from
+    that sweep must be permuted into this order before any detection code sees
+    it (scripts/assemble_fold_model.py does that and refuses to save a model
+    that fails the check).
+    """
+    expected = ["Cernic", "Colobus_guereza", "Colobus_confuser",
+                "C_pogonias", "Background"]
     assert config.CLASS_NAMES == expected
+
+
+def test_background_is_last():
+    """Background must remain the final index; several scripts assume it."""
+    assert config.CLASS_NAMES[-1] == "Background"
+
+
+def test_every_class_has_a_detection_group():
+    """A class with no entry in DETECTION_GROUPS silently becomes its own group."""
+    assert set(config.DETECTION_GROUPS) == set(config.CLASS_NAMES)
+    assert set(config.DETECTION_GROUPS.values()) <= set(config.CLASS_NAMES)
+
+
+def test_embed_snr_range_is_sane():
+    """The embedding level is measured from the field clips; keep it plausible."""
+    lo, hi = config.EMBED_SNR_DB_RANGE
+    assert lo < hi
+    assert -30.0 <= lo and hi <= 30.0
 
 
 # ------------------------------------------------------------------

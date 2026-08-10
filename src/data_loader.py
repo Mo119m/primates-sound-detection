@@ -32,13 +32,27 @@ def scan_audio_files(root_dir: str, folder_name: str) -> List[str]:
         print(f" Warning: Folder not found: {folder_path}")
         return []
     
-    # Find all .wav files
+    # Find all .wav files, minus anything config.BACKGROUND_EXCLUDE rules out.
+    # The exclusion is announced rather than applied quietly: a folder silently
+    # dropped and a folder silently included are the same class of error, and
+    # this repository has already been bitten by both.
+    excluded = [os.path.normpath(os.path.join(root_dir, e))
+                for e in getattr(config, 'BACKGROUND_EXCLUDE', [])]
     audio_files = []
+    skipped = 0
     for root, dirs, files in os.walk(folder_path):
+        norm = os.path.normpath(root)
+        if any(norm == e or norm.startswith(e + os.sep) for e in excluded):
+            skipped += sum(1 for f in files if f.lower().endswith('.wav'))
+            dirs[:] = []
+            continue
         for file in files:
             if file.lower().endswith('.wav'):
                 audio_files.append(os.path.join(root, file))
-    
+
+    if skipped:
+        print(f"   excluded {skipped} clips under {folder_name} "
+              f"(config.BACKGROUND_EXCLUDE -- see the comment there)")
     return sorted(audio_files)
 
 
@@ -71,7 +85,7 @@ def find_loudest_window(audio: np.ndarray, target_length: int) -> int:
 def embed_in_background(call: np.ndarray,
                         target_length: int,
                         background_pool: List[np.ndarray],
-                        snr_db_range: Tuple[float, float] = (3.0, 15.0)) -> np.ndarray:
+                        snr_db_range: Tuple[float, float] = None) -> np.ndarray:
     """
     Place a short call at a random position inside a real background bed.
 
@@ -85,12 +99,19 @@ def embed_in_background(call: np.ndarray,
         call: short call waveform (shorter than target_length)
         target_length: output length in samples
         background_pool: list of real background waveforms to draw the bed from
-        snr_db_range: call-to-background SNR drawn uniformly so the call stays
+        snr_db_range: call-to-background SNR drawn uniformly. Defaults to
+            config.EMBED_SNR_DB_RANGE, which was set from the level the nine
+            field-verified guereza clips actually sit at rather than chosen. The
+            old hardcoded (3, 15) made every training clip easier than every
+            field clip; see the note in config. Pass a range explicitly only to
+            reproduce an older run. Below the call stays
             the dominant sound while ambient fills the rest of the window
 
     Returns:
         target_length waveform: background bed with the call added on top.
     """
+    if snr_db_range is None:
+        snr_db_range = getattr(config, "EMBED_SNR_DB_RANGE", (3.0, 15.0))
     bg = background_pool[np.random.randint(len(background_pool))].astype(np.float32)
 
     # Make the bed exactly target_length (tile if short, random-crop if long).
@@ -367,13 +388,18 @@ def filter_files_by_time(file_list: List[str],
     return sorted(filtered)
 
 
-def get_ipa_station_files(station: str, time_filter: bool = True) -> List[str]:
+def get_ipa_station_files(station: str, time_filter: bool = True,
+                          window: tuple = None) -> List[str]:
     """
     Get all WAV files for a specific IPA station, optionally filtered by time.
 
     Args:
         station: station folder name, e.g. "IPA1ST"
-        time_filter: if True, apply the time window from config
+        time_filter: if True, apply a time window
+        window: ("HH:MM", "HH:MM") overriding config.TIME_FILTER_*. The deployed
+            window is the whole day-active period (05:00-19:00); a targeted
+            search wants a narrower one -- e.g. 05:00-08:00 for the *C. guereza*
+            dawn chorus -- without changing what the pipeline ships.
 
     Returns:
         Sorted list of file paths
@@ -381,9 +407,14 @@ def get_ipa_station_files(station: str, time_filter: bool = True) -> List[str]:
     station_dir = os.path.join(config.IPA_ROOT, station)
     files = get_long_audio_files(root=station_dir)
     print(f"  {station}: {len(files)} total WAV files")
-    if time_filter:
-        files = filter_files_by_time(files)
-        print(f"  After time filter ({config.TIME_FILTER_START}–{config.TIME_FILTER_END}): {len(files)} files")
+    # An explicit window is itself the request. This used to be gated behind
+    # time_filter, so passing window= without also passing time_filter=True
+    # silently scanned the whole day: the caller asked for 05:00-19:00, the log
+    # said nothing, and the run covered 24 h. Naming a window now applies it.
+    if window or time_filter:
+        start, end = window or (config.TIME_FILTER_START, config.TIME_FILTER_END)
+        files = filter_files_by_time(files, start=start, end=end)
+        print(f"  After time filter ({start}–{end}): {len(files)} files")
     return files
 
 
