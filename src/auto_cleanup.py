@@ -71,17 +71,79 @@ DEFAULT_SUSPICIOUS_YAMNET = {
 
 # FEATURE EXTRACTION + MAHALANOBIS STATISTICS
 
+class _ChainedExtractor:
+    """Two Keras models applied in sequence, with a Model-compatible predict.
+
+    Exists so callers of build_feature_extractor do not have to know whether the
+    head is a nested Functional layer or not; everything downstream only ever
+    calls ``.predict(X, batch_size=..., verbose=...)``.
+    """
+
+    def __init__(self, to_wrapper, head_tap, full_model=None):
+        self._to_wrapper = to_wrapper
+        self._head_tap = head_tap
+        self._full = full_model
+        self.output_shape = head_tap.output_shape
+
+    def predict(self, x, batch_size=32, verbose=0):
+        mid = self._to_wrapper.predict(x, batch_size=batch_size, verbose=verbose)
+        feats = self._head_tap.predict(mid, batch_size=batch_size, verbose=verbose)
+        if self._full is None:
+            return feats
+        probs = self._full.predict(x, batch_size=batch_size, verbose=verbose)
+        return [feats, probs]
+
+
 def build_feature_extractor(model, layer_name: str = 'dense_256',
                             with_probs: bool = False):
     """Tap an intermediate dense layer to get a per-window feature vector.
 
     With ``with_probs`` the model also returns the class probabilities, so the
     feature vector and the softmax come from a single forward pass.
+
+    The V13 models are assembled by welding a separately trained head onto the
+    frozen VGG19 base (``scripts/assemble_fold_model.py``), which leaves the
+    head as one nested Functional layer. ``model.get_layer('dense_256')`` then
+    raises, because at the top level the only layers are the VGG blocks and that
+    single wrapper -- so every caller of this function, which is the whole
+    Mahalanobis out-of-distribution path, failed on a V13 model with "No such
+    layer". The published ablation for that filter was measured on the flat V12
+    architecture and has not run since. Searching one level in costs nothing and
+    keeps both architectures working.
     """
     import tensorflow as tf
-    feat_layer = model.get_layer(layer_name)
-    outputs = [feat_layer.output, model.output] if with_probs else feat_layer.output
-    return tf.keras.Model(inputs=model.inputs, outputs=outputs)
+    try:
+        feat_layer = model.get_layer(layer_name)
+        inputs = model.inputs
+        outputs = [feat_layer.output, model.output] if with_probs else feat_layer.output
+        return tf.keras.Model(inputs=inputs, outputs=outputs)
+    except ValueError:
+        pass
+
+    for i, layer in enumerate(model.layers):
+        if not hasattr(layer, "layers") or i == 0:
+            continue
+        try:
+            inner = layer.get_layer(layer_name)
+        except ValueError:
+            continue
+        # Two models run back to back rather than one stitched graph. Reaching
+        # across the wrapper boundary -- either by splicing inner.output into
+        # the outer graph or by cutting at ``layer.input`` -- builds without
+        # error and then raises KeyError at predict time, because those tensors
+        # belong to the wrapper's graph and the outer trace cannot resolve them.
+        # The output of the layer *before* the wrapper is an ordinary top-level
+        # tensor, so cutting there needs no surgery at all.
+        to_wrapper = tf.keras.Model(model.inputs, model.layers[i - 1].output,
+                                    name="to_head")
+        head_tap = tf.keras.Model(layer.inputs, inner.output, name="feature_tap")
+        return _ChainedExtractor(to_wrapper, head_tap,
+                                 model if with_probs else None)
+
+    raise ValueError(
+        f"no layer named {layer_name!r} at the top level or one level inside a "
+        f"nested model; top-level layers are "
+        f"{[l.name for l in model.layers]}")
 
 
 def clips_to_model_input(clips):
