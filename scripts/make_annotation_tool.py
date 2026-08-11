@@ -413,7 +413,13 @@ def build(clip_paths, out_dir, title, labels, seed, standalone):
                 .replace("__TITLE__", title))
     name = "annotate_standalone.html" if standalone else "annotate.html"
     html = os.path.join(out_dir, name)
-    with open(html, "w") as fh:
+    # encoding is explicit: on Windows the default is cp1252, which cannot
+    # encode the arrow glyphs in the key legend, so the write raised after all
+    # 173 clips had been decoded, resampled, spectrogrammed and embedded --
+    # several minutes of work discarded at the last statement. The page also
+    # declares utf-8 in its own <meta charset>, so writing it as anything else
+    # produced a file that disagreed with itself.
+    with open(html, "w", encoding="utf-8") as fh:
         fh.write(page)
 
     size = os.path.getsize(html)
