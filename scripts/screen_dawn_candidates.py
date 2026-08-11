@@ -75,9 +75,25 @@ def main():
     ap.add_argument("--probe", default=PROBE)
     ap.add_argument("--audio-root", default=config.IPA_ROOT)
     ap.add_argument("--min-score", type=float, default=0.10)
-    ap.add_argument("--min-ratio", type=float, default=config.LOWFREQ_GATE_THRESHOLD,
+    # Defaults to 0.0, i.e. no filtering. It used to default to
+    # config.LOWFREQ_GATE_THRESHOLD (0.40) on the reasoning that "a roar cannot
+    # be high-frequency". Measured on the nine expert-confirmed field roars in
+    # data/species/Colobus guereza field/, that cutoff rejects three of them:
+    # their ratios are 0.0200, 0.0712, 0.2665, 0.4271, 0.4719, 0.5588, 0.6172,
+    # 0.6924 and 0.7234. The ratio is whole-clip energy, so a genuine roar
+    # arriving faintly inside a loud insect chorus scores low -- the threshold
+    # was calibrated on close-range archival clips where the roar dominates the
+    # spectrum, and does not transfer. config.py:403 already disables the same
+    # gate in the detection pipeline for the same reason; this script and
+    # scan_roar_pulse.py were the two places still applying it.
+    #
+    # It matters here more than in most places because this script decides what
+    # a person listens to. Of 124 candidates, 117 were dropped below 0.40 and
+    # never heard, 56 of them at ratios at or above the lowest confirmed roar.
+    ap.add_argument("--min-ratio", type=float, default=0.0,
                     help="Reject candidates whose low-frequency ratio is below "
-                         "this. A roar cannot be high-frequency.")
+                         "this. Off by default: the 0.40 cutoff this used to "
+                         "carry rejects 3 of the 9 confirmed field roars.")
     ap.add_argument("--export", action="store_true",
                     help="Write the surviving windows as wav files to listen to.")
     ap.add_argument("--out", default=os.path.join(REPO, "data/outputs/colobus_dawn_queue"))
