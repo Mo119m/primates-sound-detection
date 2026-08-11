@@ -73,13 +73,21 @@ RESULTS = [
 
 # Material that came from collaborators and exists nowhere else. None of it is
 # reproducible from the repository, so it is essential regardless of size.
+# Both of these used to point into whatever folder the file happened to land in
+# -- Downloads for the expert's clips, the Desktop for the pogonias set. Neither
+# is version-controlled and both accumulate unrelated files, so a bundle built
+# from them stopped being reproducible the moment anyone tidied up. Downloads
+# already held repeat-download duplicates of four of the clips, and the .wav
+# filter silently excluded BWColobus1.MP3 the whole time. They now live in one
+# consolidated tree, de-duplicated by content hash, and the filters accept the
+# formats that are actually there.
+EXTERNAL_ROOT = "C:/Users/Fudap/OneDrive/Desktop/primate_paper/1_source_audio"
 EXTERNAL = [
-    ("C:/Users/Fudap/Downloads", "colobus_from_expert",
+    (f"{EXTERNAL_ROOT}/colobus_from_expert", "colobus_from_expert",
      "the nine field-verified C. guereza clips that are the positive control, "
      "plus the longer web-audio recordings, exactly as received",
-     lambda n: n.lower().endswith(".wav")
-     and ("S1141_44100H" in n or "olobus" in n or "BWColobus" in n)),
-    ("C:/Users/Fudap/OneDrive/Desktop/C. pogonias", "C_pogonias_as_received",
+     lambda n: n.lower().endswith((".wav", ".mp3"))),
+    (f"{EXTERNAL_ROOT}/C_pogonias_as_received", "C_pogonias_as_received",
      "the 153 C. pogonias clips as delivered, before de-duplication",
      lambda n: n.lower().endswith(".wav")),
 ]
