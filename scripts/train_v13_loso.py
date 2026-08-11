@@ -637,7 +637,7 @@ def _make_batches_class():
         """
 
         def __init__(self, feats, rows, labels, batch_size=32, shuffle=False,
-                     **kwargs):
+                     scale=1.0, **kwargs):
             try:
                 super().__init__(**kwargs)
             except TypeError:      # keras.utils.Sequence takes no kwargs
@@ -647,6 +647,12 @@ def _make_batches_class():
             self.labels = np.asarray(labels)
             self.batch_size = batch_size
             self.shuffle = shuffle
+            # Feature caches are float16 activations and go through unchanged;
+            # the image pack is uint8 0-255 and the base expects 0-1. Carrying
+            # the factor here rather than at the call sites means the scoring
+            # and calibration paths, which build their own batches, cannot be
+            # left on the wrong scale.
+            self.scale = float(scale)
             self._order = np.arange(len(self.rows))
 
         def __len__(self):
@@ -656,8 +662,10 @@ def _make_batches_class():
             sel = np.sort(self._order[i * self.batch_size:
                                       (i + 1) * self.batch_size])
             r = self.rows[sel]
-            return (np.asarray(self.feats[r], dtype="float32"),
-                    self.labels[sel])
+            x = np.asarray(self.feats[r], dtype="float32")
+            if self.scale != 1.0:
+                x = x * self.scale
+            return x, self.labels[sel]
 
         def on_epoch_end(self):
             if self.shuffle:
@@ -670,7 +678,8 @@ MemmapBatches = _make_batches_class()
 
 
 def train_head(feats, rows, labels, groups, class_names, epochs, seed,
-               verbose=0, pooling="temporal_freqpos", patience=3):
+               verbose=0, pooling="temporal_freqpos", patience=3,
+               unfreeze=0, finetune_epochs=5, finetune_lr=1e-5):
     import tensorflow as tf
     from sklearn.utils.class_weight import compute_class_weight
     import model as model_module
@@ -683,9 +692,26 @@ def train_head(feats, rows, labels, groups, class_names, epochs, seed,
 
     shape = feats.shape[1:]
     inp = tf.keras.Input(shape=shape)
-    out = model_module.build_dense_tail(
-        model_module.build_temporal_pool(inp, pooling),
-        num_classes=len(class_names))
+    base = None
+    if unfreeze:
+        # Fine-tuning reads the image pack rather than the cached activations,
+        # because the cache IS the frozen base's output and holding it fixed is
+        # the thing being given up. The evidence for trying: in this model's
+        # feature space the library training clips sit ~50 Mahalanobis units
+        # from their class centre and field audio sits ~1860, and ImageNet
+        # weights have no reason to place a close-range library recording of a
+        # roar near a hundred-metre field recording of the same roar.
+        from tensorflow.keras.applications import VGG19
+        base = VGG19(weights="imagenet", include_top=False, input_tensor=inp)
+        base.trainable = False
+        tapped = base.get_layer(TAP_LAYER).output
+        out = model_module.build_dense_tail(
+            model_module.build_temporal_pool(tapped, pooling),
+            num_classes=len(class_names))
+    else:
+        out = model_module.build_dense_tail(
+            model_module.build_temporal_pool(inp, pooling),
+            num_classes=len(class_names))
     head = tf.keras.Model(inp, out)
     head.compile(tf.keras.optimizers.Adam(1e-4),
                  "sparse_categorical_crossentropy", metrics=["accuracy"])
@@ -707,8 +733,10 @@ def train_head(feats, rows, labels, groups, class_names, epochs, seed,
     print("   class weights: " + "  ".join(
         f"{class_names[int(c)]} {w:.2f}" for c, w in sorted(class_weight.items())))
 
-    train_seq = MemmapBatches(feats, rows[tr], labels[tr], shuffle=True)
-    val_seq = MemmapBatches(feats, rows[va], labels[va])
+    scale = 1.0 / 255.0 if unfreeze else 1.0
+    train_seq = MemmapBatches(feats, rows[tr], labels[tr], shuffle=True,
+                              scale=scale)
+    val_seq = MemmapBatches(feats, rows[va], labels[va], scale=scale)
 
     # Early stopping on validation loss, which Sun et al. apply and this pipeline
     # did not: "Overfitting and generalization errors would appear if we trained
@@ -742,6 +770,33 @@ def train_head(feats, rows, labels, groups, class_names, epochs, seed,
     if stopped_early:
         best = int(np.argmin(hist.history["val_loss"])) + 1
         print(f"   early stop after {ran} epochs, best val_loss at epoch {best}")
+
+    if unfreeze and base is not None:
+        # Two stages, the order that matters: a randomly initialised head
+        # backpropagating into pretrained convolutions destroys them, so the
+        # head is fitted first above and only then are the last blocks released,
+        # at a learning rate two orders of magnitude below the head's.
+        blocks = [f"block{5 - i}" for i in range(unfreeze)]
+        released = 0
+        for layer in base.layers:
+            if any(layer.name.startswith(b) for b in blocks):
+                layer.trainable = True
+                released += 1
+        base.trainable = True
+        for layer in base.layers:
+            if not any(layer.name.startswith(b) for b in blocks):
+                layer.trainable = False
+        head.compile(tf.keras.optimizers.Adam(finetune_lr),
+                     "sparse_categorical_crossentropy", metrics=["accuracy"])
+        print(f"   unfreezing {blocks} ({released} layers), "
+              f"lr {finetune_lr:g}, {finetune_epochs} epochs")
+        ft_cb = []
+        if patience:
+            ft_cb.append(tf.keras.callbacks.EarlyStopping(
+                monitor="val_loss", patience=patience,
+                restore_best_weights=True, verbose=verbose))
+        head.fit(train_seq, validation_data=val_seq, epochs=finetune_epochs,
+                 class_weight=class_weight, callbacks=ft_cb, verbose=verbose)
     val_acc = head.evaluate(val_seq, verbose=0)[1]
     # `va` is returned so the caller can calibrate a threshold on rows the head
     # never took a gradient step on. Calibrating on the rest of the training
@@ -844,7 +899,8 @@ def score_fold(head, feats, rows, truth, class_names, threshold,
     truth = np.asarray(truth)[order]
     if hours is not None:
         hours = np.asarray(hours)[order]
-    seq = MemmapBatches(feats, rows, np.zeros(len(rows)), batch_size=64)
+    seq = MemmapBatches(feats, rows, np.zeros(len(rows)), batch_size=64,
+                        scale=(1.0 / 255.0 if feats.dtype == np.uint8 else 1.0))
     probs = np.concatenate([head.predict(seq[i][0], verbose=0)
                             for i in range(len(seq))])
     cernic = class_names.index("Cernic")
@@ -900,8 +956,10 @@ def score_fold(head, feats, rows, truth, class_names, threshold,
     # (see fires_as_cernic).
     if n_call and cal_rows is not None and len(cal_rows):
         cal_order = np.argsort(cal_rows)
-        cal_seq = MemmapBatches(feats, np.asarray(cal_rows)[cal_order],
-                                np.zeros(len(cal_rows)), batch_size=64)
+        cal_seq = MemmapBatches(
+            feats, np.asarray(cal_rows)[cal_order], np.zeros(len(cal_rows)),
+            batch_size=64,
+            scale=(1.0 / 255.0 if feats.dtype == np.uint8 else 1.0))
         cal_probs = np.concatenate([head.predict(cal_seq[i][0], verbose=0)
                                     for i in range(len(cal_seq))])
         cal_score = cal_probs[:, cernic]
@@ -1067,10 +1125,23 @@ def main():
                          "deployed head. Everything is downstream of the "
                          "cached features, so a comparison costs only the head "
                          "training.")
+    ap.add_argument("--unfreeze", type=int, default=0, metavar="N",
+                    help="Release the last N VGG19 blocks and fine-tune them "
+                         "after the head is fitted. 0 keeps the base frozen, "
+                         "which is what every result so far uses and what Sun "
+                         "et al. do. Reads the image pack instead of the "
+                         "feature cache, because the cache is the frozen "
+                         "base's output: on a CPU this is roughly eight times "
+                         "slower per epoch, so it is a GPU option.")
+    ap.add_argument("--finetune-epochs", type=int, default=5)
+    ap.add_argument("--finetune-lr", type=float, default=1e-5,
+                    help="Two orders below the head's 1e-4. Pretrained "
+                         "convolutions are destroyed by large updates, which "
+                         "is the failure mode fine-tuning is known for.")
     ap.add_argument("--patience", type=int, default=3,
                     help="Early-stopping patience on validation loss, with the "
                          "best weights restored. Sun et al. stop early for the "
-                         "reason that applies here: the head reaches 99 % "
+                         "reason that applies here: the head reaches 99 %% "
                          "in-sample, so later epochs only push correct examples "
                          "further from the boundary. 0 disables it and "
                          "reproduces the fixed-epoch runs.")
@@ -1287,7 +1358,15 @@ def main():
     # Training is read-only with respect to the cache. Cache creation/recovery
     # is deliberately isolated in --prepare-cache-only above.
     print("Feature cache")
-    feats = np.load(args.cache, mmap_mode="r")
+    if args.unfreeze:
+        # The cache is the frozen base's output and fine-tuning stops holding
+        # that fixed, so it cannot be reused; everything downstream indexes
+        # `feats` by the same row numbers either way.
+        feats = np.load(args.images, mmap_mode="r")
+        print(f"Fine-tuning: reading the image pack {feats.shape} rather than "
+              f"the feature cache")
+    else:
+        feats = np.load(args.cache, mmap_mode="r")
 
     stations = sorted(s for s in index["station"].unique() if s)
     if args.folds != "all":
@@ -1343,7 +1422,9 @@ def main():
         head, val_acc, inner_val_rows = train_head(
             feats, tr_rows, labels_tr, groups_tr, class_names, args.epochs,
             args.seed, args.verbose, pooling=args.pooling,
-            patience=args.patience)
+            patience=args.patience, unfreeze=args.unfreeze,
+            finetune_epochs=args.finetune_epochs,
+            finetune_lr=args.finetune_lr)
         as_truth = (lambda m: index.loc[m, "label"].map(
             lambda l: "call" if l == "Cernic" else "fp"))
 
