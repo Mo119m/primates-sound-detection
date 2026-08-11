@@ -144,6 +144,12 @@ def apply_lowfreq_gate(detections_df: pd.DataFrame,
 
 _OOD_STATS = None
 _OOD_EXTRACTOR = None
+# The statistics annotate_ood_distance actually resolved for the model in hand.
+# apply_ood_gate has no model to fingerprint, and falling back to "the first
+# file on disk" silently gated IPA4ST with IPA20ST's cutoffs -- 357.9 instead of
+# 328.4, so detections that should have been dropped were kept. Every LOSO fold
+# has its own feature space; there is no such thing as a default one.
+_ACTIVE_STATS = None
 
 
 def _read_stats_file(path):
@@ -232,6 +238,8 @@ def annotate_ood_distance(detections_df: pd.DataFrame,
     if len(detections_df) == 0:
         return detections_df
     stats = _load_ood_stats(_head_fingerprint(model))
+    global _ACTIVE_STATS
+    _ACTIVE_STATS = stats
     if stats is None:
         print("\n ! No OOD statistics fitted on this head. Every LOSO fold has "
               "its own\n   feature space, so statistics from another fold would "
@@ -280,8 +288,15 @@ def apply_ood_gate(detections_df: pd.DataFrame,
     """Drop detections whose distance exceeds their class's cutoff."""
     if len(detections_df) == 0 or "ood_distance" not in detections_df:
         return detections_df
-    stats = _load_ood_stats()
+    # Only the statistics the distances were measured against. Resolving them
+    # again here would have to guess which head produced the column, and the
+    # guess it made -- the first file on disk -- gated one station with another
+    # station's cutoffs.
+    stats = _ACTIVE_STATS
     if stats is None:
+        print("\n ! apply_ood_gate called before annotate_ood_distance, so no "
+              "statistics are\n   active. Gating on another head's cutoffs is "
+              "worse than not gating.")
         return detections_df
     q = config.OOD_GATE_PERCENTILE if percentile is None else percentile
     if q not in stats["percentiles"]:
