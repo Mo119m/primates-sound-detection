@@ -84,9 +84,9 @@ at two stations) --- and does so within 0.3 percentage points at the easiest and
 hardest station, which the deployed model separates by 24. A cleanup measured
 against that same review
 proves most useful not as a filter but as a way to organise listening: counting
-a run of detections as one decision cuts the review to a quarter of the clips
-while discarding nothing, and ordering what remains recovers 90\% of the
-recoverable calls from half.
+a run of detections as one decision cuts the review to between an eighth and a
+quarter of the clips while discarding nothing, and ordering what remains
+recovers 90\% of the recoverable calls from half.
 
 \begin{itemize}
 \item A VGG19 transfer-learning model with a frequency-position-aware CRNN
@@ -1322,8 +1322,8 @@ sixteen stations and over the fifteen excluding it; the reason for separating
 it is given below and does not depend on the labels.
 
 In summary, and in decreasing order of how much they are worth: grouping
-detections into listening episodes cuts the review from 6\,189 clips to 1\,529
-listens while discarding nothing; ordering the remainder by averaged
+detections into listening episodes cuts the review from 6\,189 clips to between
+722 and 1\,589 listens while discarding nothing; ordering the remainder by averaged
 within-station ranks reaches an average precision of 0.900 against 0.658 for an
 unordered review, recovering 90.3\,\% of the recoverable calls from half the
 clips; and discarding the flagged detections raises precision from 65.5\,\% to
@@ -1339,10 +1339,28 @@ the stretch. Grouping detections of one species in one recording that fall
 within five minutes of each other gives 722 episodes over the 6\,189
 detections, 8.6 detections apiece. Of the 3\,654 false positives, 3\,488
 (95.5\,\%) fall in episodes containing no genuine call at all, and each such
-episode costs one listen however many detections it holds. Counting a pure
-episode as one decision and a mixed one as its individual clips, the full
-review is 1\,529 listens rather than 6\,189 --- 24.7\,\% of the per-clip effort,
-with no detection discarded and no threshold anywhere.
+episode costs one listen however many detections it holds. The same collapse
+applies to the calls, which is worth stating explicitly because it is the larger
+inference: 162 episodes are all-call, and they hold 1\,834 of the 2\,535
+confirmed calls, so 72.3\,\% of the calls in this review are settled by hearing
+one clip of a run. Counting a pure episode as one decision and a mixed one as
+its individual clips, the full review is 1\,529 listens rather than 6\,189 ---
+24.7\,\% of the per-clip effort, with no detection discarded and no threshold
+anywhere.
+
+That 24.7\,\% is the cost of \emph{reproducing} this verdict table, not a price
+a reviewer can pay in advance, and the difference is worth being exact about.
+The partition into pure and mixed episodes is computed from the verdict column,
+which is the output the review exists to produce; nobody starting the job knows
+which of the 722 episodes are mixed. What a reviewer can actually follow is the
+rule without that knowledge --- one listen per episode, its verdict settling the
+episode --- which costs \textbf{722 listens, 11.7\,\%}, and pays for the saving
+by mis-settling the 60 mixed episodes: 149 of the 6\,189 detections, 2.4\,\%,
+receive the majority verdict of their episode rather than their own. Charging
+mixed episodes their clips \emph{and} their opening listen, the upper figure is
+1\,589, 25.7\,\%. The honest range for the method as a procedure is therefore
+11.7\,\% at 2.4\,\% verdict error, to 25.7\,\% at none; 24.7\,\% is where this
+particular table happens to sit inside it.
 
 One station accounts for most of that saving, and it is the station no
 per-detection signal can read at all (below). IPA4ST's detections are not
