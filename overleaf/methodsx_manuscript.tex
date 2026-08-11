@@ -881,39 +881,64 @@ arithmetic rather than judgement.
 
 Grouped into five-minute slots, \textbf{61.5\,\% of the \textit{Colobus}
 detections fall in slots spanning more than 3.2\,km}, against \textbf{24.0\,\%
-for \textit{C.\ nictitans}}, a species confirmed present whose 2\,535
-verified calls make it the control that decides whether the test measures
-anything at all. The two largest \textit{Colobus} slots are 2021-02-24 15:10,
-seven stations across 4.73\,km, and 19:30 the same day, five stations across
-4.41\,km.
+for \textit{C.\ nictitans}}, a species confirmed present, which is what makes it
+the control that decides whether the test measures anything at all. The two
+largest \textit{Colobus} slots are 2021-02-24 15:10, seven stations across
+4.73\,km, and 19:30 the same day, five stations across 4.41\,km.
+
+The control needs stating precisely, because the obvious description of it is
+the wrong one. Across the eleven stations with coordinates the test uses 3\,011
+\textit{C.\ nictitans} detections and 156 \textit{Colobus} detections, and it
+selects them by predicted species alone. It does not consult the review
+verdicts, so 981 of those 3\,011 are detections a reviewer has confirmed are
+\emph{not} \textit{C.\ nictitans}; only 2\,029 are confirmed calls. Both
+populations are worth reporting, and they do not agree. Restricting the control
+to the 2\,029 confirmed calls lowers it at every slot width --- false positives
+are more spatially dispersed than real choruses, which is the same signal the
+test is built on --- and therefore widens the gap the test reports rather than
+narrowing it.
 
 The choice of a five-minute slot is not free, and the sweep across slot widths
 is the result rather than a robustness check:
 
 \begin{center}
-\begin{tabular}{lrrr}
+\begin{tabular}{lrrrr}
 \toprule
-Slot width & \textit{Colobus} & \textit{C.\ nictitans} & Difference \\
+ & & \multicolumn{2}{c}{\textit{C.\ nictitans} control} & \\
+\cmidrule(lr){3-4}
+Slot width & \textit{Colobus} & all detections & confirmed calls & Difference \\
 \midrule
-30\,min & 71.8\,\% & 74.8\,\% & $-3.0$ \\
-15\,min & 63.5\,\% & 52.2\,\% & $+11.3$ \\
-\textbf{5\,min} & \textbf{61.5\,\%} & \textbf{24.0\,\%} & $\mathbf{+37.5}$ \\
-1\,min & 35.9\,\% & 8.0\,\% & $+27.9$ \\
-30\,s & 1.3\,\% & 5.6\,\% & $-4.4$ \\
-15\,s & 0.0\,\% & 3.8\,\% & $-3.8$ \\
+30\,min & 71.8\,\% & 74.8\,\% & 32.8\,\% & $+39.0$ \\
+15\,min & 63.5\,\% & 52.2\,\% & 20.7\,\% & $+42.7$ \\
+\textbf{5\,min} & \textbf{61.5\,\%} & \textbf{24.0\,\%} & \textbf{8.3\,\%} & $\mathbf{+53.2}$ \\
+1\,min & 35.9\,\% & 8.0\,\% & 4.6\,\% & $+31.3$ \\
+30\,s & 1.3\,\% & 5.6\,\% & 3.6\,\% & $-2.3$ \\
+15\,s & 0.0\,\% & 3.8\,\% & 2.6\,\% & $-2.6$ \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-At half an hour every slot pools independent callers and the two species are
-indistinguishable; a window that coarse would have produced the opposite
-conclusion. Below a minute the sign reverses, and that reversal is the
+\noindent Difference is against the confirmed-call control. Against all
+detections the five-minute gap is $+37.5$ and the thirty-minute gap is $-3.0$;
+the choice of control changes the size of the effect at every width and its sign
+at thirty minutes, which is why both columns are shown.
+
+Five minutes is where the two mechanisms are furthest apart under either
+control. What the coarse end shows depends on which control is used: against all
+detections the two species are indistinguishable at half an hour, whereas
+against confirmed calls a 39-point gap survives there. The conservative reading
+is the first, and it is the one to rely on --- a slot that wide pools
+independent callers, and an effect that only appears once the control is
+filtered is an effect that leans on the filtering. Below a minute the sign
+reverses under both, and that reversal is the
 informative half: a genuine chorus does reach neighbouring recorders within
 seconds, so \textit{C.\ nictitans} rises, while the \textit{Colobus} detections
 do not, because thunder rolls and rain arrives progressively and a front is
-minutes wide rather than seconds wide. Five minutes is where the two mechanisms
-are furthest apart, and it is the crossing time of a squall over an array this
-size. Reproduce with \texttt{scripts/spatial\_extent\_test.py -{}-sweep}.
+minutes wide rather than seconds wide. Five minutes is also the crossing time of
+a squall over an array this size. Reproduce with
+\texttt{scripts/spatial\_extent\_test.py -{}-sweep}; the confirmed-call column
+additionally requires joining the detections to the review table on site and
+detection time.
 
 This does not identify what the detector fired on; it establishes that most of
 it cannot have been one animal, using geometry, a published carrying distance
