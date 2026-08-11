@@ -15,6 +15,33 @@
 %%     funding, CRediT roles);
 %%   - prepare the Graphical abstract as a SEPARATE image file;
 %%   - delete this comment header.
+%%
+%% DO NOT SUBMIT UNTIL THESE TWO ARE RESOLVED (2026-08-11):
+%%
+%%   1. The 92.7 % scanning precision (abstract, and the "Reliability of the
+%%      detections" paragraph) is NOT a valid estimate of precision above 0.95.
+%%      The 55 clips came from export_detection_clips.py --reliability, which
+%%      samples the confidence axis evenly rather than the detections: 41 of the
+%%      55 were drawn from a pool of 73 detections (56 % inclusion) and 14 stand
+%%      for the remaining 695 (2.0 %), a 28:1 ratio, then averaged unweighted.
+%%      The Wilson interval assumes equal-probability sampling and is invalid for
+%%      the same reason. Worse, the verdicts were never written down: all 185
+%%      rows of IPA20ST_day_sheet.csv and IPA4ST_day_sheet.csv have an empty
+%%      verdict column, so 51/55 cannot be reproduced from any file.
+%%      REPLACEMENT IN PROGRESS: an equal-probability sample of 150 of the 768
+%%      detections at >= 0.95 (seed 20260811, design in
+%%      data/outputs/precision_resample/DESIGN.txt) is with the species expert.
+%%      Report that result and its Wilson interval; state the sampling design.
+%%
+%%   2. The "117 of the 124 dawn candidates have more than 95 % of their energy
+%%      above 1.5 kHz and cannot be a low-frequency roar" sentence is falsified
+%%      by our own material: the confirmed field roar
+%%      0.906_2_S1141_44100H_GRNP764_20211215_170000 has a low-frequency ratio
+%%      of 0.0200, i.e. 98.0 % of its in-band energy above 1.5 kHz. The screen
+%%      actually cut at 0.40, not at 95 %, and 56 of the 117 discarded windows
+%%      sit at or above the lowest confirmed roar's ratio -- none of them heard.
+%%      All 117 are with the species expert now. The count of screened-out
+%%      windows cannot be reported as evidence of absence until they are.
 
 \documentclass[final,3p,times]{elsarticle}
 
@@ -79,9 +106,10 @@ retraining on human verdicts rather than filter guesses raises precision from
 false positives while keeping 95\,\% of calls. The fitted threshold varies widely
 across held-out stations, so the fitting procedure transfers but its value does
 not. Run as a scanner over raw audio rather than as a re-ranker, and checked by
-ear, the retrained model reaches 92.7\,\% precision above 0.95 (51/55 detections
-at two stations) --- and does so within 0.3 percentage points at the easiest and
-hardest station, which the deployed model separates by 24. A cleanup measured
+ear, the retrained model returned 51 genuine calls in 55 confidence-stratified
+detections above 0.95 at two stations --- \textbf{[a design-weighted precision
+for that band, from an equal-probability sample of 150, is with the species
+expert and replaces this sentence]}. A cleanup measured
 against that same review
 proves most useful not as a filter but as a way to organise listening: counting
 a run of detections as one decision cuts the review to between an eighth and a
@@ -1189,10 +1217,34 @@ retrained head was scanned rather than re-ranked at two stations chosen as the
 extremes of Table~\ref{tab:loso}: IPA20ST, where the deployed model reaches
 0.935, and IPA4ST, where it reaches 0.695. Every detection at or above 0.95 in a
 stratified sample was listened to by the species expert. At IPA20ST 25 of 27
-were genuine calls; at IPA4ST, 26 of 28; pooled, 51 of 55, a scanning precision
-of 92.7\,\% (Wilson 95\,\% interval 82.7--97.1). All four errors sat at the
-bottom of that band, near 0.95, and the fold-fitted threshold at IPA4ST (0.995)
-excludes them.
+were genuine calls; at IPA4ST, 26 of 28; pooled, 51 of 55. All four errors sat
+at the bottom of that band, near 0.95, and the fold-fitted threshold at IPA4ST
+(0.995) excludes them.
+
+That 51/55 is \emph{not} an estimate of precision above 0.95, and an earlier
+version of this manuscript reported it as one. The clips were drawn by
+\texttt{export\_detection\_clips.py -{}-reliability}, whose stated purpose is
+even coverage of the confidence axis rather than of the detections: one draw per
+equal-width confidence band, plus twenty from the top five percent. Of the 768
+detections at or above 0.95 across the two stations, 73 lie in the top pool and
+supplied 41 of the 55 listened clips, a 56\,\% inclusion rate, while the
+remaining 695 supplied 14, a 2.0\,\% rate. Averaging two strata sampled 28:1
+apart as though they were one sample estimates the precision of the top one-and-
+a-half percentile and reports it as the precision of everything above 0.95; a
+Wilson interval on it is invalid for the same reason. Because all four observed
+errors fall in the stratum sampled at 2\,\%, design-weighting moves the estimate
+substantially downward.
+
+The repair is a new sample rather than a reweighting of the old one, for a
+second reason: the verdicts were spoken, not recorded. The verdict column is
+empty in all 185 rows of both listening sheets, so 51/55 cannot be reproduced
+from any file in the repository. An equal-probability sample of 150 of the 768
+detections (simple random without replacement, seed 20260811, design recorded in
+\texttt{data/outputs/precision\_resample/DESIGN.txt}) is with the species expert;
+every member has the same 150/768 chance of inclusion, which is what makes an
+unweighted proportion and its interval mean what they say. \textbf{[Result and
+Wilson interval to be inserted here on return; the abstract figure depends on
+it.]}
 
 The comparison between the two stations is the part worth keeping. The deployed
 model's precision differs between them by 24 percentage points; the retrained
