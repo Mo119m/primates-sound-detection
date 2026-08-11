@@ -290,7 +290,8 @@ Cernic            & 3{,}002      & 2{,}535 reviewed field detections, 397
                                    pyow), 70 recycled false positives \\
 Colobus\_guereza  & 665          & roar pulses segmented from
                                    \textit{C.\ guereza} reference recordings \\
-C\_pogonias       & 150          & \textit{C.\ pogonias} clips, field-verified \\
+C\_pogonias       & 150          & \textit{C.\ pogonias} clips from reference
+                                   recordings \\
 Colobus\_confuser & 907          & 654 curated hard-negatives, 253
                                    field false positives, all human-reviewed \\
 Background        & 25{,}891     & 16{,}826 BirdNET bird detections from the
@@ -1786,14 +1787,26 @@ reported, not the level.
 
 Two things plausibly explain the null and both are worth stating, because this
 intervention is the one a reader is most likely to try. The 150 clips are
-archival library media being used to treat a confusion that occurs in field
-recordings, which is the same archival-to-field gap that limits the
-\textit{Colobus} class elsewhere in this paper. And a negative class generalises
-only to the negatives it was given: adding \textit{C.\ pogonias} addresses
-\textit{C.\ pogonias} and offers no protection against \textit{C.\ cephus},
+reference library material being used to treat a confusion that occurs in this
+deployment's recordings, which is the same gap that limits the \textit{Colobus}
+class elsewhere in this paper. And a negative class generalises only to the
+negatives it was given: adding \textit{C.\ pogonias} addresses \textit{C.\
+pogonias} and offers no protection against \textit{C.\ cephus},
 \textit{Lophocebus} or any other unenumerated congener \cite{bisgin2024}. Neither
-explanation is tested here, and a fifth class built from field recordings of the
-congener rather than from a library remains worth trying.
+explanation is tested here, and a fifth class built from recordings made at these
+stations rather than from a library remains worth trying.
+
+It is worth being exact about what that gap is, because ``library'' and
+``field'' are not opposites and treating them as such misdescribes the problem.
+The reference material is itself field-recorded; what differs is the deployment.
+A library clip and a clip from this array were made at different distances from
+the animal, on different equipment, into different background, in a different
+season. That is enough to separate them in the model's own feature space: the
+training clips of a class sit about 50 Mahalanobis units from its centre while
+this deployment's audio sits at roughly 1\,860, a factor of thirty-seven, and
+detections the expert rejected sit with the audio rather than with the training
+material. The axis that matters is provenance, not habitat, and it is measurable
+rather than rhetorical.
 
 Table~\ref{tab:loso} reports the configuration without this class, on the
 grounds that it is simpler to reproduce and requires no additional audio, not on
