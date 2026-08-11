@@ -115,7 +115,15 @@ def main():
     ap.add_argument("--min-pulse", type=float, default=0.0501,
                     help="Keeps ~70%% of reference roars, ~18%% of confirmed "
                          "non-roars (test_roar_pulse_rate.py).")
-    ap.add_argument("--min-lf", type=float, default=config.LOWFREQ_GATE_THRESHOLD)
+    # 0.0, i.e. off. Was config.LOWFREQ_GATE_THRESHOLD (0.40), which rejects
+    # three of the nine expert-confirmed field roars (ratios 0.0200, 0.0712 and
+    # 0.2665). config.py:403 disables the same gate in the detection pipeline;
+    # leaving it on here meant a candidate list pre-filtered by a criterion that
+    # removes a third of known-true roars, so any null result from this scan
+    # would have understated detection by an unquantified amount.
+    ap.add_argument("--min-lf", type=float, default=0.0,
+                    help="Minimum low-frequency ratio. Off by default; see the "
+                         "comment above for why 0.40 is not safe here.")
     ap.add_argument("--out", default=os.path.join(REPO, "data/outputs/roar_pulse_scan"))
     args = ap.parse_args()
 

@@ -441,15 +441,35 @@ def collect_colobus_detections():
     The 253 field Colobus detections, entered as negatives.
 
     The user reviewed these and found no genuine C. guereza among them -- they
-    are thunder and other low-frequency noise. That is consistent with when they
-    fire: 90.7 % fall between 19:00 and 05:00, and guereza roars at dawn.
+    are thunder and other low-frequency noise.
+
+    The corroboration is that they cluster on one storm, not that they fall at
+    night. This docstring used to argue the second: "90.7 % fall between 19:00
+    and 05:00, and guereza roars at dawn". Both halves are wrong. The 90.7 %
+    came from a partial join that matched 97 of 253 filenames; over all 253 the
+    figure is 48.6 %, and over the 307 clips now on disk it is 40.1 % (123 night
+    against 184 day), so the majority fall in daylight. And this project's own
+    nine adjudicated field roars are at 08:00 (three), 08:30, 10:30, 11:00
+    (two), 17:00 and 17:30 -- all daytime, none between 19:00 and 05:00 -- so
+    daytime is the roar window by our own material, and a diel argument points
+    the other way if it points anywhere. The correction is recorded at
+    train_v13_loso.py:821, reject_array_wide_events.py:77 and
+    CORRECTIONS_2026-08-01.md:775; this line was the one place it never reached.
+
+    What does hold up is verifiable on the filenames: 230 of the 307 clips fall
+    on 2021-02-24 alone, a storm front. A class of detections that is 75 % one
+    afternoon is weather, whatever hour it lands at.
 
     They are tagged ``colobus_field_fp`` rather than merged into the generic
-    negatives so the decision stays reversible. The subset that most resembles a
-    real roar (high low-frequency ratio, or timed with the dawn chorus) is
-    written to a side file by ``--flag-suspect`` for the same reason: if a
-    genuine roar is hiding in here, training it as a negative is the one mistake
-    that cannot be undone by adding more data.
+    negatives so the decision stays reversible, because if a genuine roar is
+    hiding in here, training it as a negative is the one mistake that cannot be
+    undone by adding more data. This docstring also used to promise a
+    ``--flag-suspect`` side file of the clips that most resemble a real roar.
+    No such option exists -- the string appears nowhere else in the repository --
+    so the reversibility rests on the tag and on the clips themselves remaining
+    on disk under data/outputs/detected_clips/Colobus_guereza, re-adjudicable at
+    any time. Claiming a safety mechanism that was never written is worse than
+    having none, because it stops anyone looking for one.
 
     They enter as ``Colobus_confuser`` rather than ``Background``. These are the
     sounds this model actually mistakes for a guereza roar, recorded in the
