@@ -114,36 +114,52 @@ def main():
     # runs, reports plausible numbers, and is not the model that was trained.
     # Detected from the file rather than from a flag, because a flag can be
     # forgotten and the failure is silent.
+    # Discriminated by layer count, not by looking for convolutions. The
+    # tail contains one Conv2D of its own (the frequency-coordinate fusion),
+    # which Keras checkpoints under the generic name "conv2d", so "does this
+    # file mention conv2d" is true of both kinds and mis-routes the frozen path.
+    # Counting is exact: a tail-only checkpoint has as many layers as the tail,
+    # a fine-tuned one has as many as the whole graph, and the two differ by the
+    # fifteen VGG layers upstream of the tap.
     with h5py.File(weights, "r") as h:
-        layer_names = set(h["layers"].keys()) if "layers" in h else set()
-    full_model_weights = any(n.startswith("conv2d") for n in layer_names)
+        n_saved = len(h["layers"].keys()) if "layers" in h else 0
+
+    def _tail_only(n_classes):
+        b = VGG19(weights="imagenet", include_top=False,
+                  input_shape=(config.IMG_HEIGHT, config.IMG_WIDTH,
+                               config.IMG_CHANNELS))
+        t = b.get_layer(TAP_LAYER).output
+        i = tf.keras.Input(shape=tuple(t.shape[1:]))
+        return b, t, tf.keras.Model(i, model_module.build_dense_tail(
+            model_module.build_temporal_pool(i, "temporal_freqpos"),
+            num_classes=n_classes))
+
+    def _whole(n_classes):
+        i = tf.keras.Input(shape=(config.IMG_HEIGHT, config.IMG_WIDTH,
+                                  config.IMG_CHANNELS))
+        b = VGG19(weights="imagenet", include_top=False, input_tensor=i)
+        return b, tf.keras.Model(i, model_module.build_dense_tail(
+            model_module.build_temporal_pool(
+                b.get_layer(TAP_LAYER).output, "temporal_freqpos"),
+            num_classes=n_classes))
+
+    _, _, probe_tail = _tail_only(len(class_names))
+    n_tail = len(probe_tail.layers)
+    full_model_weights = n_saved != n_tail
+    print(f"  checkpoint has {n_saved} layers; a tail alone has {n_tail} -> "
+          f"{'fine-tuned whole model' if full_model_weights else 'tail only'}")
 
     if full_model_weights:
         print(f"  {os.path.basename(weights)} carries convolutional weights "
               f"({os.path.getsize(weights)/1e6:.0f} MB): this is a fine-tuned "
               f"fold, loading it whole rather than welding a frozen base")
-        inp = tf.keras.Input(shape=(config.IMG_HEIGHT, config.IMG_WIDTH,
-                                    config.IMG_CHANNELS))
-        base = VGG19(weights="imagenet", include_top=False, input_tensor=inp)
+        base, full = _whole(len(class_names))
         base.trainable = False
-        tail_out = model_module.build_dense_tail(
-            model_module.build_temporal_pool(
-                base.get_layer(TAP_LAYER).output, "temporal_freqpos"),
-            num_classes=len(class_names))
-        tail = full = tf.keras.Model(inp, tail_out)
+        tail = full
         full.load_weights(weights)
     else:
-        base = VGG19(weights="imagenet", include_top=False,
-                     input_shape=(config.IMG_HEIGHT, config.IMG_WIDTH,
-                                  config.IMG_CHANNELS))
+        base, tap, tail = _tail_only(len(class_names))
         base.trainable = False
-        tap = base.get_layer(TAP_LAYER).output
-
-        tail_in = tf.keras.Input(shape=tuple(tap.shape[1:]))
-        tail_out = model_module.build_dense_tail(
-            model_module.build_temporal_pool(tail_in, "temporal_freqpos"),
-            num_classes=len(class_names))
-        tail = tf.keras.Model(tail_in, tail_out)
         tail.load_weights(weights)
 
     # Reorder the outputs into config.CLASS_NAMES order before saving.
@@ -183,18 +199,35 @@ def main():
                  f"The seam check addresses all three by the same row number, "
                  f"so it cannot run on a mismatched set.")
     print(f"  checking against {os.path.relpath(images_path, REPO)}")
-    rows = np.linspace(0, len(images) - 1, 24).astype(int)
-    x = np.asarray(images[rows], dtype=np.float32) / 255.0
-    direct = full.predict(x, batch_size=8, verbose=0)
-    viacache = tail.predict(np.asarray(feats[rows], dtype=np.float32),
-                            batch_size=8, verbose=0)
-    # The tail was permuted in place, so both sides are already in CLASS_NAMES
-    # order and compare directly.
-    gap = float(np.abs(direct - viacache).max())
-    print(f"seam check on 24 rows: max |full - cached-tail| = {gap:.2e}")
-    if gap > 1e-3:
-        sys.exit("ABORT: the assembled model disagrees with the cached-feature "
-                 "path. The preprocessing or the tap layer does not match.")
+    if full_model_weights:
+        # The seam check asks whether a base and a tail were glued together
+        # correctly, by running the cached features through the tail and the
+        # images through the whole model and requiring the same answer. A
+        # fine-tuned fold has no seam -- it is loaded as one graph -- and the
+        # question is not merely unnecessary but unanswerable: the cache is the
+        # output of the *frozen* base, and fine-tuning moved the convolutions
+        # away from it. A disagreement here would be the treatment working.
+        #
+        # Feeding (28, 28, 512) features to a model whose input is
+        # (224, 224, 3) is what the first version of this branch did, and it
+        # failed with a graph execution error rather than a useful message.
+        print("  seam check skipped: no seam. The cache is the frozen base's "
+              "output and this model's base is not frozen, so the two paths "
+              "are not supposed to agree.")
+    else:
+        rows = np.linspace(0, len(images) - 1, 24).astype(int)
+        x = np.asarray(images[rows], dtype=np.float32) / 255.0
+        direct = full.predict(x, batch_size=8, verbose=0)
+        viacache = tail.predict(np.asarray(feats[rows], dtype=np.float32),
+                                batch_size=8, verbose=0)
+        # The tail was permuted in place, so both sides are already in
+        # CLASS_NAMES order and compare directly.
+        gap = float(np.abs(direct - viacache).max())
+        print(f"seam check on 24 rows: max |full - cached-tail| = {gap:.2e}")
+        if gap > 1e-3:
+            sys.exit("ABORT: the assembled model disagrees with the "
+                     "cached-feature path. The preprocessing or the tap layer "
+                     "does not match.")
 
     # And check the permutation actually landed, by asking the model about rows
     # whose label is known. A saved model in the wrong class order is invisible
