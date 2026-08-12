@@ -78,6 +78,7 @@ def main():
     ap.add_argument("--out-dir", default=os.path.join(REPO, "data/outputs/models"))
     args = ap.parse_args()
 
+    import h5py
     import numpy as np
     import pandas as pd
     import tensorflow as tf
@@ -105,18 +106,45 @@ def main():
               f"  The assembled model follows the index, which is what the tail "
               f"was trained against.")
 
-    base = VGG19(weights="imagenet", include_top=False,
-                 input_shape=(config.IMG_HEIGHT, config.IMG_WIDTH,
-                              config.IMG_CHANNELS))
-    base.trainable = False
-    tap = base.get_layer(TAP_LAYER).output
+    # A fine-tuned fold saves the whole model, not a tail. train_v13_loso.py
+    # --unfreeze builds VGG19 and the tail as one graph and checkpoints that, so
+    # the file carries the convolutional weights the fine-tuning changed --
+    # 132 MB against 24 MB for a frozen fold. Welding a fresh ImageNet base to
+    # it would discard exactly the thing under test and produce a model that
+    # runs, reports plausible numbers, and is not the model that was trained.
+    # Detected from the file rather than from a flag, because a flag can be
+    # forgotten and the failure is silent.
+    with h5py.File(weights, "r") as h:
+        layer_names = set(h["layers"].keys()) if "layers" in h else set()
+    full_model_weights = any(n.startswith("conv2d") for n in layer_names)
 
-    tail_in = tf.keras.Input(shape=tuple(tap.shape[1:]))
-    tail_out = model_module.build_dense_tail(
-        model_module.build_temporal_pool(tail_in, "temporal_freqpos"),
-        num_classes=len(class_names))
-    tail = tf.keras.Model(tail_in, tail_out)
-    tail.load_weights(weights)
+    if full_model_weights:
+        print(f"  {os.path.basename(weights)} carries convolutional weights "
+              f"({os.path.getsize(weights)/1e6:.0f} MB): this is a fine-tuned "
+              f"fold, loading it whole rather than welding a frozen base")
+        inp = tf.keras.Input(shape=(config.IMG_HEIGHT, config.IMG_WIDTH,
+                                    config.IMG_CHANNELS))
+        base = VGG19(weights="imagenet", include_top=False, input_tensor=inp)
+        base.trainable = False
+        tail_out = model_module.build_dense_tail(
+            model_module.build_temporal_pool(
+                base.get_layer(TAP_LAYER).output, "temporal_freqpos"),
+            num_classes=len(class_names))
+        tail = full = tf.keras.Model(inp, tail_out)
+        full.load_weights(weights)
+    else:
+        base = VGG19(weights="imagenet", include_top=False,
+                     input_shape=(config.IMG_HEIGHT, config.IMG_WIDTH,
+                                  config.IMG_CHANNELS))
+        base.trainable = False
+        tap = base.get_layer(TAP_LAYER).output
+
+        tail_in = tf.keras.Input(shape=tuple(tap.shape[1:]))
+        tail_out = model_module.build_dense_tail(
+            model_module.build_temporal_pool(tail_in, "temporal_freqpos"),
+            num_classes=len(class_names))
+        tail = tf.keras.Model(tail_in, tail_out)
+        tail.load_weights(weights)
 
     # Reorder the outputs into config.CLASS_NAMES order before saving.
     #
@@ -132,7 +160,8 @@ def main():
         print(f"  reordering outputs {class_names}\n"
               f"                  -> {list(config.CLASS_NAMES)}")
         permute_output_units(tail, perm)
-    full = tf.keras.Model(base.input, tail(tap))
+    if not full_model_weights:
+        full = tf.keras.Model(base.input, tail(tap))
     full.compile(tf.keras.optimizers.Adam(1e-4),
                  "sparse_categorical_crossentropy", metrics=["accuracy"])
 

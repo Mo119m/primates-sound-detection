@@ -776,20 +776,41 @@ def train_head(feats, rows, labels, groups, class_names, epochs, seed,
         # backpropagating into pretrained convolutions destroys them, so the
         # head is fitted first above and only then are the last blocks released,
         # at a learning rate two orders of magnitude below the head's.
-        blocks = [f"block{5 - i}" for i in range(unfreeze)]
-        released = 0
+        # Count blocks back from the tap, not from block5. The model taps
+        # block4_conv4, so block4_pool and the whole of block5 are downstream of
+        # the output and are not in the graph at all. Counting from block5 meant
+        # --unfreeze 1 released only block5 and trained nothing, while
+        # --unfreeze 2 reported "unfreezing ['block5', 'block4'] (10 layers)"
+        # when four layers and 8.26M parameters actually received gradients.
+        # Neither is visible in the loss curve, because a run that fine-tunes
+        # nothing looks exactly like a run whose fine-tuning did not help.
+        tap_block = int(TAP_LAYER[len("block"):].split("_")[0])
+        blocks = [f"block{tap_block - i}" for i in range(unfreeze)]
+
+        in_graph = {l.name for l in head.layers}
+        released, inert = [], []
         for layer in base.layers:
-            if any(layer.name.startswith(b) for b in blocks):
-                layer.trainable = True
-                released += 1
+            hit = any(layer.name.startswith(b) for b in blocks)
+            layer.trainable = hit
+            if hit:
+                (released if layer.name in in_graph else inert).append(layer.name)
         base.trainable = True
         for layer in base.layers:
             if not any(layer.name.startswith(b) for b in blocks):
                 layer.trainable = False
         head.compile(tf.keras.optimizers.Adam(finetune_lr),
                      "sparse_categorical_crossentropy", metrics=["accuracy"])
-        print(f"   unfreezing {blocks} ({released} layers), "
-              f"lr {finetune_lr:g}, {finetune_epochs} epochs")
+        n_par = sum(int(np.prod(w.shape)) for w in head.trainable_weights)
+        print(f"   unfreezing {blocks}: {len(released)} layers in the graph, "
+              f"{n_par/1e6:.2f}M trainable params, lr {finetune_lr:g}, "
+              f"{finetune_epochs} epochs")
+        if inert:
+            print(f"   ! {len(inert)} requested layers are downstream of the "
+                  f"{TAP_LAYER} tap and get no gradient: {', '.join(inert)}")
+        if not released:
+            print(f"   ! nothing was released -- this run is not fine-tuned. "
+                  f"With the tap at {TAP_LAYER}, --unfreeze must be >= 1 "
+                  f"counting back from block{tap_block}.")
         ft_cb = []
         if patience:
             ft_cb.append(tf.keras.callbacks.EarlyStopping(
