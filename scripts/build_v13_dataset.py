@@ -689,6 +689,70 @@ def report(manifest):
         print(f"  hold out {s:8s} -> train on {keep} clips, {drop} withheld")
 
 
+def drop_cross_label_duplicates(df):
+    """Remove clips whose audio appears under a second label.
+
+    A file copied into a curated folder and left in the folder it came from is
+    one sound taught as two things, and the filenames differ so nothing upstream
+    notices. Found in the current build: two clips present as both
+    ``auto_flagged_fp`` Background and ``Colobus_confuser``, under different
+    names, identical by content hash.
+
+    Two out of 31 194 is not why this exists. It exists because the failure is
+    silent, the cost of checking is one hash per clip, and the loop that
+    produces these -- review a detection, copy it into a class folder -- runs
+    every time a person adjudicates anything, so the count only goes up.
+
+    The keeper is the row whose source is most specific about provenance:
+    a reviewed or curated label beats a machine-flagged one, because the
+    machine-flagged copy is the one nobody looked at.
+    """
+    import hashlib
+
+    rank = {"review": 0, "reference": 1, "colobus_field_fp": 2,
+            "auto_flagged_fp": 3, "birdnet": 4}
+
+    def priority(src):
+        return rank.get(str(src).split(":")[0], 9)
+
+    digest, missing = {}, 0
+    for p in df["path"]:
+        ap = os.path.join(REPO, str(p).replace("\\", "/"))
+        if not os.path.exists(ap):
+            missing += 1
+            digest[p] = None
+            continue
+        h = hashlib.md5()
+        with open(ap, "rb") as fh:
+            for b in iter(lambda: fh.read(1 << 20), b""):
+                h.update(b)
+        digest[p] = h.hexdigest()
+
+    d = df.assign(_h=df["path"].map(digest))
+    labelled = (d.dropna(subset=["_h"])
+                 .groupby("_h")["label"].nunique())
+    clashing = set(labelled[labelled > 1].index)
+    if not clashing:
+        print(f"\nCross-label duplicates: none "
+              f"({len(d) - missing} clips hashed)")
+        return df
+
+    drop = []
+    for h in clashing:
+        rows = d[d._h == h]
+        keep = rows.assign(_p=rows["source"].map(priority)).sort_values("_p").index[0]
+        drop.extend([i for i in rows.index if i != keep])
+    kept = d.loc[[i for i in d.index if i not in set(drop)]]
+    print(f"\nCross-label duplicates: {len(clashing)} audio files carried more "
+          f"than one label; dropped {len(drop)} rows, kept the best-attested "
+          f"copy of each")
+    for h in list(clashing)[:5]:
+        rows = d[d._h == h]
+        print(f"    {' / '.join(sorted(set(rows.label)))}: "
+              f"{os.path.basename(str(rows.path.iloc[0]))}")
+    return kept.drop(columns="_h").reset_index(drop=True)
+
+
 def main():
     ap = argparse.ArgumentParser(
         description=__doc__,
@@ -764,6 +828,7 @@ def main():
         for f in ("outputs/background_scores.csv", "outputs/birdnet_scores.csv"):
             manifest = drop_call_like_negatives(
                 manifest, os.path.join(DATA, f), args.drop_call_like)
+    manifest = drop_cross_label_duplicates(manifest)
     if args.augment_to:
         print(f"\nAugmenting the target classes to {args.augment_to} rows each")
         manifest = augment_to_target(manifest, args.augment_to)
