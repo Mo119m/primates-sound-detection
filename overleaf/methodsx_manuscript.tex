@@ -522,8 +522,12 @@ output sequence is summarized by concatenating global max pooling and global
 average pooling over the time axis, producing a 512-dimensional vector that
 retains both peak activation and average energy. This vector passes through
 two dense layers (512 units, ReLU, dropout 0.5; then 256 units, ReLU, dropout
-0.5) and a final four-way softmax output (Cernic, Colobus\_guereza,
-Colobus\_confuser, Background).
+0.5) and a final softmax over the trained classes. The deployed model has four
+(Cernic, Colobus\_guereza, Colobus\_confuser, Background); the retrained heads
+evaluated in Table~\ref{tab:loso} have five, the fifth being \textit{C.\
+pogonias} for the reasons given under Limitations. Both were read from the saved
+graphs rather than from the configuration file, which records only the current
+setting and would have reported five for each.
 
 \begin{figure}[H]
 \centering
@@ -532,7 +536,9 @@ Colobus\_confuser, Background).
 feature map) is augmented with a frequency-coordinate (CoordConv) channel, then
 split into four mel-frequency bands processed by per-band and cross-band 1-D
 convolutions, summarized by a bidirectional LSTM with combined global max- and
-average-pooling, and classified by two dense layers and a four-way softmax. The
+average-pooling, and classified by two dense layers and a softmax --- drawn here
+with the deployed model's four outputs; the retrained heads add a fifth for
+\textit{C.\ pogonias}. The
 frequency-position encoding and the per-band split are the components added to
 suppress \textit{Colobus} false positives. Output tensor shapes are shown on
 the right.}
@@ -1333,15 +1339,27 @@ Two limits keep this from being stronger than it is. The reference is the
 deployed model's detections after adjudication, so ``91 of 100'' is recall
 against \emph{that model's} positives and not against the calls present in the
 audio; a configuration that genuinely found new calls would be indistinguishable
-here from one that had started firing on new noise. And the three runs share the
-pre-correction dataset: trained frozen on the corrected dataset the same
-architecture reaches 0.962 at IPA4ST and 0.965 macro across the three folds
-(\texttt{data/outputs/v13\_runs/armA\_corrections/loso.csv}), so the 0.169 is a
-property of that dataset rather than of freezing, and the 0.169-to-0.979 span
-must not be read as the value of fine-tuning. What survives both limits is the
-dissociation itself, which is measured within each run and does not depend on
-what the span means: the number this method is tuned on moved by 0.81 without
-moving what the scanner recovered.
+here from one that had started firing on new noise. And the 0.169 baseline is not
+a stable property of freezing. The same frozen architecture, the same held-out
+station, differing only in which clips were in the training set and whether
+training stopped early, gives: 0.925 on that dataset with early stopping off
+(\texttt{loso\_mixed.csv}, 15 epochs, no patience); 0.169 on that same dataset
+with patience 3 (\texttt{out\_frozen.csv}); 0.962 with patience 3 on the dataset
+after nineteen expert-rejected clips were moved into the confuser class
+(\texttt{armA\_corrections/loso.csv}); and 0.698 on the earlier dataset behind
+Table~\ref{tab:loso} --- which prints 0.957 for IPA4ST because that column is
+time-gated, the ungated 0.698 being the figure comparable with the runs quoted
+here. Four runs of one architecture at one station, spanning 0.79, with no
+architectural difference between them at all. The 0.169-to-0.979 span therefore
+cannot be reported as the value of fine-tuning; it is not the value of any single
+thing.
+
+That instability does not weaken the dissociation, it is the same finding
+approached from the other side. The quantity that swings by 0.79 under choices
+of training-set version and stopping rule is the held-out precision --- the
+number this method is tuned on. The quantity that does not move, across every
+configuration we have run at three stations, is which calls the scanner
+recovers.
 
 Fifth, holding out a station does not by itself hold out an event. A
 \textit{C.\ nictitans} call carries far enough to reach two recorders, and a bout
@@ -1867,8 +1885,14 @@ are comparable with each other.
 The obvious remedy is to stop the class from being missing. The species expert
 identified the daytime false positives by ear as \textit{Cercopithecus
 pogonias}, a congener of the target, so we added it as a fifth trained class
-built from 150 library recordings and routed to Background at detection time in
-the same way as the confuser class, and repeated the entire sixteen-fold sweep.
+built from 150 library recordings and repeated the entire sixteen-fold sweep.
+It was routed to Background at detection time, like the confuser class, when
+this ablation was run; in the pipeline as it now stands the same expert asked
+for \textit{C.\ pogonias} to be reported rather than discarded, so it has a
+detection group of its own (\texttt{config.DETECTION\_GROUPS}). Either routing
+keeps its probability mass out of the \textit{C.\ nictitans} group, which is
+what the ablation tested; the difference is only whether such a window is
+reported to the user or dropped.
 It changes almost nothing. Precision moves from 0.954 to 0.953 and recall from
 0.860 to 0.866, an F-measure of 0.904 against 0.907. Ten of sixteen folds improve
 and six worsen, with a median change of $+0.0005$ and no fold moving by more than
@@ -1901,10 +1925,19 @@ detections the expert rejected sit with the audio rather than with the training
 material. The axis that matters is provenance, not habitat, and it is measurable
 rather than rhetorical.
 
-Table~\ref{tab:loso} reports the configuration without this class, on the
-grounds that it is simpler to reproduce and requires no additional audio, not on
-the grounds that it performs better. We report the attempt because a null result
-on the obvious fix is more useful to a practitioner than its absence.
+Table~\ref{tab:loso} reports the configuration \emph{with} this class. An
+earlier version of this manuscript said the opposite, and the run metadata
+settles it: the table is reproduced row for row, to the last printed decimal, by
+\texttt{loso\_augmented.csv} in the
+\texttt{20260808T075704Z\_verified\_pruning\_fix} run directory, whose
+\texttt{run.json} records \texttt{drop\_pogonias = False} and 3\,000
+\textit{C.\ pogonias} training rows among 37\,893. The sibling run that drops
+the class covers only fourteen of the sixteen stations and could not have
+produced a sixteen-row table. We report the null above because a null result on
+the obvious fix is more useful to a practitioner than its absence --- but the
+configuration the table measures is the five-class one, and the null says the
+choice between them costs little either way rather than that the table avoids
+the class.
 
 The automatic cleanup carries its own caveats. It introduces a circular bias,
 because hard negatives are scored by the same model that produced them, so
