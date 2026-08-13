@@ -1289,6 +1289,60 @@ the feature-extraction step and would leave the fold structure, the fitted
 threshold and the post-processing chain untouched; we did not make it here
 because the contribution is the protocol around the classifier, not the
 classifier.
+
+That one-sidedness has since been removed, and what it produced is the sharpest
+statement this study can make about its own evaluation metric. The trunk was
+released in two steps --- block4, then block3 and block4 together --- on the same
+dataset, the same three folds, the same head and the same schedule as the frozen
+run, so that the three runs differ in nothing else; each scores the identical
+evaluation populations (447 detections and 416 calls at IPA20ST, 280 and 184 at
+IPA13ST, 2\,470 and 100 at IPA4ST). Held-out precision at IPA4ST is 0.169 frozen,
+0.889 with block4 released and 0.979 with block3 and block4 released
+(\texttt{data/outputs/v13\_runs/colab\_unfreeze/}). Each of the three was then
+reassembled into a whole model and run as a \emph{scanner} over the 112 IPA4ST
+recordings between 05:00 and 19:00 --- the station all three folds withheld.
+
+They recover the same calls. Of the 100 calls the review confirms at IPA4ST,
+each of the three recovers 91, and it is the same 91: the recovered sets were
+compared as sets rather than as counts, and no call is found by any
+configuration and missed by another
+(\texttt{data/outputs/scan\_vs\_heldout.csv}). Precision on the windows a human
+has adjudicated is 0.875, 0.859 and 0.875. \emph{Across a held-out range of
+0.81, the ear-checked scanning precision moves by 0.016 and the recovered set
+does not move at all.}
+
+The other two folds of the same runs agree. At IPA20ST the frozen and block4
+models each recover all 416 confirmed calls, and the same 416; at IPA13ST each
+recovers all 184, and the same 184. Three stations, up to three configurations,
+zero calls unique to any of them.
+
+What does change is where the models fire, and not in a consistent direction.
+Relative to frozen, releasing block4 adds 163 detections at IPA4ST (472 to 635)
+and removes 165 at IPA20ST (1\,029 to 864); releasing block3 as well gives 516 at
+IPA4ST. Fine-tuning redistributes the false positives rather than reducing them,
+and whether the redistribution is an improvement cannot be settled from this
+review at all, because the windows unique to one model are overwhelmingly windows
+no one has listened to. Of the 505 target-species detections blocks 3+4 makes at
+IPA4ST, 103 have no frozen detection within two seconds, and 97 of those 103 have
+never been given a verdict by anyone; in the other direction 74 of frozen's 460
+are its own and 66 of them are unheard
+(\texttt{data/outputs/scan\_unique\_windows.csv}). Equal-probability samples of
+these windows are with the species expert.
+
+Two limits keep this from being stronger than it is. The reference is the
+deployed model's detections after adjudication, so ``91 of 100'' is recall
+against \emph{that model's} positives and not against the calls present in the
+audio; a configuration that genuinely found new calls would be indistinguishable
+here from one that had started firing on new noise. And the three runs share the
+pre-correction dataset: trained frozen on the corrected dataset the same
+architecture reaches 0.962 at IPA4ST and 0.965 macro across the three folds
+(\texttt{data/outputs/v13\_runs/armA\_corrections/loso.csv}), so the 0.169 is a
+property of that dataset rather than of freezing, and the 0.169-to-0.979 span
+must not be read as the value of fine-tuning. What survives both limits is the
+dissociation itself, which is measured within each run and does not depend on
+what the span means: the number this method is tuned on moved by 0.81 without
+moving what the scanner recovered.
+
 Fifth, holding out a station does not by itself hold out an event. A
 \textit{C.\ nictitans} call carries far enough to reach two recorders, and a bout
 that appears at a training station and at the held-out station would let the
@@ -1770,6 +1824,45 @@ exploit the fact that the target species occupy distinct frequency ranges
 (low-frequency \textit{Colobus} roars versus high-frequency birds and insects),
 and they therefore offer little leverage against a confuser that overlaps the
 target in both frequency and temporal structure.
+
+The frequency-position encoding and the four-band split are the two components
+this head adds over a conventional CRNN, and the argument for them above is a
+mechanistic one that we had not tested. Both were ablated on six of the sixteen
+stations (IPA1ST, IPA4ST, IPA10ST, IPA13ST, IPA17ST, IPA20ST) with the data,
+the folds and the training schedule held fixed and only the head varied:
+\texttt{temporal}, which pools the frequency axis away entirely;
+\texttt{temporal\_freq}, which adds the four-band split; and
+\texttt{temporal\_freqpos}, the deployed head, which adds the CoordConv channel
+on top of the split. Held-out precision at the fold-fitted threshold averages
+0.822, 0.792 and 0.854 across the six folds.
+
+The deployed head wins on that mean by 0.032, and the mean is the wrong way to
+read it. Paired station by station, deployed minus simplest is $+0.007$, $0.000$,
+$+0.022$, $+0.054$, $+0.433$ and $-0.321$: standard deviation 0.240, four of six
+positive. Four stations show nothing and the mean is produced entirely by two
+that move in \emph{opposite} directions by more than a third each, so with
+$n = 6$ it sits about a third of a standard error from zero. The middle variant
+is also worse than the simplest (0.792 against 0.822), so the ordering is not
+monotone in complexity --- what one expects when between-station variance
+dominates the effect being measured.
+
+Decomposed, the picture is slightly more favourable and still not resolvable. At
+the same fitted thresholds the deployed head retains 0.934 of the calls against
+the simplest head's 0.938, a difference of $-0.004$, while removing 0.798 of the
+false positives against 0.693, a difference of $+0.105$ that is non-negative at
+five of the six stations. That is a more consistent signal in sign than the
+precision comparison, but it is still 1.8 standard errors from zero at $n = 6$.
+
+What this licenses is narrow, and we state it rather than the mean. The
+frequency-aware head is not shown by this measurement to be worth its
+complexity, and it is not shown to be harmful either; six folds cannot resolve a
+0.03 difference against a 0.24 spread. A reader reproducing this pipeline should
+treat the head as a design choice supported by a mechanism and not by a test,
+and the simplest variant as a reasonable starting point. Like the class ablation
+below, this one was run on six folds rather than sixteen for compute reasons and
+after the negative-class screen was corrected, so its level is not comparable
+with Table~\ref{tab:loso}; its three arms, which share data and folds exactly,
+are comparable with each other.
 
 The obvious remedy is to stop the class from being missing. The species expert
 identified the daytime false positives by ear as \textit{Cercopithecus
