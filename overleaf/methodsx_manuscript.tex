@@ -1317,15 +1317,31 @@ has adjudicated is 0.875, 0.859 and 0.875. \emph{Across a held-out range of
 0.81, the ear-checked scanning precision moves by 0.016 and the recovered set
 does not move at all.}
 
-The other two folds of the same runs agree. At IPA20ST the frozen and block4
-models each recover all 416 confirmed calls, and the same 416; at IPA13ST each
-recovers all 184, and the same 184. Three stations, up to three configurations,
-zero calls unique to any of them.
+At IPA13ST the same thing happens: all three recover all 184 confirmed calls,
+and the same 184. At IPA20ST it does not, and the exception is worth more than
+the rule. Frozen and block4 each recover all 416; blocks 3+4 recovers 405. The
+eleven it misses are found by both of the others, it finds none that they miss,
+and they are not eleven independent events --- nine are one calling bout in a
+single recording (seconds 100--145 of
+\texttt{S20210224T125953159}) and the remaining two are consecutive seconds in
+another. It is not a coverage artefact: blocks 3+4 scanned both recordings and
+fired eleven and two times inside them respectively, at different positions.
 
-What does change is where the models fire, and not in a consistent direction.
-Relative to frozen, releasing block4 adds 163 detections at IPA4ST (472 to 635)
-and removes 165 at IPA20ST (1\,029 to 864); releasing block3 as well gives 516 at
-IPA4ST. Fine-tuning redistributes the false positives rather than reducing them,
+That exception sharpens the point rather than blunting it. Held-out precision at
+IPA20ST is 0.969, 0.971 and 0.970 for the three configurations --- a spread of
+0.002, which says they are indistinguishable. On the audio one of them loses a
+whole calling bout the other two recover, and in exchange has the highest
+ear-checked precision of the three (0.964 against 0.959 and 0.961). A
+precision--recall trade of that size is a real difference between models, and
+the metric the method is tuned on could not see it in either direction: it
+reported a difference of 0.81 at IPA4ST where the models behaved identically,
+and a difference of 0.002 here where they did not.
+
+What changes everywhere is where the models fire, and not in a consistent
+direction. Relative to frozen, releasing block4 adds 163 detections at IPA4ST
+(472 to 635) and removes 165 at IPA20ST (1\,029 to 864); releasing block3 as
+well gives 516 at IPA4ST and 751 at IPA20ST, the fewest of the three at that
+station. Fine-tuning redistributes the false positives rather than reducing them,
 and whether the redistribution is an improvement cannot be settled from this
 review at all, because the windows unique to one model are overwhelmingly windows
 no one has listened to. Of the 505 target-species detections blocks 3+4 makes at
@@ -1357,9 +1373,17 @@ thing.
 That instability does not weaken the dissociation, it is the same finding
 approached from the other side. The quantity that swings by 0.79 under choices
 of training-set version and stopping rule is the held-out precision --- the
-number this method is tuned on. The quantity that does not move, across every
-configuration we have run at three stations, is which calls the scanner
-recovers.
+number this method is tuned on.
+
+The claim this licenses is a decoupling, not a constancy, and the distinction
+matters because an earlier draft of this section overstated it. Across the
+configurations run here the recovered set moved once, at one station, by eleven
+calls in two bouts; the held-out figure moved by 0.81 at a station where the
+recovered set did not move at all, and by 0.002 at the station where it did.
+Held-out precision and field recall are not merely imperfectly correlated in
+these runs --- they are uninformative about each other in both directions. That
+is the property a practitioner needs to know about before tuning on the first
+and deploying on the second.
 
 Fifth, holding out a station does not by itself hold out an event. A
 \textit{C.\ nictitans} call carries far enough to reach two recorders, and a bout
