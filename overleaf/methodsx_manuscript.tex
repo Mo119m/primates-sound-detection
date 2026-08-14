@@ -1319,6 +1319,19 @@ not a stronger one: a majority of heads fire on one clip where the deployed
 model fired on three, and the same clip can score 0.0001 under one fold's head
 and 0.9881 under another's. Read that alongside the fourth limit below before
 concluding anything from it.
+
+The same blindness applies to \textit{C.\ pogonias}, and there it is worse,
+because that class is not a confuser routed away but a \emph{reported detection
+target} (\S\,Limitations, \texttt{config.DETECTION\_GROUPS}). Every one of the
+6\,189 reviewed detections is a \textit{C.\ nictitans} candidate --- the review
+has one value in its species column --- so Table~\ref{tab:loso} scores
+\textit{C.\ nictitans} and nothing else. Two of the five trained classes reach
+the user as detections and only one of them is measured anywhere in this paper.
+A reader adopting the five-class configuration should know that its second
+output class is untested here: not weakly supported, untested. Establishing a
+precision for it needs what establishing one for \textit{C.\ nictitans} needed,
+a reviewed set of its own detections, and that review does not exist.
+
 Fourth, the retrained model keeps the VGG19 trunk frozen at its ImageNet
 weights, where the deployed model fine-tuned it; the comparison is therefore
 one-sided. A gain measured this way is real, but a deficit measured this way
