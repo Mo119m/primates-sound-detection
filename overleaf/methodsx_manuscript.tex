@@ -839,6 +839,20 @@ field measurement on stations the model has never heard
 same way. A curated-pool accuracy, honestly split or otherwise, did not predict
 what happened in the forest.
 
+That recommendation needs one qualification, which we can make because we later
+tested it on ourselves. Table~\ref{tab:loso} is a better measurement than
+validation accuracy, but it is still a \emph{re-ranking} measurement: it scores
+a model on the candidate list some other model produced. Under Limitations we
+report configurations whose held-out precision differs by 0.81 at one station
+and which recover exactly the same calls when run over raw audio, and
+configurations whose held-out precision differs by 0.002 at another station and
+which do not. Held-out re-ranking precision is therefore not a proxy for
+scanning behaviour in either direction, and a reader choosing between two models
+on the strength of Table~\ref{tab:loso} alone may be choosing on noise. The
+measurement that separated them was a scan of raw audio at a held-out station
+with the results checked by ear. It is more expensive than either table in this
+paper, and on this evidence it is the one that decides anything.
+
 \begin{figure}[H]
 \centering
 \includegraphics[width=\linewidth]{Figure_3.pdf}
