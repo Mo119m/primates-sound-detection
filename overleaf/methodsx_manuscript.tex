@@ -1432,16 +1432,38 @@ one station, spanning 0.79, with no architectural difference between them at
 all. The 0.169-to-0.979 span therefore cannot be reported as the value of
 fine-tuning; it is not the value of any single thing.
 
-A fifth run bounds how much of that is simply noise. The sixteen-fold sweep
-behind Table~\ref{tab:loso} shares its dataset, its stopping rule, its seed and
-its architecture with the third of those runs, and differs only in being asked
-for sixteen folds instead of three; at IPA4ST it gives 0.924 where the
-three-fold run gave 0.962. So roughly 0.04 of the spread is run-to-run
-variation that nothing in the experimental design controls, and the rest is
-attributable to the training set and the stopping rule. All figures in this
-paragraph are ungated, which is what makes them comparable with each other;
-Table~\ref{tab:loso} prints the time-gated column and so shows 0.978 for the
-same fold.
+Repeating the specification bounds how much of that spread is attributable to
+anything, and the answer is that most of it may be attributable to nothing.
+Three runs of a single specification --- frozen backbone, the corrected dataset,
+15 epochs, patience 3, seed 42 --- give at IPA4ST \textbf{0.962}, \textbf{0.924}
+and \textbf{0.077}. Two ran on the laptop, asked for three folds and for sixteen;
+the third ran on a Colab T4. Nothing separates them that the design intends to
+matter.
+
+The instability is specific rather than general, which is what makes it
+diagnostic rather than merely discouraging. Across those same three runs IPA20ST
+gives 0.9684, 0.9684 and 0.9682, and IPA13ST gives 0.9649, 0.9643 and 0.9591.
+Only IPA4ST moves, and it moves by 0.885.
+
+The reason is in Table~\ref{tab:loso}'s own columns. IPA4ST's evaluation pool is
+100 calls among 2\,470 detections, a base rate of 4.0\,\%; the next most extreme
+station is IPA11ST at 20.8\,\% and the median station is above 60\,\%. Precision
+on a 4\,\% base rate is a knife edge --- at the deployment threshold, keeping 45
+of the 2\,370 false positives gives 0.690 and keeping 1\,059 gives 0.085 --- and
+which side of that a run lands on depends on where early stopping happens to
+halt. The Colab run stopped at epoch 2.
+
+This is the real reason the 0.169-to-0.979 span cannot be read as the value of
+fine-tuning, and it is a stronger reason than the confounding described above.
+\emph{Every figure in that span is an IPA4ST figure}, and IPA4ST is the one fold
+of sixteen where held-out precision is not a stable quantity. We report the span
+because it is what first suggested that unfreezing was worth testing, and
+because a reader tempted to act on a single fold's precision should see what
+happened when we did.
+
+All figures in this paragraph are ungated, which is what makes them comparable
+with each other; Table~\ref{tab:loso} prints the time-gated column and so shows
+0.978 for the same fold.
 
 That instability does not weaken the dissociation, it is the same finding
 approached from the other side. The quantity that swings by 0.79 under choices
