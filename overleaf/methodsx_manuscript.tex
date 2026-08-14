@@ -1320,19 +1320,30 @@ does not move at all.}
 At IPA13ST the same thing happens: all three recover all 184 confirmed calls,
 and the same 184. At IPA20ST it does not, and the exception is worth more than
 the rule. Frozen and block4 each recover all 416; blocks 3+4 recovers 405. The
-eleven it misses are found by both of the others, it finds none that they miss,
-and they are not eleven independent events --- nine are one calling bout in a
-single recording (seconds 100--145 of
-\texttt{S20210224T125953159}) and the remaining two are consecutive seconds in
-another. It is not a coverage artefact: blocks 3+4 scanned both recordings and
-fired eleven and two times inside them respectively, at different positions.
+eleven it misses are found by both of the others and it finds none that they
+miss, so the direction is a loss rather than an exchange. They are also not
+eleven independent events, and what they are matters for how much the loss
+costs. All eleven fall in two recordings. In the first, the review marks
+eighteen calls between seconds 100 and 179 --- one long bout; blocks 3+4
+recovers the nine from second 149 onwards and misses the nine before it, so the
+bout is still detected, just later and half as densely. In the second, the
+review marks two calls, at seconds 1\,029 and 1\,030, and blocks 3+4 recovers
+neither; its only two detections in that recording sit at 996--997, where the
+deployed model also fired and where the review records no call. That recording
+is a genuine miss at the level a survey cares about: the species is present, was
+detected by the other two configurations, and would not have been reported by
+this one.
+
+It is not a coverage artefact. Blocks 3+4 read both recordings and fired eleven
+and two times inside them, at other positions.
 
 That exception sharpens the point rather than blunting it. Held-out precision at
 IPA20ST is 0.969, 0.971 and 0.970 for the three configurations --- a spread of
-0.002, which says they are indistinguishable. On the audio one of them loses a
-whole calling bout the other two recover, and in exchange has the highest
-ear-checked precision of the three (0.964 against 0.959 and 0.961). A
-precision--recall trade of that size is a real difference between models, and
+0.002, which says they are indistinguishable. On the audio one of them fails to
+report a recording in which the species is present and the other two report it,
+and in exchange has the highest ear-checked precision of the three (0.964
+against 0.959 and 0.961). A precision--recall trade of that size is a real
+difference between models, and
 the metric the method is tuned on could not see it in either direction: it
 reported a difference of 0.81 at IPA4ST where the models behaved identically,
 and a difference of 0.002 here where they did not.
