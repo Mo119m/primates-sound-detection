@@ -1454,19 +1454,24 @@ which side of that a run lands on depends on where early stopping happens to
 halt. The Colab run stopped at epoch 2.
 
 What makes that base rate so extreme is worth stating, because it also bounds
-how much the figure could have mattered. IPA4ST's false positives are one
-nocturnal animal calling in long bouts: 2\,330 of the 2\,370, or 98.3\,\%, fall
-between 19:00 and 05:00, and 1\,624 of them are in two consecutive recordings
-beginning at 03:00 and 03:30 on a single night. The deployment does not look
-there. Under the 05:00--19:00 window the station's 2\,470 detections become 131,
-which is why Table~\ref{tab:loso} reports 131 for IPA4ST and why its gated
-precision is a stable 0.978 while its ungated precision is anything at all. The
-quantity that swings by 0.885 is therefore computed almost entirely on material
-the pipeline discards before a user ever sees it.
+how much the figure could have mattered. IPA4ST's false positives are
+concentrated in time rather than spread through its recordings: 2\,330 of the
+2\,370, or 98.3\,\%, fall between 19:00 and 05:00, 1\,624 of them are in two
+consecutive recordings beginning at 03:00 and 03:30 on a single night, and the
+station averages 36.3 detections per episode against roughly six elsewhere. The
+deployment does not look there. Under the 05:00--19:00 window the station's
+2\,470 detections become 131, which is why Table~\ref{tab:loso} reports 131 for
+IPA4ST and why its gated precision is a stable 0.978 while its ungated precision
+is anything at all. The quantity that swings by 0.885 is therefore computed
+almost entirely on material the pipeline discards before a user ever sees it.
 
-We note in passing that this animal has never been identified. It is recorded in
-our own data only as ``an untrained species calling in long bouts'', and the
-diurnal congener that accounts for the daytime false positives cannot be it.
+What produces those detections is unknown. Nobody has listened to them: all
+2\,370 carry the reviewer's verdict \texttt{Noise} and no identification, and
+our own notes describe them only as ``an untrained species calling in long
+bouts''. The clustering above is consistent with a single nocturnal caller and
+we have written it that way internally, but that is an inference from timestamps
+and not a determination; a sample is with the species expert, and until it comes
+back neither the number of sources nor their identity is established here.
 
 This is the real reason the 0.169-to-0.979 span cannot be read as the value of
 fine-tuning, and it is a stronger reason than the confounding described above.
