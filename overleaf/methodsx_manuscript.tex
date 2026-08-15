@@ -1453,6 +1453,21 @@ of the 2\,370 false positives gives 0.690 and keeping 1\,059 gives 0.085 --- and
 which side of that a run lands on depends on where early stopping happens to
 halt. The Colab run stopped at epoch 2.
 
+What makes that base rate so extreme is worth stating, because it also bounds
+how much the figure could have mattered. IPA4ST's false positives are one
+nocturnal animal calling in long bouts: 2\,330 of the 2\,370, or 98.3\,\%, fall
+between 19:00 and 05:00, and 1\,624 of them are in two consecutive recordings
+beginning at 03:00 and 03:30 on a single night. The deployment does not look
+there. Under the 05:00--19:00 window the station's 2\,470 detections become 131,
+which is why Table~\ref{tab:loso} reports 131 for IPA4ST and why its gated
+precision is a stable 0.978 while its ungated precision is anything at all. The
+quantity that swings by 0.885 is therefore computed almost entirely on material
+the pipeline discards before a user ever sees it.
+
+We note in passing that this animal has never been identified. It is recorded in
+our own data only as ``an untrained species calling in long bouts'', and the
+diurnal congener that accounts for the daytime false positives cannot be it.
+
 This is the real reason the 0.169-to-0.979 span cannot be read as the value of
 fine-tuning, and it is a stronger reason than the confounding described above.
 \emph{Every figure in that span is an IPA4ST figure}, and IPA4ST is the one fold
