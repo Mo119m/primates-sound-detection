@@ -753,6 +753,57 @@ def drop_cross_label_duplicates(df):
     return kept.drop(columns="_h").reset_index(drop=True)
 
 
+def drop_excluded(df, csv_path):
+    """Drop clips a person has ruled out, listed by filename in a CSV.
+
+    Kept separate from the collectors because the reasons are human decisions
+    that arrive after the fact and have to be auditable: the CSV carries a
+    `reason` and a `decided_by` per clip, and lives in data/labels/ with the
+    other irreproducible human labels rather than being hard-coded here.
+    """
+    if not csv_path or not os.path.exists(csv_path):
+        return df, 0
+    ex = pd.read_csv(csv_path)
+    names = set(ex["file"].astype(str))
+    hit = df["path"].map(lambda p: os.path.basename(str(p)) in names)
+    if hit.any():
+        by = ex.groupby("reason").size().to_dict() if "reason" in ex else {}
+        for reason, n in by.items():
+            print(f"    {n:5d} listed: {reason}")
+    return df[~hit].reset_index(drop=True), int(hit.sum())
+
+
+def drop_sources(df, names):
+    """Drop whole provenance groups, matching the source name EXACTLY.
+
+    Exact and not a prefix, which was the first version and was wrong in a way
+    worth recording. Sources here are colon-separated refinements of a common
+    stem: `auto_flagged_fp` is the block nobody listened to, but
+    `auto_flagged_fp:confirmed_fp` is 317 clips a person confirmed and
+    `auto_flagged_fp:RECOVERED_CALL` is 70 clips a person confirmed are real
+    C. nictitans calls. A prefix match on "auto_flagged_fp" swept up all three
+    and deleted verified positives -- the exact opposite of the intent, and
+    invisible except as a class count two lower than expected.
+
+    So dropping a stem never touches its refinements; list them separately if
+    that is really what you want.
+    """
+    if not names:
+        return df, 0
+    src = df["source"].astype(str)
+    hit = pd.Series(False, index=df.index)
+    for p in names:
+        m = src.eq(p)
+        if m.any():
+            print(f"    {int(m.sum()):5d} rows from source '{p}'")
+        else:
+            print(f"    ! nothing matched source '{p}' exactly; "
+                  f"related sources present: "
+                  f"{sorted(s for s in src.unique() if str(s).startswith(p))}")
+        hit |= m
+    return df[~hit].reset_index(drop=True), int(hit.sum())
+
+
 def main():
     ap = argparse.ArgumentParser(
         description=__doc__,
@@ -760,6 +811,16 @@ def main():
     ap.add_argument("--out", default=os.path.join(DATA, "outputs/v13_manifest.csv"))
     ap.add_argument("--no-birdnet", action="store_true",
                     help="skip the external-drive bird segments")
+    ap.add_argument("--exclude", default="", metavar="CSV",
+                    help="CSV with a 'file' column naming clips to keep out of "
+                         "training, plus 'reason' and 'decided_by'. Applied "
+                         "before augmentation, so an excluded clip is never "
+                         "replicated.")
+    ap.add_argument("--drop-source", action="append", default=[], metavar="PREFIX",
+                    help="Drop every row whose source starts with PREFIX. "
+                         "Repeatable. For blocks no person has listened to, "
+                         "where the honest default is to leave them out rather "
+                         "than train on an assumption.")
     ap.add_argument("--drop-call-like", type=float, default=0.0, metavar="T",
                     help="Drop Background clips scoring at or above T on any "
                          "target group, using data/outputs/birdnet_scores.csv. "
@@ -829,6 +890,19 @@ def main():
             manifest = drop_call_like_negatives(
                 manifest, os.path.join(DATA, f), args.drop_call_like)
     manifest = drop_cross_label_duplicates(manifest)
+
+    # Both of these run before augmentation on purpose: replicating a clip
+    # twenty times and then removing it wastes the work, and removing it after
+    # a partial replication would leave an inconsistent set.
+    if args.drop_source:
+        print("\nDropping sources nobody has listened to:")
+        manifest, n = drop_sources(manifest, args.drop_source)
+        print(f"  dropped {n} rows")
+    if args.exclude:
+        print("\nApplying the expert exclusion list:")
+        manifest, n = drop_excluded(manifest, args.exclude)
+        print(f"  dropped {n} rows")
+
     if args.augment_to:
         print(f"\nAugmenting the target classes to {args.augment_to} rows each")
         manifest = augment_to_target(manifest, args.augment_to)
