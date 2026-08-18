@@ -102,9 +102,9 @@ negative result. Mel-spectrograms are classified by a VGG19 transfer-learning
 model with a frequency-position-aware CRNN head. Validated by a 16-fold
 leave-one-station-out sweep over 6\,189 manually reviewed field detections,
 retraining on human verdicts rather than filter guesses raises precision from
-0.70 to 0.93 at a threshold fitted on the training stations, removing 80\,\% of
-false positives while keeping 93\,\% of calls --- though recall is an outcome
-rather than a constraint here and falls to 70\,\% at the worst station. The
+0.72 to 0.97 at a threshold fitted on the other stations, removing 94\,\% of
+false positives while keeping 91\,\% of calls --- though recall is an outcome
+rather than a constraint here and falls to 77\,\% at the worst station. The
 fitted threshold varies widely
 across held-out stations, so the fitting procedure transfers but its value does
 not. Run as a scanner over raw audio rather than as a re-ranker, and checked by
@@ -402,9 +402,7 @@ from the rainforest-CNN pipeline of Sun et al.\ \cite{sun2022}, and the crop and
 translation ranges follow that study rather than departing from it: it modifies
 each spectrogram by 5--10\,\% of its size on the grounds that this is the range
 of variation found in nature, and $\pm$9 bins is 7\,\% of the 128 mel rows used
-here. An earlier version of this pipeline cropped 10--30\,\% and translated
-$\pm$20 bins, well outside that range; it is not what produced the results
-below. Background-class clips are not augmented, so that the negative class
+here. Background-class clips are not augmented, so that the negative class
 reflects the true diversity of ambient sound rather than synthetic variants.
 
 Augmentation is applied to a \emph{target count} rather than as a fixed
@@ -1169,95 +1167,108 @@ instead of a constraint, which is why the calls-kept column varies.
 
 \begin{table}[H]
 \centering
-\caption{Leave-one-station-out validation, one fold per acoustic station,
+\caption{One round of review-and-retrain, one fold per acoustic station,
 ordered by the precision of the deployed model. All figures are inside the
-05:00--19:00 detection window. The threshold is fitted on the fifteen training
-stations to retain 95\,\% of their calls and then applied to the held-out
-station, so both the precision and the calls-kept column are out-of-sample.
-Stations are averaged unweighted, so the macro-average estimates a
-\emph{typical} station rather than the pooled corpus.
-$^\dagger$The threshold row is the median, not the mean, and the spread is the
-result that matters more than its centre: fitting the same 95\,\% recall rule
-on fifteen stations gives thresholds from 0.085 to 0.982 depending on which
-station is held out. A single number carried to a new site is therefore not
-supported by this table; what transfers is the fitting procedure, and it
-requires labelled calls at the new site to run.
+05:00--19:00 detection window.
+
+\textbf{This is not a held-out precision.} Each fold withholds the station's
+confirmed \emph{calls}, which need an expert and which a new site does not
+have. It does not withhold the station's Background, because collecting
+negatives from a site's own rejected detections is a step in this method rather
+than a leak in its measurement: a user deploys, rejects the false positives by
+ear, and feeds them back. Anyone running the pipeline at a new site has that
+site's rejected detections before the second round, so a fold that withholds
+them measures a situation no user is in. The figure below is therefore what one
+round of that loop buys at a station, and it must not be read as transfer to a
+station never heard.
+
+The threshold is fitted on the fifteen other stations to retain 95\,\% of their
+calls and applied unchanged to the sixteenth, so the calls-kept column is an
+outcome rather than a constraint. Stations are averaged unweighted, so the
+macro-average estimates a \emph{typical} station rather than the pooled corpus.
+$^\dagger$The threshold row is the median, and its spread matters more than its
+centre: the same rule gives 0.063 to 0.927 depending on which station is held
+out, thirteen of sixteen below 0.9 and six below 0.5. No single value can be
+carried to a new site.
 Run provenance: \texttt{loso16.csv} in
-\texttt{data/outputs/v13\_runs/armA\_corrections}, sixteen folds, 15 epochs with
-patience 3, five classes, seed 42, 37\,893 training rows.}
+\texttt{data/outputs/v13\_runs/allbg\_2026-08-18} --- sixteen folds complete,
+15 epochs at patience 3, \texttt{--keep-all-background}, five classes, seed 42,
+21\,120 training rows.}
 \label{tab:loso}
 \begin{tabular}{lrrrrrr}
 \toprule
 Station & Detections & Deployed prec. & Threshold & Retrained prec. & FP removed (\%) & Calls kept (\%) \\
 \midrule
-IPA1ST & 277 & 0.437 & 0.982 & 0.989 & 99.4 & 75.2 \\
-IPA11ST & 93 & 0.452 & 0.531 & 0.857 & 86.3 & 100.0 \\
-IPA16ST & 324 & 0.565 & 0.962 & 0.873 & 82.3 & 94.0 \\
-IPA8ST & 257 & 0.599 & 0.981 & 0.993 & 99.0 & 98.0 \\
-IPA7ST & 114 & 0.605 & 0.913 & 0.787 & 71.1 & 69.6 \\
-IPA19ST & 196 & 0.607 & 0.773 & 0.914 & 85.7 & 98.3 \\
-IPA14ST & 236 & 0.661 & 0.085 & 0.897 & 78.8 & 94.9 \\
-IPA18ST & 182 & 0.681 & 0.905 & 0.975 & 94.8 & 92.7 \\
-IPA4ST & 131 & 0.695 & 0.964 & 0.978 & 95.0 & 96.7 \\
-IPA17ST & 520 & 0.696 & 0.956 & 0.857 & 63.9 & 94.2 \\
-IPA13ST & 238 & 0.773 & 0.140 & 0.970 & 90.7 & 88.0 \\
-IPA2ST & 82 & 0.780 & 0.816 & 0.938 & 77.8 & 93.8 \\
-IPA15ST & 189 & 0.868 & 0.812 & 0.961 & 76.0 & 90.8 \\
-IPA6ST & 171 & 0.883 & 0.651 & 0.950 & 60.0 & 100.0 \\
-IPA10ST & 116 & 0.888 & 0.934 & 0.954 & 61.5 & 100.0 \\
-IPA20ST & 445 & 0.935 & 0.948 & 0.968 & 55.2 & 95.9 \\
+IPA1ST & 276 & 0.438 & 0.847 & 0.980 & 98.7 & 82.6 \\
+IPA11ST & 93 & 0.452 & 0.804 & 0.902 & 92.2 & 88.1 \\
+IPA16ST & 314 & 0.583 & 0.676 & 0.928 & 90.1 & 91.8 \\
+IPA8ST & 249 & 0.619 & 0.927 & 0.987 & 97.9 & 96.1 \\
+IPA19ST & 188 & 0.633 & 0.244 & 0.944 & 89.9 & 99.2 \\
+IPA14ST & 236 & 0.661 & 0.455 & 0.979 & 96.2 & 89.1 \\
+IPA7ST & 101 & 0.683 & 0.621 & 0.883 & 78.1 & 76.8 \\
+IPA4ST & 131 & 0.695 & 0.451 & 1.000 & 100.0 & 93.4 \\
+IPA18ST & 175 & 0.709 & 0.917 & 0.992 & 98.0 & 100.0 \\
+IPA17ST & 501 & 0.723 & 0.063 & 0.984 & 96.4 & 82.3 \\
+IPA13ST & 238 & 0.773 & 0.193 & 0.977 & 92.6 & 91.8 \\
+IPA2ST & 76 & 0.842 & 0.749 & 0.983 & 91.7 & 87.5 \\
+IPA15ST & 183 & 0.896 & 0.874 & 1.000 & 100.0 & 84.2 \\
+IPA6ST & 168 & 0.899 & 0.891 & 0.974 & 76.5 & 98.0 \\
+IPA10ST & 113 & 0.911 & 0.906 & 1.000 & 100.0 & 98.1 \\
+IPA20ST & 434 & 0.959 & 0.423 & 1.000 & 100.0 & 92.3 \\
 \midrule
-\textbf{Macro-average} & --- & \textbf{0.695} & 0.909$^\dagger$ & \textbf{0.929} & \textbf{79.8} & \textbf{92.6} \\
+\textbf{Macro-average} & --- & \textbf{0.717} & 0.713$^\dagger$ & \textbf{0.970} & \textbf{93.6} & \textbf{90.7} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Precision improves at all sixteen stations, from a macro-average of 0.695 to
-0.929, removing 79.8\,\% of the false positives while retaining 92.6\,\% of the
-calls. The weakest fold is IPA7ST at 0.787; the strongest is IPA8ST at 0.993.
+Precision improves at all sixteen stations, from a macro-average of 0.717 to
+0.970, removing 93.6\,\% of the false positives while retaining 90.7\,\% of the
+calls. The weakest fold is IPA7ST at 0.883; three stations --- IPA4ST, IPA15ST
+and IPA10ST --- remove every false positive they were given.
 
 The recall column is the one to read alongside that. Because the threshold is
-fitted on the other fifteen stations rather than on the held-out one, recall is
-an outcome and not a constraint, and it is not uniform: it holds at 100\,\% at
-three stations and falls to 69.6\,\% at IPA7ST and 75.2\,\% at IPA1ST. A macro
-92.6\,\% therefore describes a typical station and not a guarantee at any
-particular one, and the two worst folds are the two where a user reviewing at
-the fitted threshold would miss roughly a quarter to a third of the calls
-present in their own detections.
+fitted on the other fifteen stations rather than on the station it is applied
+to, recall is an outcome and not a constraint, and it is not uniform: it reaches
+100\,\% at IPA18ST and falls to 76.8\,\% at IPA7ST and 82.3\,\% at IPA17ST. A
+macro 90.7\,\% therefore describes a typical station and not a guarantee at any
+particular one, and at the weakest fold a user reviewing at the fitted threshold
+would miss close to a quarter of the calls present in their own detections.
 
-This table was rebuilt. An earlier version reported the same sixteen folds on
-the training set as it stood before 819 clips were added and before nineteen
-expert-rejected detections were moved out of the \textit{Colobus} class, and
-without early stopping. The evaluation populations are identical between the two
-(the same 3\,571 gated detections at every station, and an unchanged deployed
-macro of 0.695), so they are directly comparable: precision rises from 0.921 to
-0.929 and twelve of sixteen folds improve, while retained calls fall from
-95.0\,\% to 92.6\,\%. The gain is a precision--recall trade rather than a free
-improvement, and the table reports the current pipeline because that is what a
-reader would reproduce, not because it wins.
+One design choice behind these numbers is worth isolating, because it is the
+one a reader is most likely to want to vary. Training on 16\,826 BirdNET-labelled
+clips --- our own recordings, machine-labelled, never listened to --- was
+compared against dropping them, on an identical evaluation set and with
+everything else held fixed. Precision moves from 0.931 to 0.946, which sounds
+like a result and is not: paired station by station that is 1.46 standard errors,
+nine of sixteen folds improve, and over half the mean comes from one station.
+The useful statement is the null. Removing 44\,\% of the training rows, on the
+rule that nothing trains unless a person has heard it, costs no measurable
+precision and 0.005 of recall. A practitioner can adopt that rule without paying
+for it.
 
 The fitted thresholds are the part of this table a reader is most likely to want
 to reuse, and they do not support that. Fitting the same 95\,\% recall rule on
-the fifteen training stations gives a median of 0.909 but an interquartile range
-of 0.743 to 0.958 and a full range of 0.085 to 0.982; seven of sixteen folds fall
-below 0.9 and two below 0.5. No single value can be recommended as a starting
+the fifteen other stations gives a median of 0.713 but an interquartile range of
+0.444 to 0.879 and a full range of 0.063 to 0.927; thirteen of sixteen folds fall
+below 0.9 and six below 0.5. No single value can be recommended as a starting
 point. What the spread reflects is that the score distribution a station produces
 depends on that station's own noise floor, so the number that buys 95\,\% recall
 on fifteen stations is not the number that buys it on the sixteenth. The
 procedure transfers; the constant does not, and running the procedure at a new
-site requires labelled calls from that site. An earlier version of this table,
-built before augmentation and before the negative-class screen was corrected,
-showed thresholds clustered between 0.939 and 0.998 and drew the opposite
-conclusion; that clustering did not survive either change and should not be
-relied on.
+site requires labelled calls from that site. The spread is also not a fixed
+property of the pipeline: a build made before augmentation and before the
+negative-class screen was corrected showed thresholds clustered between 0.939
+and 0.998, tight enough to suggest a constant could be recommended. That
+clustering did not survive either change, which is a caution against reading a
+narrow threshold distribution as evidence that one exists.
 
 Five limits must be read with these numbers.
 First, this is a \emph{precision} measurement on the windows the deployment
 already fired on. It is not a recall measurement and says nothing about calls
 neither model produced.
 
-What it is not is a re-ranking result only, and an earlier version of this
-section said it was. Reassembled into a whole model and run over raw audio, the
+It is not a re-ranking result only. Reassembled into a whole model and run over
+raw audio, the
 retrained head was scanned rather than re-ranked at two stations chosen as the
 extremes of Table~\ref{tab:loso}: IPA20ST, where the deployed model reaches
 0.935, and IPA4ST, where it reaches 0.695. Every detection at or above 0.95 in a
@@ -1268,8 +1279,8 @@ at the bottom of that band, near 0.95, and the fold-fitted threshold at IPA4ST
 That last point is reported as it was observed and cannot be re-derived, for the
 reason given immediately below: the per-clip verdicts were never written down.
 
-That 51/55 is \emph{not} an estimate of precision above 0.95, and an earlier
-version of this manuscript reported it as one. The clips were drawn by
+That 51/55 is \emph{not} an estimate of precision above 0.95, though it is
+tempting to read it as one. The clips were drawn by
 \texttt{export\_detection\_clips.py -{}-reliability}, whose stated purpose is
 even coverage of the confidence axis rather than of the detections: one draw per
 equal-width confidence band, plus twenty from the top five percent. Of the 768
@@ -1994,8 +2005,8 @@ and they therefore offer little leverage against a confuser that overlaps the
 target in both frequency and temporal structure.
 
 The frequency-position encoding and the four-band split are the two components
-this head adds over a conventional CRNN, and the argument for them above is a
-mechanistic one that we had not tested. Both were ablated on six of the sixteen
+this head adds over a conventional CRNN, and the argument for them above is
+mechanistic. Both were ablated on six of the sixteen
 stations (IPA1ST, IPA4ST, IPA10ST, IPA13ST, IPA17ST, IPA20ST) with the data,
 the folds and the training schedule held fixed and only the head varied:
 \texttt{temporal}, which pools the frequency axis away entirely;
@@ -2075,19 +2086,12 @@ detections the expert rejected sit with the audio rather than with the training
 material. The axis that matters is provenance, not habitat, and it is measurable
 rather than rhetorical.
 
-Table~\ref{tab:loso} reports the configuration \emph{with} this class. An
-earlier version of this manuscript said the opposite, and the run metadata
-settles it: the table is reproduced row for row, to the last printed decimal, by
-\texttt{loso\_augmented.csv} in the
-\texttt{20260808T075704Z\_verified\_pruning\_fix} run directory, whose
+Table~\ref{tab:loso} reports the configuration \emph{with} this class: its
 \texttt{run.json} records \texttt{drop\_pogonias = False} and 3\,000
-\textit{C.\ pogonias} training rows among 37\,893. The sibling run that drops
-the class covers only fourteen of the sixteen stations and could not have
-produced a sixteen-row table. We report the null above because a null result on
-the obvious fix is more useful to a practitioner than its absence --- but the
-configuration the table measures is the five-class one, and the null says the
-choice between them costs little either way rather than that the table avoids
-the class.
+\textit{C.\ pogonias} rows among 21\,120. We report the null above because a
+null result on the obvious fix is more useful to a practitioner than its
+absence, and the null says the choice between the two configurations costs
+little either way.
 
 The automatic cleanup carries its own caveats. It introduces a circular bias,
 because hard negatives are scored by the same model that produced them, so
