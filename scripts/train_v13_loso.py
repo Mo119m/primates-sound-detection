@@ -578,7 +578,7 @@ def feature_cache(images_path, cache_path, batch=64, replace_existing=False):
     return np.load(cache_path, mmap_mode="r")
 
 
-def fold_masks(index, station):
+def fold_masks(index, station, keep_all_background=False):
     """
     Training rows, the reviewed rows this fold is scored on, and the reviewed
     rows a deployable threshold may be fitted on.
@@ -593,6 +593,22 @@ def fold_masks(index, station):
     """
     possible = index["possible_stations"].str.split(";")
     withheld = possible.apply(lambda c: station in c)
+    if keep_all_background:
+        # Background is not withheld by station, because collecting it is part
+        # of the method rather than a leak in the measurement. The pipeline's
+        # third contribution is that a reviewer's rejected detections are
+        # recycled as negatives; anyone deploying at a new site runs exactly
+        # that loop and would have that site's rejected detections in training
+        # before the second round. Withholding them measures a situation no
+        # user is ever in.
+        #
+        # What this changes is what the number means, and the name has to
+        # follow: with the station's own rejected detections in training, the
+        # figure is the value of one round of review-and-retrain at a station,
+        # not transfer to a station never heard. The station's confirmed CALLS
+        # stay withheld -- those need an expert, a new site does not have them,
+        # and they are the numerator of the very score being reported.
+        withheld = withheld & (index["label"] != "Background")
     train = ~withheld
     reviewed = index["source"].str.startswith("review")
     evaluate = (index["station"] == station) & reviewed
@@ -1095,6 +1111,16 @@ def main():
                     help="Allow an intentional restart to replace existing result, "
                          "head, or metadata outputs. This is not a resume; new "
                          "runs refuse by default.")
+    ap.add_argument("--keep-all-background", action="store_true",
+                    help="Do not withhold Background by station. Collecting "
+                         "negatives from a site's own rejected detections is "
+                         "part of this method, not a leak, so a fold that "
+                         "withholds them measures a situation no user is in. "
+                         "The station's confirmed calls stay withheld. Note "
+                         "that the resulting figure is the value of one round "
+                         "of review-and-retrain at a station, NOT transfer to "
+                         "an unheard station, and must not be reported as a "
+                         "held-out precision.")
     ap.add_argument("--folds", default="IPA20ST",
                     help="'all', or a comma-separated list of stations.")
     ap.add_argument("--epochs", type=int, default=15)
@@ -1413,7 +1439,7 @@ def main():
 
     results = []
     for station in stations:
-        tr_mask, ev_mask, cal_mask = fold_masks(index, station)
+        tr_mask, ev_mask, cal_mask = fold_masks(index, station, args.keep_all_background)
         n_eval = int(ev_mask.sum())
         if not n_eval:
             print(f"{station}: no reviewed detections -- skipped")
