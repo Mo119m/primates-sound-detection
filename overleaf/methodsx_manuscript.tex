@@ -335,11 +335,16 @@ below rather than trusted.
 \paragraph{Screening the negative class.} A target call filed as a negative is
 the one labelling error that more data cannot undo, because the model is told
 with the full weight of a label that the thing it exists to find is not there.
-Two thirds of the Background class was selected by a bird detector rather than
-by a person and cannot be listened to individually, so it was screened instead:
-every Background clip was scored by the current model under the same
-grouped-argmax rule deployment uses, and clips scoring $\ge$0.5 on a target
-group were removed. That removed 432 clips.
+An earlier build met this by screening rather than listening: two thirds of the
+Background class had been selected by a bird detector, too many clips to hear,
+so every Background clip was scored by the current model under the same
+grouped-argmax rule deployment uses and clips scoring $\ge$0.5 on a target group
+were removed. We no longer rely on that. The 16{,}826 machine-labelled clips
+were dropped outright, and the negative class is now 9{,}109 clips of which
+7{,}003 are field recordings a person has listened to individually, 1{,}951 are
+curated recordings of non-target species --- ambient noise, \textit{Pan
+troglodytes}, \textit{Cercocebus torquatus} --- and 155 are field clips awaiting
+a listener. The screen is retained only as a check on the remainder.
 
 The screen is deliberately restricted to rows whose Background label is a
 machine's opinion --- BirdNET segments and unreviewed detector output --- and
@@ -353,17 +358,31 @@ already failing on them. Restricting it correctly requires an exact-match test
 on the source field rather than a prefix test, because a reviewed clip is
 recorded as a suffixed variant of the machine source it came from.
 
-\noindent All training clips underwent human verification. Because the
-Background class is loaded as a single pooled negative (with no internal
-sub-labels), any genuine target call accidentally present in a false-positive
-folder would teach the model to suppress that call. We therefore conducted a
-manual label-quality audit of the auto-flagged false-positive pool: clips
-confirmed by ear to be real putty-nosed calls were removed from the negative
-pool (to prevent Cernic contamination) and, when unambiguous, recovered into
-the Cernic class; the \textit{Colobus}
-false positives were moved out of the generic pool into the new
-Colobus\_confuser class. Content-duplicate clips (the same field
-detection stored more than once by different mining passes) were removed by
+\noindent Because Background is loaded as a single pooled negative with no
+internal sub-labels, a genuine target call anywhere in it teaches the model to
+suppress that call, and no amount of additional data undoes the lesson. The
+pool was therefore audited clip by clip, and the audit is worth reporting as a
+rate rather than as a procedure, because the rate is what tells a practitioner
+whether their own negative class is likely to be clean.
+
+Two blocks dominate. All 2{,}370 clips that one station contributed as reviewed
+false positives were listened to: three were genuine calls, 0.13\,\%. All
+3{,}143 clips that an automatic screen had flagged and no person had yet heard
+were listened to: six were not noise, 0.19\,\% --- four \textit{C.\ pogonias},
+one \textit{C.\ nictitans}, and one the expert could identify only as a probable
+\textit{Cercopithecus}. The five identified calls were recovered into their own
+classes rather than merely deleted, which both stops the harm and returns the
+call; the unidentified one was dropped, because a clip that might be a target
+call trains the wrong lesson whichever class it is put in.
+
+Two conclusions follow, and they pull in opposite directions. Contamination of a
+machine-screened negative pool runs at roughly two in a thousand, low enough
+that a project without an expert on hand is not obviously doomed. But it is not
+zero, the errors are invisible to every automatic check we applied, and both
+blocks were believed clean before anyone listened. \textit{Colobus} false
+positives were separately moved out of the pooled negative into the dedicated
+Colobus\_confuser class, and content-duplicate clips --- the same field
+detection stored more than once by different mining passes --- were removed by
 hashing before training.
 
 \subsection*{Audio preprocessing and mel-spectrogram representation}
