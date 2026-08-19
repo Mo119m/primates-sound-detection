@@ -16,7 +16,7 @@
 %%   - prepare the Graphical abstract as a SEPARATE image file;
 %%   - delete this comment header.
 %%
-%% DO NOT SUBMIT UNTIL THESE TWO ARE RESOLVED (2026-08-11):
+%% DO NOT SUBMIT UNTIL THESE THREE ARE RESOLVED (2026-08-11, third added 2026-08-19):
 %%
 %%   1. The 92.7 % scanning precision (abstract, and the "Reliability of the
 %%      detections" paragraph) is NOT a valid estimate of precision above 0.95.
@@ -42,6 +42,21 @@
 %%      sit at or above the lowest confirmed roar's ratio -- none of them heard.
 %%      All 117 are with the species expert now. The count of screened-out
 %%      windows cannot be reported as evidence of absence until they are.
+%%
+%%   3. The abstract and the body disagree about the head (added 2026-08-19).
+%%      The abstract lists "a VGG19 transfer-learning model with a
+%%      frequency-position-aware CRNN head" as the first contribution. The body,
+%%      under the architecture ablation, says the opposite: six folds cannot
+%%      resolve a 0.03 difference against a 0.24 spread, so "a reader should
+%%      treat the head as a design choice supported by a mechanism and not by a
+%%      test, and the simplest variant as a reasonable starting point." A
+%%      reviewer will find that in one pass. Either the ablation runs at sixteen
+%%      folds and settles it, or the abstract stops claiming the head.
+%%      colab/v13_ablations.ipynb runs the four arms -- freqpos, temporal, freq,
+%%      and freqpos minus the confuser class -- at sixteen folds on identical
+%%      data. It is written and pushed; it has not run, because the Colab GPU
+%%      quota was exhausted on 2026-08-18. Run it, then rewrite whichever of the
+%%      two the result contradicts.
 
 \documentclass[final,3p,times]{elsarticle}
 
