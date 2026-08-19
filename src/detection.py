@@ -143,6 +143,10 @@ def apply_lowfreq_gate(detections_df: pd.DataFrame,
 
 
 _OOD_STATS = None
+# How many times this process wanted OOD statistics and had none. Kept so the
+# "this run is ungated" warning prints once rather than once per recording, and
+# so a caller can ask afterwards whether the run it just finished was gated.
+_OOD_MISSING_WARNED = 0
 _OOD_EXTRACTOR = None
 # The statistics annotate_ood_distance actually resolved for the model in hand.
 # apply_ood_gate has no model to fingerprint, and falling back to "the first
@@ -241,11 +245,24 @@ def annotate_ood_distance(detections_df: pd.DataFrame,
     global _ACTIVE_STATS
     _ACTIVE_STATS = stats
     if stats is None:
-        print("\n ! No OOD statistics fitted on this head. Every LOSO fold has "
-              "its own\n   feature space, so statistics from another fold would "
-              "give meaningless\n   distances; leaving the ood_distance column "
-              "empty instead. Build them with\n   scripts/build_ood_stats.py "
-              "--model <this model>.")
+        # Once per process, not once per recording. A long scan calls this for
+        # every file, and on 2026-08-18 three station scans ran ungated with the
+        # warning repeated 112 times into a 128 KB log, where nobody read it.
+        # A message that appears often enough to become scenery is not a
+        # warning. The counter also lets the caller see, at the end, that the
+        # whole run was ungated rather than inferring it from one line.
+        global _OOD_MISSING_WARNED
+        _OOD_MISSING_WARNED += 1
+        if _OOD_MISSING_WARNED == 1:
+            print("\n ! No OOD statistics fitted on this head, so this run is "
+                  "UNGATED.\n   Every LOSO fold has its own feature space, so "
+                  "another fold's statistics\n   would give meaningless "
+                  "distances; the ood_distance column is left empty\n   rather "
+                  "than filled with the wrong numbers. Counts from this run are "
+                  "therefore\n   before outlier removal. Build the statistics "
+                  "first, not afterwards:\n"
+                  "     python scripts/build_ood_stats.py --run <run dir> "
+                  "--model <this model>")
         detections_df = detections_df.copy()
         detections_df["ood_distance"] = np.nan
         return detections_df
