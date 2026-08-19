@@ -2090,8 +2090,16 @@ class elsewhere in this paper. And a negative class generalises only to the
 negatives it was given: adding \textit{C.\ pogonias} addresses \textit{C.\
 pogonias} and offers no protection against \textit{C.\ cephus},
 \textit{Lophocebus} or any other unenumerated congener \cite{bisgin2024}. Neither
-explanation is tested here, and a fifth class built from recordings made at these
-stations rather than from a library remains worth trying.
+explanation is tested here. A fifth class built from recordings made at these
+stations rather than from a library is the obvious next step, and it has become
+possible since: the species expert has identified 27 \textit{C.\ pogonias} calls
+in this array's own audio --- 21 recovered from clips that had been excluded as
+unidentifiable, four from the pooled negative class, and two that a blanket rule
+had filed as background at a single station. Six are in the build reported here,
+which holds 150 library clips against those six; the remaining 21 require a
+rebuild of the packed feature cache and are not in it. Whether 27 field clips
+against 150 library ones is enough to move the null is untested, and is the
+first thing to try with them.
 
 It is worth being exact about what that gap is, because ``library'' and
 ``field'' are not opposites and treating them as such misdescribes the problem.
@@ -2104,6 +2112,35 @@ this deployment's audio sits at roughly 1\,860, a factor of thirty-seven, and
 detections the expert rejected sit with the audio rather than with the training
 material. The axis that matters is provenance, not habitat, and it is measurable
 rather than rhetorical.
+
+\paragraph{Two attempts to close that gap.} Because the gap is measurable, it
+can be attacked, and we report two attempts because both are the sort of thing a
+reader will consider and neither is written up elsewhere. Both were applied to
+the \textit{Colobus\_guereza} class, where the gap is worst, on identical folds
+and identical evaluation sets, changing nothing but the source material.
+Denoising replaced all 1{,}440 library clips with spectrally denoised versions.
+Propagation simulation replaced the 775 longer clips with versions
+degraded to imitate transmission through forest, of which 701 survived
+segmentation.
+
+On the \textit{C.\ nictitans} review metric neither moves: $-0.004$ for
+denoising and $-0.008$ for propagation, at $t = -0.51$ and $-0.50$ over three
+folds. That is the wrong place to look, though, and saying so is the point.
+Neither treatment touched a \textit{C.\ nictitans} clip, so this metric can only
+respond at second hand, through the shared feature space. On grouped validation
+accuracy, which does see all five classes, denoising gains $+0.0085$ and does so
+at every fold --- $+0.0086$, $+0.0078$, $+0.0090$ --- while propagation
+simulation gains nothing at all ($-0.0001$) and costs 0.030 of
+\textit{C.\ nictitans} recall.
+
+The honest summary is that denoising the library material helps a little and
+consistently, propagation simulation does not, and neither was measured on the
+class it was meant to fix. There is no held-out \textit{Colobus} set to measure
+against, because no field roar has ever been confirmed here --- which is the
+negative result of this paper restated as a methodological cost. A treatment
+aimed at a class you cannot score is a treatment you cannot evaluate, and a
+reader with confirmed detections of their own target is in a better position to
+test either idea than we are.
 
 Table~\ref{tab:loso} reports the configuration \emph{with} this class: its
 \texttt{run.json} records \texttt{drop\_pogonias = False} and 3\,000
