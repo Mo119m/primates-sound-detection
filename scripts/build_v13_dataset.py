@@ -773,6 +773,47 @@ def drop_excluded(df, csv_path):
     return df[~hit].reset_index(drop=True), int(hit.sum())
 
 
+def apply_relabels(df, csv_path):
+    """Move clips a person has re-identified into their true class.
+
+    The mirror of drop_excluded, and needed for the same reason: an expert
+    verdict that arrives after the collectors have run. Exclusion is the right
+    response when we learn only that a label is wrong; relabelling is the right
+    response when we also learn what the clip actually is, and it is strictly
+    better, because a recovered positive both stops the harm and adds the call.
+
+    The first three rows are the case that motivated it. IPA4ST's 2,370 review
+    negatives enter as `review:ipa4st_intruder` under a blanket rule at
+    collect_reviewed_detections: at that station every false positive became
+    Background. The expert then listened to all 2,370 and found three genuine
+    C. nictitans among them, which had been training the model against its own
+    correct detections.
+    """
+    if not csv_path or not os.path.exists(csv_path):
+        return df, 0
+    rel = pd.read_csv(csv_path)
+    by_name = {r["file"]: r for _, r in rel.iterrows()}
+    base = df["path"].map(lambda p: os.path.basename(str(p)))
+    hit = base.map(lambda b: b in by_name)
+    if not hit.any():
+        print(f"    ! none of the {len(rel)} relabel rows matched the manifest")
+        return df, 0
+    df = df.copy()
+    for i in df.index[hit]:
+        r = by_name[base[i]]
+        df.at[i, "label"] = r["new_label"]
+        df.at[i, "source"] = r.get("new_source", "relabel")
+        df.at[i, "verified"] = True
+    for (old_src, new), n in rel.groupby(["site", "new_label"]).size().items():
+        print(f"    {n:5d} {old_src} -> {new}")
+    missed = set(by_name) - set(base[hit])
+    if missed:
+        print(f"    ! {len(missed)} listed clips not in the manifest")
+        for m in sorted(missed):
+            print(f"        {m}")
+    return df.reset_index(drop=True), int(hit.sum())
+
+
 def drop_sources(df, names):
     """Drop whole provenance groups, matching the source name EXACTLY.
 
@@ -816,6 +857,8 @@ def main():
                          "training, plus 'reason' and 'decided_by'. Applied "
                          "before augmentation, so an excluded clip is never "
                          "replicated.")
+    ap.add_argument("--relabel", default="", metavar="CSV",
+                    help="CSV of clips an expert re-identified: file,new_label")
     ap.add_argument("--drop-source", action="append", default=[], metavar="PREFIX",
                     help="Drop every row whose source starts with PREFIX. "
                          "Repeatable. For blocks no person has listened to, "
@@ -898,6 +941,10 @@ def main():
         print("\nDropping sources nobody has listened to:")
         manifest, n = drop_sources(manifest, args.drop_source)
         print(f"  dropped {n} rows")
+    if args.relabel:
+        print("\nApplying the expert relabel list:")
+        manifest, n = apply_relabels(manifest, args.relabel)
+        print(f"  relabelled {n} rows")
     if args.exclude:
         print("\nApplying the expert exclusion list:")
         manifest, n = drop_excluded(manifest, args.exclude)
