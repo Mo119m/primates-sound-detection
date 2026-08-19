@@ -61,6 +61,26 @@ CLIPS_COLOBUS = os.path.join(DATA, "outputs/detected_clips/Colobus_guereza")
 # Filename shapes. AudioMoth writes the deployment lat/lon into the name, which
 # is the only station evidence a clip carries once it leaves its folder.
 COORD_RE = re.compile(r"([+-]\d+\.\d+[+-]\d+\.\d+)")
+
+# Recorder positions to four decimal places, about eleven metres, for a primate
+# that is hunted. The audio is kept out of the repository for that reason, but
+# every recorder wrote its GPS fix into the filename, and the filename is the
+# key the human label files join on, so publishing those files published the
+# positions anyway. _canon removes the coordinate substring from a clip name so
+# the label files can be committed without it.
+#
+# Safe to strip because nothing reads it: station attribution comes from the
+# directory tree and the possible_stations column, and the embedded timestamp is
+# already millisecond-resolution. Stripping leaves 6,496 of 6,496 clip names and
+# 6,189 of 6,189 review rows distinct, so the key is unchanged in every way that
+# matters. Apply it to BOTH sides of a join -- normalising only the CSV turns
+# every previously matching row into a silent miss.
+GPS_IN_NAME_RE = re.compile(r"[+-]\d{2}\.\d{4}[+-]\d{3}\.\d{4}")
+
+
+def _canon(name):
+    """The clip filename with the recorder's coordinates removed."""
+    return GPS_IN_NAME_RE.sub("", str(name))
 REVIEW_CLIP_RE = re.compile(r"^Cernic__(.+?)__(\d+)s__conf([\d.]+)\.wav$")
 FLAGGED_CLIP_RE = re.compile(r"^Cernic__(.+?)__t(\d+)s__conf([\d.]+)\.wav$")
 BIRDNET_RE = re.compile(r"^[\d.]+_\d+_(.+?)_([\d.]+)s_([\d.]+)s\.wav$")
@@ -764,8 +784,16 @@ def drop_excluded(df, csv_path):
     if not csv_path or not os.path.exists(csv_path):
         return df, 0
     ex = pd.read_csv(csv_path)
-    names = set(ex["file"].astype(str))
-    hit = df["path"].map(lambda p: os.path.basename(str(p)) in names)
+    names = {_canon(n) for n in ex["file"].astype(str)}
+    hit = df["path"].map(lambda p: _canon(os.path.basename(str(p))) in names)
+    if not hit.any() and len(ex):
+        # Not necessarily a fault: a manifest built with --exclude already has
+        # these rows gone, and zero is then the right answer. It is also what a
+        # broken join key looks like, and the two are indistinguishable from
+        # here, so it is reported rather than raised or passed over.
+        print(f"    note: none of the {len(ex)} listed clips are in this "
+              f"manifest. Correct if it was already built with --exclude; "
+              f"check _canon on both sides if it was not.")
     if hit.any():
         by = ex.groupby("reason").size().to_dict() if "reason" in ex else {}
         for reason, n in by.items():
@@ -792,8 +820,8 @@ def apply_relabels(df, csv_path):
     if not csv_path or not os.path.exists(csv_path):
         return df, 0
     rel = pd.read_csv(csv_path)
-    by_name = {r["file"]: r for _, r in rel.iterrows()}
-    base = df["path"].map(lambda p: os.path.basename(str(p)))
+    by_name = {_canon(r["file"]): r for _, r in rel.iterrows()}
+    base = df["path"].map(lambda p: _canon(os.path.basename(str(p))))
     hit = base.map(lambda b: b in by_name)
     if not hit.any():
         print(f"    ! none of the {len(rel)} relabel rows matched the manifest")
