@@ -181,19 +181,10 @@ def main():
     # remained anywhere in the .tex. Removed rather than repointed: the claims
     # they verified no longer exist, and a check with no subject is the failure
     # mode this file was rewritten to stop making. The replacement checks are
-    # below, under the sixteen-fold ablation.
-        check("folds compared (six)", 6, len(d))
-        check("positive folds (four of six)", 4, int((d > 0).sum()))
-        check("largest positive fold (+0.433)", 0.433, round(float(d.max()), 3), 0.001)
-        check("largest negative fold (-0.321)", -0.321, round(float(d.min()), 3), 0.001)
-        ca = heads["temporal"]["loso_calls_retained"].mean()
-        cb = heads["temporal_freqpos"]["loso_calls_retained"].mean()
-        check("calls retained simplest (0.938)", 0.938, round(float(ca), 3), 0.001)
-        check("calls retained deployed (0.934)", 0.934, round(float(cb), 3), 0.001)
-        fa = heads["temporal"]["loso_fps_removed"].mean()
-        fb = heads["temporal_freqpos"]["loso_fps_removed"].mean()
-        check("fps removed simplest (0.693)", 0.693, round(float(fa), 3), 0.001)
-        check("fps removed deployed (0.798)", 0.798, round(float(fb), 3), 0.001)
+    # below, under the sixteen-fold ablation. Its per-fold companions -- six
+    # folds compared, four positive, +0.433 and -0.321 at the extremes, and the
+    # retained/removed pairs 0.938/0.934 and 0.693/0.798 -- went with it, for
+    # the same reason and in the same edit.
 
     # ---- the three unfreeze runs ----
     cu = "data/outputs/v13_runs/colab_unfreeze"
@@ -203,7 +194,9 @@ def main():
         v = None if d is None else round(
             float(d.loc[d["station"] == "IPA4ST", "loso_precision"].iloc[0]), 3)
         check(f"{f} IPA4ST held-out precision", claimed, v, 0.001)
-    a = maybe(f"{arm}/loso.csv")
+    # armA's own three-fold run, named here rather than inherited from the
+    # deleted block above, which is where `arm` used to come from.
+    a = maybe("data/outputs/v13_runs/armA_corrections/loso.csv")
     if a is not None:
         check("armA IPA4ST held-out precision (0.962)", 0.962,
               round(float(a.loc[a["station"] == "IPA4ST", "loso_precision"].iloc[0]), 3),
