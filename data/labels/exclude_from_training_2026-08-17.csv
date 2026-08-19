@@ -87,3 +87,4 @@ Cernic__S20210225T162940257+0100_E20210225T165939238+0100___01181s__conf0.792.wa
 1.000_4_S1141_44100H_GFNP1005_20220204_080000_618.0s_621.0s.wav,,"positive_control_leak: also used as the paper field-control, must not be trained on","Moshi Fu, 2026-08-17"
 1.000_4_S1141_44100H_GRNP742_20211207_110000_690.0s_693.0s.wav,,"positive_control_leak: also used as the paper field-control, must not be trained on","Moshi Fu, 2026-08-17"
 1.000_5_S1141_44100H_GFNP1005_20220204_080000_531.0s_534.0s.wav,,"positive_control_leak: also used as the paper field-control, must not be trained on","Moshi Fu, 2026-08-17"
+20210225T090000+0100_Short-term_Makokou__t00388s__conf0.94.wav,IPA2ST,"expert_unidentified: expert marked this 'Potential C' in the full auto_flagged_fp pass: possibly a Cercopithecus, not identified to species. A clip that might be a target call must not train as either, so it is dropped rather than promoted","Santiago Perea, 2026-08-18"

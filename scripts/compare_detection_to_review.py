@@ -60,7 +60,7 @@ def _recording_stem(path):
     Recording name from a path, stripping only a real extension.
 
     ``os.path.splitext`` cannot be used here. AudioMoth writes the deployment
-    coordinates into the name -- ``S20210224T175957188+0100_E..._+XX.XXXX+XXX.XXXX``
+    coordinates into the name -- ``S20210224T175957188+0100_E..._<lat><lon>``
     -- and splitext takes ``.7522`` for an extension and removes it. The review
     side keeps the full name, so the two never match and every detection reads
     as new ground: a silent, total failure that looks like a result.
