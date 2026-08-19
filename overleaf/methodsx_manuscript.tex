@@ -1281,7 +1281,7 @@ and 0.998, tight enough to suggest a constant could be recommended. That
 clustering did not survive either change, which is a caution against reading a
 narrow threshold distribution as evidence that one exists.
 
-Five limits must be read with these numbers.
+Six limits must be read with these numbers.
 First, this is a \emph{precision} measurement on the windows the deployment
 already fired on. It is not a recall measurement and says nothing about calls
 neither model produced.
@@ -1556,6 +1556,21 @@ roughly 5\,\% of the held-out positives. The station pairs responsible are the
 adjacent ones (IPA17ST/IPA8ST, IPA1ST/IPA20ST, IPA19ST/IPA1ST,
 IPA16ST/IPA20ST), so a leave-one-neighbourhood-out variant is available to anyone
 wanting the residual removed rather than bounded.
+
+Sixth, the fitted threshold is one number and the model has four target classes.
+It is fitted entirely on the \textit{C.\ nictitans} review --- the calls and
+false positives in Table~\ref{tab:loso} are that species and no other --- and
+detection then applies it to whichever class wins the argmax
+(\texttt{src/detection.py}, one scalar compared against the winning
+confidence). So a \textit{C.\ pogonias} or \textit{C.\ guereza} window is
+admitted or rejected at an operating point chosen for a different species. We
+cannot correct this and should not pretend otherwise: fitting a threshold per
+species needs labelled detections per species, and outside \textit{C.\ nictitans}
+we do not have them. The consequence is bounded but real --- the scan counts we
+report for the other classes are at a borrowed operating point, and no claim
+about their precision or recall follows from Table~\ref{tab:loso}. Anyone with
+verified detections in a second class should fit that class its own threshold
+before reading its counts as a result.
 
 The consolidation also separates the two classes, which is why it is not merely
 bookkeeping. Genuine calls span 3.40 windows on average and false positives
