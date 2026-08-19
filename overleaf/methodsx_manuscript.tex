@@ -16,7 +16,7 @@
 %%   - prepare the Graphical abstract as a SEPARATE image file;
 %%   - delete this comment header.
 %%
-%% DO NOT SUBMIT UNTIL THESE THREE ARE RESOLVED (2026-08-11, third added 2026-08-19):
+%% DO NOT SUBMIT UNTIL THESE ARE RESOLVED (2026-08-11; the third was added and resolved 2026-08-19):
 %%
 %%   1. The 92.7 % scanning precision (abstract, and the "Reliability of the
 %%      detections" paragraph) is NOT a valid estimate of precision above 0.95.
@@ -43,20 +43,15 @@
 %%      All 117 are with the species expert now. The count of screened-out
 %%      windows cannot be reported as evidence of absence until they are.
 %%
-%%   3. The abstract and the body disagree about the head (added 2026-08-19).
-%%      The abstract lists "a VGG19 transfer-learning model with a
-%%      frequency-position-aware CRNN head" as the first contribution. The body,
-%%      under the architecture ablation, says the opposite: six folds cannot
-%%      resolve a 0.03 difference against a 0.24 spread, so "a reader should
-%%      treat the head as a design choice supported by a mechanism and not by a
-%%      test, and the simplest variant as a reasonable starting point." A
-%%      reviewer will find that in one pass. Either the ablation runs at sixteen
-%%      folds and settles it, or the abstract stops claiming the head.
-%%      colab/v13_ablations.ipynb runs the four arms -- freqpos, temporal, freq,
-%%      and freqpos minus the confuser class -- at sixteen folds on identical
-%%      data. It is written and pushed; it has not run, because the Colab GPU
-%%      quota was exhausted on 2026-08-18. Run it, then rewrite whichever of the
-%%      two the result contradicts.
+%%   3. RESOLVED 2026-08-19. The abstract claimed the head; the body said six
+%%      folds could not test it. The four arms ran at sixteen folds locally --
+%%      not on Colab, whose GPU quota was exhausted; the trunk is frozen and the
+%%      features cached, so a fold is about six minutes on CPU. The answer
+%%      separates the two components: the four-band split is worth its
+%%      complexity (+0.0138 precision, t = +2.63, 11/16) and the
+%%      frequency-position encoding on top of it is not (-0.0012, t = -0.26,
+%%      5/16). Abstract and body both now say that, and the recommendation to a
+%%      reader is temporal_freq rather than the temporal_freqpos we deployed.
 
 \documentclass[final,3p,times]{elsarticle}
 
@@ -114,7 +109,7 @@ and \textit{Colobus guereza} in Ivindo National Park, Gabon; only
 \textit{C.\ nictitans} was
 confirmed in the field, and the \textit{C.\ guereza} branch is reported as a
 negative result. Mel-spectrograms are classified by a VGG19 transfer-learning
-model with a frequency-position-aware CRNN head. Validated by a 16-fold
+model with a band-split CRNN head. Validated by a 16-fold
 leave-one-station-out sweep over 6\,189 manually reviewed field detections,
 retraining on human verdicts rather than filter guesses raises precision from
 0.72 to 0.97 at a threshold fitted on the other stations, removing 94\,\% of
@@ -134,8 +129,10 @@ quarter of the clips while discarding nothing, and ordering what remains
 recovers 90\% of the recoverable calls from half.
 
 \begin{itemize}
-\item A VGG19 transfer-learning model with a frequency-position-aware CRNN
-head, hardened against forest-noise false positives.
+\item A VGG19 transfer-learning model whose CRNN head splits the spectrum into
+four bands, which a sixteen-fold ablation shows is worth its complexity
+($+0.0138$ precision, $t = +2.63$) while the frequency-position encoding we
+also deployed is not ($-0.0012$, $t = -0.26$).
 \item A cleanup that groups and orders detections for review instead of
 discarding them, measured against a review of every field detection.
 \item A complete, reusable pipeline that recycles confirmed errors into
@@ -2054,43 +2051,59 @@ and they therefore offer little leverage against a confuser that overlaps the
 target in both frequency and temporal structure.
 
 The frequency-position encoding and the four-band split are the two components
-this head adds over a conventional CRNN, and the argument for them above is
-mechanistic. Both were ablated on six of the sixteen
-stations (IPA1ST, IPA4ST, IPA10ST, IPA13ST, IPA17ST, IPA20ST) with the data,
-the folds and the training schedule held fixed and only the head varied:
-\texttt{temporal}, which pools the frequency axis away entirely;
-\texttt{temporal\_freq}, which adds the four-band split; and
-\texttt{temporal\_freqpos}, the deployed head, which adds the CoordConv channel
-on top of the split. Held-out precision at the fold-fitted threshold averages
-0.822, 0.792 and 0.854 across the six folds.
+this head adds over a conventional CRNN, and until 2026-08-19 the argument for
+them was mechanistic and a six-fold measurement that could not resolve it. Both
+were then ablated over all sixteen stations, with the data, the folds, the
+schedule and the seed held fixed and only the head varied: \texttt{temporal},
+which pools the frequency axis away entirely; \texttt{temporal\_freq}, which
+adds the four-band split; and \texttt{temporal\_freqpos}, the deployed head,
+which adds the CoordConv channel on top of the split. A fourth arm repeats the
+deployed head without the reviewed deployment detections in
+\textit{Colobus\_confuser}. Every arm sees the same 3\,476 gated detections,
+station by station.
 
-The deployed head wins on that mean by 0.032, and the mean is the wrong way to
-read it. Paired station by station, deployed minus simplest is $+0.007$, $0.000$,
-$+0.022$, $+0.054$, $+0.433$ and $-0.321$: standard deviation 0.240, four of six
-positive. Four stations show nothing and the mean is produced entirely by two
-that move in \emph{opposite} directions by more than a third each, so with
-$n = 6$ it sits about a third of a standard error from zero. The middle variant
-is also worse than the simplest (0.792 against 0.822), so the ordering is not
-monotone in complexity --- what one expects when between-station variance
-dominates the effect being measured.
+\begin{table}[H]
+\centering
+\caption{Architecture and class ablation, sixteen folds, identical data and
+evaluation sets. Precision and recall are at each fold's own fitted threshold.}
+\label{tab:headablation}
+\begin{tabular}{lccc}
+\toprule
+head & precision & recall & val.\ accuracy \\
+\midrule
+\texttt{temporal}          & 0.9566 & 0.8622 & 0.9320 \\
+\texttt{temporal\_freq}    & 0.9703 & 0.8888 & 0.9411 \\
+\texttt{temporal\_freqpos} & 0.9692 & 0.8984 & 0.9362 \\
+\texttt{temporal\_freqpos}, no confuser & 0.9586 & 0.9092 & 0.9429 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-Decomposed, the picture is slightly more favourable and still not resolvable. At
-the same fitted thresholds the deployed head retains 0.934 of the calls against
-the simplest head's 0.938, a difference of $-0.004$, while removing 0.798 of the
-false positives against 0.693, a difference of $+0.105$ that is non-negative at
-five of the six stations. That is a more consistent signal in sign than the
-precision comparison, but it is still 1.8 standard errors from zero at $n = 6$.
+Table~\ref{tab:headablation} gives the means, and the means are the wrong way to
+read it, as they were at six folds. Paired station by station, the components
+separate cleanly and they do not both
+pay. Adding the four-band split to the simplest head is $+0.0138$ in precision,
+$t = +2.63$, better at eleven of sixteen folds. Adding the frequency-position
+encoding on top of that split is $-0.0012$, $t = -0.26$, better at five of
+sixteen: nothing, and if anything slightly negative. The deployed head beats the
+simplest head by $+0.0126$ at $t = +2.61$ and twelve of sixteen, and every bit of
+that gain is the band split. Recall moves the same way, $+0.0362$ from the
+simplest head to the deployed one at $t = +2.03$ and thirteen of sixteen.
 
-What this licenses is narrow, and we state it rather than the mean. The
-frequency-aware head is not shown by this measurement to be worth its
-complexity, and it is not shown to be harmful either; six folds cannot resolve a
-0.03 difference against a 0.24 spread. A reader reproducing this pipeline should
-treat the head as a design choice supported by a mechanism and not by a test,
-and the simplest variant as a reasonable starting point. Like the class ablation
-below, this one was run on six folds rather than sixteen for compute reasons and
-after the negative-class screen was corrected, so its level is not comparable
-with Table~\ref{tab:loso}; its three arms, which share data and folds exactly,
-are comparable with each other.
+So the head is worth its complexity and the paper can say so, but not the part
+of it the name advertises. A reader reproducing this pipeline should use
+\texttt{temporal\_freq}: it is simpler than what we deployed, and at sixteen
+folds it is not worse. We keep reporting \texttt{temporal\_freqpos} because it
+is what produced every other number here, not because the measurement prefers
+it.
+
+The fourth arm is a null on the same evidence. Removing the reviewed deployment
+detections from \textit{Colobus\_confuser} costs $0.0106$ of precision at
+$t = +1.31$ and nine of sixteen folds, and buys $0.0108$ of recall at
+$t = -0.93$. The confuser class is a trade at best, not a gain, which is the
+same shape as the \textit{C.\ pogonias} class result reported below --- a
+pattern worth noticing across two independent attempts to fix a closed-set model
+by naming one more thing for it to be wrong about.
 
 The obvious remedy is to stop the class from being missing. The species expert
 identified the daytime false positives by ear as \textit{Cercopithecus
