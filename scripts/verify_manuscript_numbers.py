@@ -174,22 +174,14 @@ def main():
         for b in bad[:10]:
             print("   !", b)
 
-    # ---- head ablation, added to the manuscript today ----
-    arm = "data/outputs/v13_runs/armA_corrections"
-    heads = {}
-    for h in ("temporal", "temporal_freq", "temporal_freqpos"):
-        heads[h] = maybe(f"{arm}/ablation_{h}.csv")
-    if all(v is not None for v in heads.values()):
-        for h, claimed in (("temporal", 0.822), ("temporal_freq", 0.792),
-                           ("temporal_freqpos", 0.854)):
-            check(f"ablation {h} mean loso precision", claimed,
-                  round(float(heads[h]["loso_precision"].mean()), 3), 0.001)
-        a = heads["temporal"].set_index("station")["loso_precision"]
-        b = heads["temporal_freqpos"].set_index("station")["loso_precision"]
-        d = (b - a).dropna()
-        check("paired mean deployed - simplest (+0.032)", 0.032,
-              round(float(d.mean()), 3), 0.001)
-        check("paired sd (0.240)", 0.240, round(float(d.std(ddof=1)), 3), 0.001)
+    # The six-fold head ablation used to be checked here: means of 0.822, 0.792
+    # and 0.854, a paired mean of +0.032 and an sd of 0.240. Those five checks
+    # passed to the end, against the armA run they name, after the sixteen-fold
+    # ablation replaced that section on 2026-08-19 and none of the five numbers
+    # remained anywhere in the .tex. Removed rather than repointed: the claims
+    # they verified no longer exist, and a check with no subject is the failure
+    # mode this file was rewritten to stop making. The replacement checks are
+    # below, under the sixteen-fold ablation.
         check("folds compared (six)", 6, len(d))
         check("positive folds (four of six)", 4, int((d > 0).sum()))
         check("largest positive fold (+0.433)", 0.433, round(float(d.max()), 3), 0.001)
@@ -311,6 +303,52 @@ def main():
                   round(100 * hit / len(r), 1), 0.15)
     else:
         check("spatial non-independence", "2.5/5.0/58", None)
+
+    # ---- the sixteen-fold head ablation ----
+    #
+    # Recomputed from the four arms rather than trusted, because these are the
+    # numbers that settled a submission blocker and the abstract now quotes two
+    # of them. The paired statistics are what the text reports; the means in
+    # Table 3 are checked separately, cell by cell, below.
+    import glob
+    import numpy as np
+    abl = {}
+    for p in sorted(glob.glob(os.path.join(
+            REPO, "data/outputs/v13_runs/ablations_2026-08-19/abl_*.csv"))):
+        abl[os.path.basename(p)[4:-4]] = pd.read_csv(p).set_index("station")
+    if len(abl) == 4:
+        sts = sorted(abl["freqpos"].index)
+        same = len({tuple(int(abl[k].loc[s, "gated_detections"]) for s in sts)
+                    for k in abl}) == 1
+        check("ablation arms share an evaluation set", True, same)
+        check("ablation folds", 16, len(sts))
+
+        def paired(x, y, m="gated_loso_precision"):
+            d = np.array([abl[x].loc[s, m] - abl[y].loc[s, m] for s in sts])
+            se = d.std(ddof=1) / np.sqrt(len(d))
+            return d.mean(), d.mean() / se, int((d > 0).sum())
+
+        for x, y, want_mean, want_t, want_win in [
+                ("freq", "temporal", 0.0138, 2.63, 11),
+                ("freqpos", "freq", -0.0012, -0.26, 5),
+                ("freqpos", "temporal", 0.0126, 2.61, 12)]:
+            m, t, w = paired(x, y)
+            check(f"{x} - {y} precision", want_mean, round(m, 4), 0.0001)
+            check(f"  its t", want_t, round(t, 2), 0.01)
+            check(f"  folds won", want_win, w)
+        m, t, w = paired("freqpos", "temporal", "gated_loso_calls_retained")
+        check("freqpos - temporal recall", 0.0362, round(m, 4), 0.0001)
+        check("  its t", 2.03, round(t, 2), 0.01)
+
+        for arm, want in [("temporal", 0.9566), ("freq", 0.9703),
+                          ("freqpos", 0.9692), ("freqpos_noconfuser", 0.9586)]:
+            check(f"Table 3 precision, {arm}", want,
+                  round(abl[arm]["gated_loso_precision"].mean(), 4), 0.0001)
+        # the two the abstract quotes must be in it verbatim
+        for s in ("+0.0138", "+2.63", "-0.0012", "-0.26"):
+            check(f"abstract prints {s}", True, s in tex)
+    else:
+        check("head ablation", "4 arms", f"{len(abl)} found")
 
     # ---- what the negative class is made of ----
     #
