@@ -2173,6 +2173,51 @@ detections the expert rejected sit with the audio rather than with the training
 material. The axis that matters is provenance, not habitat, and it is measurable
 rather than rhetorical.
 
+\paragraph{The gate measures that gap, and its cost is the useful number.}
+Those distances are descriptive. What the out-of-distribution gate does with
+them can be measured directly, by scanning the same audio twice with the same
+model at the same fitted threshold and moving nothing but the fitted statistics
+into and out of the directory the scanner reads. Two stations, so far:
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+ & \multicolumn{2}{c}{detections} & & confirmed calls \\
+station & gated & ungated & removed & among the removed \\
+\midrule
+IPA1ST & 177 & 2\,865 & 93.8\,\% & 21 \quad (0.78\,\%) \\
+IPA2ST & 195 & 332 & 41.3\,\% & 15 \quad (10.95\,\%) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The headline proportions differ by more than a factor of two and that difference
+is not the gate behaving differently. Split by class it is stable: the gate
+removes 99.2\,\% of IPA1ST's \textit{C.\ pogonias} windows and 91.3\,\% of
+IPA2ST's, against 26.3\,\% and 32.9\,\% of their \textit{C.\ nictitans} windows.
+What varies is how many \textit{C.\ pogonias} candidates a station produces --
+2\,651 at IPA1ST, 46 at IPA2ST.
+
+That four-to-one split between the classes is the provenance gap, measured with
+a control rather than described. \textit{C.\ pogonias} was 150 library
+recordings and no field audio at all until 2026-08-19, so its cluster is tight
+and entirely archival and any field window assigned to it sits far outside;
+\textit{C.\ nictitans} carries 2\,535 field-verified calls, so its cluster
+already contains this deployment and the gate treats it gently. A reader can
+predict which of their own classes the gate will decimate by asking which of
+them was built from library material.
+
+The cost column is what turns this into advice. Cross-referencing the removed
+windows against the review, 36 of 2\,825 coincide with a call somebody confirmed
+by ear --- 1.27\,\% overall, but 0.78\,\% at IPA1ST and 10.95\,\% at IPA2ST. The
+gate is close to free where a station produces a large pile of out-of-domain
+false positives and expensive where it does not, because the genuine calls it
+catches are roughly constant while the false positives it removes are not. It
+should not be recommended unconditionally, and a practitioner can tell which
+case they are in by scanning a station both ways before committing. That figure
+is a lower bound: the review covers only windows the deployed model found, so a
+call no model ever produced cannot appear in it.
+
 \paragraph{Two attempts to close that gap.} Because the gap is measurable, it
 can be attacked, and we report two attempts because both are the sort of thing a
 reader will consider and neither is written up elsewhere. Both were applied to
