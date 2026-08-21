@@ -337,9 +337,59 @@ def main():
                           ("freqpos", 0.9692), ("freqpos_noconfuser", 0.9586)]:
             check(f"Table 3 precision, {arm}", want,
                   round(abl[arm]["gated_loso_precision"].mean(), 4), 0.0001)
-        # the two the abstract quotes must be in it verbatim
-        for s in ("+0.0138", "+2.63", "-0.0012", "-0.26"):
+        # the band-split figure is the one the abstract still quotes; the
+        # position-encoding one was withdrawn on 2026-08-20 when the same two
+        # arms on a later dataset reversed its sign, so the manuscript now
+        # reports both nulls rather than either as a finding.
+        for s in ("+0.0138", "+2.63"):
             check(f"abstract prints {s}", True, s in tex)
+        for s in ("-0.0012", "-0.26", "-0.0068", "-1.45"):
+            check(f"body reports {s}", True, s in tex)
+        check("no recommendation is made between the heads", True,
+              "no recommendation between the two" in tex)
+        check("the withdrawn advice is gone", True,
+              "should use\n\\texttt{temporal\\_freq}" not in tex)
+
+    # ---- the same two heads on the later dataset ----
+    #
+    # A second measurement of one comparison, and the reason the first was
+    # withdrawn. The dataset differs -- 1,056 expert bird clips and 27 field
+    # C. pogonias were added -- so this is not a replication; it is a second
+    # internally clean comparison whose sign disagrees with the first.
+    later = {}
+    for a in ("freq", "freqpos"):
+        p = os.path.join(REPO,
+                         f"data/outputs/v13_runs/full_2026-08-19/loso16_{a}.csv")
+        if os.path.exists(p):
+            later[a] = pd.read_csv(p).set_index("station")
+    if len(later) == 2:
+        sts2 = sorted(later["freq"].index)
+        check("later run: arms share an evaluation set", True,
+              all(later["freq"].loc[s, "gated_detections"]
+                  == later["freqpos"].loc[s, "gated_detections"] for s in sts2))
+        for a, want in (("freq", 0.9486), ("freqpos", 0.9554)):
+            check(f"later run: {a} precision", want,
+                  round(later[a]["gated_loso_precision"].mean(), 4), 0.0001)
+        d2 = np.array([later["freq"].loc[s, "gated_loso_precision"]
+                       - later["freqpos"].loc[s, "gated_loso_precision"]
+                       for s in sts2])
+        se2 = d2.std(ddof=1) / np.sqrt(len(d2))
+        check("later run: freq - freqpos", -0.0068, round(d2.mean(), 4), 0.0001)
+        check("  its t", -1.45, round(d2.mean() / se2, 2), 0.01)
+        # Both differences must be taken the same way round. paired() above is
+        # called as (freqpos, freq) elsewhere, which is the opposite subtraction
+        # from d2, and comparing those two signs compares a quantity with its own
+        # negation -- it agrees whatever the data does.
+        first = paired("freq", "freqpos")[0]
+        check("  the sign is opposite to the first run", True,
+              (d2.mean() < 0) != (first < 0),
+              )
+        # +0.0012 taken this way round. The manuscript prints -0.0012 because
+        # it describes the encoding being *added* to the split, which is
+        # freqpos - freq. Same number, opposite subtraction, and worth pinning
+        # here because getting it backwards is how the sign check above passed
+        # against its own negation.
+        check("  first run freq - freqpos", 0.0012, round(first, 4), 0.0001)
     else:
         check("head ablation", "4 arms", f"{len(abl)} found")
 
