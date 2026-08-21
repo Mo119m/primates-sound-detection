@@ -393,6 +393,60 @@ def main():
     else:
         check("head ablation", "4 arms", f"{len(abl)} found")
 
+    # ---- the gate ablation ----
+    #
+    # Recomputed from the two scans rather than trusted, because this is the
+    # paper's only controlled measurement of the filter it describes, and
+    # because the per-class split is the part that carries the claim: the
+    # headline percentages range from 41 to 94 and mean almost nothing on their
+    # own.
+    DRV = os.path.join(REPO, "data/outputs/detection_review")
+    gate = {}
+    for st in ("IPA1ST", "IPA2ST", "IPA4ST"):
+        g = os.path.join(DRV, f"{st}_0500-1900_full819_all_detections.csv")
+        u = os.path.join(DRV, f"{st}_0500-1900_nogate_all_detections.csv")
+        if os.path.exists(g) and os.path.exists(u):
+            gate[st] = (pd.read_csv(g), pd.read_csv(u))
+    if len(gate) == 3:
+        tot_g = sum(len(a) for a, _ in gate.values())
+        tot_u = sum(len(b) for _, b in gate.values())
+        check("gate: gated total (674)", 674, tot_g)
+        check("gate: ungated total (3,962)", 3962, tot_u)
+        check("gate: removed overall (83.0%)", 83.0,
+              round(100 * (tot_u - tot_g) / tot_u, 1), 0.05)
+        for st, want in (("IPA1ST", 93.8), ("IPA2ST", 41.3), ("IPA4ST", 60.5)):
+            a, b = gate[st]
+            check(f"gate: {st} removed", want,
+                  round(100 * (len(b) - len(a)) / len(b), 1), 0.05)
+        # the four-fold split between the classes, which is the finding
+        for st, sp, want in (("IPA1ST", "C_pogonias", 99.2),
+                             ("IPA2ST", "C_pogonias", 91.3),
+                             ("IPA4ST", "C_pogonias", 89.6),
+                             ("IPA1ST", "Cernic", 26.3),
+                             ("IPA2ST", "Cernic", 32.9),
+                             ("IPA4ST", "Cernic", 25.1)):
+            a, b = gate[st]
+            na, nb = int((a.species == sp).sum()), int((b.species == sp).sum())
+            check(f"gate: {st} {sp} removed", want,
+                  round(100 * (nb - na) / nb, 1), 0.05)
+        check("every pogonias rate exceeds every nictitans rate", True,
+              min(100 * (int((b.species == "C_pogonias").sum())
+                         - int((a.species == "C_pogonias").sum()))
+                  / max(1, int((b.species == "C_pogonias").sum()))
+                  for a, b in gate.values())
+              > max(100 * (int((b.species == "Cernic").sum())
+                           - int((a.species == "Cernic").sum()))
+                    / max(1, int((b.species == "Cernic").sum()))
+                    for a, b in gate.values()))
+        # IPA4ST removed none of its four Colobus windows
+        a4, b4 = gate["IPA4ST"]
+        check("gate: IPA4ST removed no Colobus", 0,
+              int((b4.species == "Colobus_guereza").sum())
+              - int((a4.species == "Colobus_guereza").sum()))
+        for s in ("93.8", "41.3", "60.5", "99.2", "89.6", "25.1", "1.61",
+                  "3\\,288", "3\\,962"):
+            check(f"manuscript prints {s}", True, s in tex)
+
     # ---- what the negative class is made of ----
     #
     # Recomputed from the packed index rather than trusted, because these are
