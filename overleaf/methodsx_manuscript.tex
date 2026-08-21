@@ -2177,26 +2177,32 @@ rather than rhetorical.
 Those distances are descriptive. What the out-of-distribution gate does with
 them can be measured directly, by scanning the same audio twice with the same
 model at the same fitted threshold and moving nothing but the fitted statistics
-into and out of the directory the scanner reads. Two stations, so far:
+into and out of the directory the scanner reads.
 
 \begin{center}
-\begin{tabular}{lrrrr}
+\begin{tabular}{lrrrrr}
 \toprule
- & \multicolumn{2}{c}{detections} & & confirmed calls \\
-station & gated & ungated & removed & among the removed \\
+ & \multicolumn{2}{c}{detections} & & \multicolumn{2}{c}{removed, by class} \\
+station & gated & ungated & removed & \textit{pogonias} & \textit{nictitans} \\
 \midrule
-IPA1ST & 177 & 2\,865 & 93.8\,\% & 21 \quad (0.78\,\%) \\
-IPA2ST & 195 & 332 & 41.3\,\% & 15 \quad (10.95\,\%) \\
+IPA1ST & 177 & 2\,865 & 93.8\,\% & 99.2\,\% & 26.3\,\% \\
+IPA2ST & 195 & 332 & 41.3\,\% & 91.3\,\% & 32.9\,\% \\
+IPA4ST & 302 & 765 & 60.5\,\% & 89.6\,\% & 25.1\,\% \\
+\midrule
+all & 674 & 3\,962 & 83.0\,\% & & \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-The headline proportions differ by more than a factor of two and that difference
-is not the gate behaving differently. Split by class it is stable: the gate
-removes 99.2\,\% of IPA1ST's \textit{C.\ pogonias} windows and 91.3\,\% of
-IPA2ST's, against 26.3\,\% and 32.9\,\% of their \textit{C.\ nictitans} windows.
-What varies is how many \textit{C.\ pogonias} candidates a station produces --
-2\,651 at IPA1ST, 46 at IPA2ST.
+The headline proportions range from 41\,\% to 94\,\% and that spread is not the
+gate behaving differently at different stations. The last two columns are: the
+gate removes between 89.6\,\% and 99.2\,\% of a station's \textit{C.\ pogonias}
+windows and between 25.1\,\% and 32.9\,\% of its \textit{C.\ nictitans} windows,
+a three- to four-fold difference that holds at all three. What varies is how
+many \textit{C.\ pogonias} candidates a station produces at all --- 2\,651 at
+IPA1ST, 422 at IPA4ST, 46 at IPA2ST --- so the headline figure mostly reports the
+composition of a station's false positives rather than anything about the
+filter.
 
 That four-to-one split between the classes is the provenance gap, measured with
 a control rather than described. \textit{C.\ pogonias} was 150 library
@@ -2207,16 +2213,27 @@ already contains this deployment and the gate treats it gently. A reader can
 predict which of their own classes the gate will decimate by asking which of
 them was built from library material.
 
-The cost column is what turns this into advice. Cross-referencing the removed
-windows against the review, 36 of 2\,825 coincide with a call somebody confirmed
-by ear --- 1.27\,\% overall, but 0.78\,\% at IPA1ST and 10.95\,\% at IPA2ST. The
-gate is close to free where a station produces a large pile of out-of-domain
-false positives and expensive where it does not, because the genuine calls it
-catches are roughly constant while the false positives it removes are not. It
-should not be recommended unconditionally, and a practitioner can tell which
-case they are in by scanning a station both ways before committing. That figure
-is a lower bound: the review covers only windows the deployed model found, so a
-call no model ever produced cannot appear in it.
+The cost is what turns this into advice. Cross-referencing the removed windows
+against the review, 53 of 3\,288 coincide with a call somebody confirmed by ear:
+1.61\,\% overall, and 0.78\,\%, 3.67\,\% and 10.95\,\% at the three stations. The
+absolute count barely moves --- 21, 17, 15 --- while the pile they are drawn from
+moves by a factor of twenty, so the rate is set almost entirely by how many
+false positives the gate had to work with. It is close to free where a station
+produces a large heap of out-of-domain candidates and expensive where it does
+not. The gate should therefore not be recommended unconditionally, and a
+practitioner can find out which case they are in by scanning one station both
+ways before committing to it. The figure is a lower bound: the review covers
+only windows the deployed model found, so a call no model ever produced cannot
+appear in it.
+
+One row resists the pattern and is worth stating rather than smoothing. At
+IPA4ST the gate removed none of the four \textit{C.\ guereza} detections, where
+at the other two stations it removed one of one and two of three. Four windows
+decide nothing on their own, but this is the species the paper reports as a
+negative result on the ground that no field roar has ever been confirmed here,
+and windows that a distance-to-training-distribution filter declines to reject
+are the ones to listen to first. All twelve \textit{C.\ guereza} candidates
+across the three stations are with the species expert.
 
 \paragraph{Two attempts to close that gap.} Because the gap is measurable, it
 can be attacked, and we report two attempts because both are the sort of thing a
