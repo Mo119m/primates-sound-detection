@@ -52,6 +52,11 @@ DATA = os.path.join(REPO, "data")
 # Windows: "D:/"   WSL2: "/mnt/d"   macOS: "/Volumes/Gabon CNN"
 DRIVE = "D:/"
 BIRDNET = os.path.join(DRIVE, "Gabon BirdNET segments Birds")
+# The subset of that pool the expert reviewed and returned, seven species. Lives
+# in the repo tree rather than on the drive because it is small and because it
+# is a human-labelled artifact, but the audio itself stays gitignored: the
+# filenames carry recorder coordinates.
+EXPERT_BIRDS = os.path.join(DATA, "expert_birds")
 RAW_AUDIO = os.path.join(DRIVE, "Gabon raw acoustic data National Park")
 
 REVIEW_TABLE = os.path.join(DATA, "outputs/auto_cleanup/cleanup_vs_review.csv")
@@ -84,6 +89,13 @@ def _canon(name):
 REVIEW_CLIP_RE = re.compile(r"^Cernic__(.+?)__(\d+)s__conf([\d.]+)\.wav$")
 FLAGGED_CLIP_RE = re.compile(r"^Cernic__(.+?)__t(\d+)s__conf([\d.]+)\.wav$")
 BIRDNET_RE = re.compile(r"^[\d.]+_\d+_(.+?)_([\d.]+)s_([\d.]+)s\.wav$")
+# The same shape, but the expert's tool appends a counter on re-export and does
+# it again if a clip is exported twice, so BIRDNET_RE matches none of his 1,056.
+EXPERT_BIRD_RE = re.compile(
+    r"^[\d.]+_\d+_(.+?)_([\d.]+)s_([\d.]+)s(?:_\d{5}_\d{3})*\.wav$")
+# A bracketed coordinate the recorder wrote into some filenames and not others,
+# so the same recording appears both ways and has to be normalised to compare.
+COORD_BRACKET_RE = re.compile(r"\s*\[[-+][\d.]+[-+][\d.]+\]")
 STATION_IN_PATH_RE = re.compile(r"(ipa\d+)s?t?_", re.IGNORECASE)
 
 # Fallback for when the external drive is not mounted and the coordinate map
@@ -565,6 +577,70 @@ def collect_birdnet(coord_map, no_coord, review):
     return pd.DataFrame(rows)
 
 
+def collect_expert_birds(coord_map, no_coord, review):
+    """
+    Seven bird species the expert picked out of the BirdNET pool by hand.
+
+    Not the same material as collect_birdnet, and the distinction is the whole
+    reason this is a separate collector. That pool is 17,106 segments chosen by
+    a bird detector and never listened to, and this paper reports dropping it on
+    the rule that nothing trains unless a person has heard it. These 1,056 are
+    what came back when the expert went through that pool -- "I'm reviewing all
+    the birds from the Gabon BirdNET segments" -- picked the species that
+    actually occur here, and returned clean examples of each. Same audio, a
+    person in between. They are marked verified for that reason.
+
+    What his review does not certify is that no monkey is audible behind the
+    bird. He was selecting good examples of a bird, which is a different
+    question, and he said as much about this pool: he could not promise there
+    are no monkeys in it. So the same screen the paper describes for machine-
+    labelled negatives is still worth running over them, and did flag 22 of
+    1,056 at 0.5 on a target group. Those are for a human ear, not for this.
+
+    The confirmed-call overlap drop from collect_birdnet applies unchanged: a
+    segment whose recording and window overlap a confirmed call comes out.
+    Overlap with a confirmed *false positive* is kept, as there, because that is
+    a hard negative of the best kind and because --keep-all-background already
+    means a station's own rejected detections are in its training fold.
+
+    Filenames carry a re-export suffix his tool adds, sometimes twice, which the
+    BirdNET pattern does not allow for; EXPERT_BIRD_RE is that pattern with the
+    suffix made optional and repeatable.
+    """
+    if not os.path.isdir(EXPERT_BIRDS):
+        print(f"  ! {EXPERT_BIRDS} missing -- skipping expert bird clips")
+        return pd.DataFrame()
+
+    calls = review[review["verdict"] == "call"] if len(review) else pd.DataFrame()
+    call_windows = {}
+    for _, r in calls.iterrows():
+        m = REVIEW_CLIP_RE.match(r["file"])
+        if m:
+            call_windows.setdefault(m.group(1), []).append(int(m.group(2)))
+
+    rows, dropped, unparsed = [], 0, 0
+    for p in sorted(glob.glob(os.path.join(EXPERT_BIRDS, "*", "*.wav"))):
+        m = EXPERT_BIRD_RE.match(os.path.basename(p))
+        if not m:
+            unparsed += 1
+            continue
+        rec, start, end = m.group(1), float(m.group(2)), float(m.group(3))
+        # The recording name may carry a bracketed coordinate the review's copy
+        # of the same recording does not; strip it before comparing.
+        rec = COORD_BRACKET_RE.sub("", rec).strip()
+        if any(start < off + 2.0 and end > off
+               for off in call_windows.get(rec, ())):
+            dropped += 1
+            continue
+        species = os.path.basename(os.path.dirname(p))
+        rows.append(_row(p, "Background",
+                         possible_stations(p, coord_map, no_coord),
+                         f"expert_birds:{species}", True))
+    print(f"  expert birds: {len(rows)} kept, {dropped} overlapping a confirmed "
+          f"call, {unparsed} unparsed")
+    return pd.DataFrame(rows)
+
+
 def apply_review(manifest, review):
     """
     Correct the auto-flagged pool against the human verdicts.
@@ -885,6 +961,12 @@ def main():
                          "training, plus 'reason' and 'decided_by'. Applied "
                          "before augmentation, so an excluded clip is never "
                          "replicated.")
+    ap.add_argument("--no-expert-birds", action="store_true",
+                    help="skip the seven bird species the expert reviewed and "
+                         "returned from the BirdNET pool. Independent of "
+                         "--no-birdnet: dropping the 17,106 unlistened segments "
+                         "while keeping these 1,056 reviewed ones is the "
+                         "configuration this paper argues for")
     ap.add_argument("--relabel", default="", metavar="CSV",
                     help="CSV of clips an expert re-identified: file,new_label")
     ap.add_argument("--drop-source", action="append", default=[], metavar="PREFIX",
@@ -941,7 +1023,17 @@ def main():
         birds = collect_birdnet(coord_map, no_coord, review)
         print(f"  {len(birds)}")
 
-    manifest = pd.concat([manifest, reviewed, colobus, birds], ignore_index=True)
+    # Separate from --no-birdnet on purpose. Dropping the 17,106 machine-labelled
+    # segments and keeping the 1,056 the expert reviewed is the configuration the
+    # paper argues for, so it has to be expressible; one flag for both would make
+    # it unreachable.
+    expert_birds = pd.DataFrame()
+    if not args.no_expert_birds:
+        print("Collecting expert-reviewed bird clips...")
+        expert_birds = collect_expert_birds(coord_map, no_coord, review)
+
+    manifest = pd.concat([manifest, reviewed, colobus, birds, expert_birds],
+                         ignore_index=True)
     # A clip exported once and reviewed once can arrive from two collectors; the
     # reviewed copy carries the human label and wins.
     before = len(manifest)
