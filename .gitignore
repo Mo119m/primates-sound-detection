@@ -68,3 +68,13 @@ outputs/
 # listening hours. Version them.
 !/data/labels/
 !/data/labels/*.csv
+
+# The time gate's lookup table: filename, timestamp, offset, and nothing else.
+# Versioned because without it a run on a machine that has no copy of
+# cleanup_vs_review.csv writes a CSV silently missing every gated_ column, and
+# three Colab folds were trained that way on 2026-08-24 before the headers were
+# read. cleanup_vs_review.csv itself stays ignored above and must: 2,882 of its
+# cells carry the recorder's position. scripts/make_review_gate_table.py builds
+# this one and refuses to write a coordinate or a duplicated key.
+!/data/outputs/auto_cleanup/
+!/data/outputs/auto_cleanup/review_gate_table.csv

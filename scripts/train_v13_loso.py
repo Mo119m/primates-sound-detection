@@ -47,6 +47,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import socket
 import sys
 import time
@@ -846,6 +847,14 @@ def train_head(feats, rows, labels, groups, class_names, epochs, seed,
     return head, float(val_acc), rows[va]
 
 
+_GPS_IN_NAME = re.compile(r"[+-]\d{2}\.\d{4}[+-]\d{3}\.\d{4}")
+
+
+def _canon_review_key(name):
+    """A filename with the recorder's coordinates removed, for joining on."""
+    return _GPS_IN_NAME.sub("", str(name))
+
+
 def detection_hours(index, review=None):
     """
     Wall-clock hour of each reviewed detection, or NaN where it is not known.
@@ -859,20 +868,42 @@ def detection_hours(index, review=None):
     253 files when the true value over all 253 is 48.6 %. Joining on basename
     resolves 6 189 of 6 189 reviewed rows and cannot half-match.
     """
-    review = review or os.path.join(REPO,
-                                    "data/outputs/auto_cleanup/cleanup_vs_review.csv")
     hours = pd.Series(np.nan, index=index.index)
-    if not os.path.exists(review):
-        print(f"  no review table at {review} -- gated columns unavailable")
+    if review is None:
+        # The full table first, the coordinate-free subset second. Only the
+        # subset can go on Drive: cleanup_vs_review.csv carries the recorder's
+        # position in 2,882 of its filenames, and a run without either writes a
+        # CSV silently missing every gated_ column -- which is what three Colab
+        # folds did on 2026-08-24 before anyone read their headers.
+        for cand in ("data/outputs/auto_cleanup/cleanup_vs_review.csv",
+                     "data/outputs/auto_cleanup/review_gate_table.csv"):
+            p = os.path.join(REPO, cand)
+            if os.path.exists(p):
+                review = p
+                break
+    if review is None or not os.path.exists(review):
+        print("  no review table found -- gated columns unavailable. Build the "
+              "shareable one with scripts/make_review_gate_table.py")
         return hours
     rev = pd.read_csv(review)
     det = (pd.to_datetime(rev["timestamp"], format="%Y%m%dT%H%M%S")
            + pd.to_timedelta(rev["start_s"], unit="s"))
-    by_file = dict(zip(rev["file"], det.dt.hour + det.dt.minute / 60.0))
-    base = index["path"].map(lambda p: os.path.basename(str(p)))
+    # Canonicalise both sides. The shareable table has the coordinates stripped
+    # out of its keys and the full one does not, so joining on the raw name
+    # would match every row against one table and none against the other --
+    # and "none" here does not raise, it just empties the gated columns.
+    # Stripping is lossless: all 6,189 names stay distinct and the same 6,478
+    # index rows match either way. Measured, not assumed.
+    by_file = dict(zip(rev["file"].map(_canon_review_key),
+                       det.dt.hour + det.dt.minute / 60.0))
+    base = index["path"].map(lambda p: _canon_review_key(os.path.basename(str(p))))
     hours = base.map(by_file)
     matched = int(hours.notna().sum())
-    print(f"  detection times: {matched}/{len(rev)} reviewed rows matched")
+    print(f"  detection times: {matched}/{len(rev)} reviewed rows matched"
+          f"  [{os.path.basename(review)}]")
+    if matched == 0:
+        print("  ! nothing matched. The gated_ columns will be empty and every "
+              "comparison that quotes them will be unusable.")
     return hours
 
 
