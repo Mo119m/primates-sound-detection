@@ -51,6 +51,37 @@ ARMS = [
 ]
 
 
+GATED = ["gated_loso_threshold", "gated_loso_calls_retained",
+         "gated_loso_fps_removed", "gated_loso_precision"]
+
+
+def unusable(csv):
+    """Why this synced fold cannot be used, or None if it can.
+
+    Existing-on-disk was the only test until 2026-08-25, and it passed three
+    folds that were missing every column the comparison reads. They had been
+    trained on a runtime with no copy of the review table, so the time gate had
+    no clock; train_v13_loso.py printed one line about it and wrote the CSV
+    anyway. Twenty-five GPU-minutes each, and the run looked like progress.
+
+    A fold that exists but cannot be compared is worse than a fold that does
+    not exist, because the skip rule protects it. So the skip rule checks.
+    """
+    import pandas as pd
+    if not os.path.exists(csv):
+        return "missing"
+    try:
+        d = pd.read_csv(csv)
+    except Exception as e:
+        return f"unreadable ({e})"
+    gone = [c for c in GATED if c not in d.columns]
+    if gone:
+        return f"missing {len(gone)} gated columns"
+    if d[GATED].isna().all().any():
+        return "gated columns present but empty"
+    return None
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     os.chdir(REPO)
@@ -75,9 +106,12 @@ def main():
 
         for st in STATIONS:
             landed = os.path.join(arm_dir, f"{st}.csv")
-            if os.path.exists(landed):
+            why = unusable(landed)
+            if os.path.exists(landed) and why is None:
                 print(f"  skip {st}, already synced")
                 continue
+            if os.path.exists(landed):
+                print(f"  redoing {st}: the synced fold is {why}")
             csv = f"/content/{name}_{st}.csv"
             meta = f"/content/{name}_{st}.run.json"
             cmd = ([sys.executable, "scripts/train_v13_loso.py",
@@ -106,9 +140,18 @@ def _read_arm(arm_dir):
     import pandas as pd
     if not os.path.isdir(arm_dir):
         return None
-    parts = [pd.read_csv(os.path.join(arm_dir, f))
-             for f in sorted(os.listdir(arm_dir))
-             if f.endswith(".csv") and not f.endswith(".run.json")]
+    good, bad = [], []
+    for f in sorted(os.listdir(arm_dir)):
+        if not f.endswith(".csv"):
+            continue
+        full = os.path.join(arm_dir, f)
+        why = unusable(full)
+        (bad if why else good).append((f, why))
+    if bad:
+        print(f"  {arm_dir}: ignoring {len(bad)} unusable folds")
+        for f, why in bad:
+            print(f"    {f}: {why}")
+    parts = [pd.read_csv(os.path.join(arm_dir, f)) for f, _ in good]
     if not parts:
         return None
     return pd.concat(parts, ignore_index=True).set_index("station")
