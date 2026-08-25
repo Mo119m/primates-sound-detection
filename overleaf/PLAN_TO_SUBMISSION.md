@@ -44,11 +44,28 @@ Nothing here can be done without him, and the first item blocks the abstract.
 
 ## Compute we still owe
 
-5. **Table 2 on the current dataset.** No compute needed -- 
-   `full_2026-08-19/loso16_freqpos.csv` has all sixteen folds with every
-   `gated_` column filled. The table in the paper is the 08-18 run at 21,120
-   training rows. Swapping it moves precision 0.9695 to 0.9554 and recall
-   0.9071 to 0.9163. Do this first; it is an afternoon.
+5. ~~**Table 2 on the current dataset.**~~ **Done 2026-08-25.** The table is
+   generated from the run now rather than transcribed, and every number in the
+   prose that depended on it moved with it. 157 checks pass, 0 OFF, 0 SKIP.
+
+   The sweep that did it found more than it was sent for. Six figures in the
+   prose reproduced uniquely from `armA_corrections`, two runs behind the table
+   printed beside them; the augmentation multipliers were stale for every class
+   rather than only *C. pogonias*; the `drop_pogonias` null was last run on 8
+   August against a different dataset and cannot speak to the field clips; and
+   one sentence did not survive at all -- the fitted threshold at IPA4ST no
+   longer sits above the four scanning errors, and the paper now says so.
+
+   What did **not** change: the base rate at IPA4ST is still 4.0 %, the
+   threshold spread got wider rather than narrower (median 0.713 to 0.530,
+   eight folds below 0.5 where there were six), so the paper's central claim
+   that no single threshold transfers is better supported than before, and
+   precision still improves at all sixteen stations.
+
+   One thing to carry into the writing: the deployed baseline fell further than
+   the result did, 0.717 to 0.629, because 388 confirmed false positives
+   entered the review table with the expert's verdicts. The model did not get
+   worse. Do not quote the old baseline against the new result.
 
 6. **The sixteen-fold fine-tuning comparison.** 3 of 32 folds done, all on
    Colab. This is not optional: the manuscript already reports a fine-tuning
