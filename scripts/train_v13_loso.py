@@ -611,7 +611,16 @@ def fold_masks(index, station, keep_all_background=False):
         # and they are the numerator of the very score being reported.
         withheld = withheld & (index["label"] != "Background")
     train = ~withheld
-    reviewed = index["source"].str.startswith("review")
+    # Original clips only. A reviewed detection is one human verdict and must
+    # count once, but 23 reviewed clips were relabelled C_pogonias on
+    # 2026-08-19, and members of a target class get augmented -- so each of
+    # those clips acquired 16 variant rows, and without this filter every one
+    # of them landed in the evaluation and calibration pools. The 2026-08-19
+    # sweep scored 6,478 "detections" where the review holds 6,110: IPA2ST's
+    # pool was 44 % duplicate copies of four sounds. No earlier dataset
+    # tripped this because no earlier dataset had a reviewed clip in an
+    # augmented class; the leak was structural, waiting for the first one.
+    reviewed = index["source"].str.startswith("review") & (index["aug"] == 0)
     evaluate = (index["station"] == station) & reviewed
     calibrate = reviewed & (index["station"] != station) & train
     return train.to_numpy(), evaluate.to_numpy(), calibrate.to_numpy()
