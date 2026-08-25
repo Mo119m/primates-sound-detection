@@ -528,6 +528,24 @@ def main():
               int(bg["source"].str.contains("birdnet", case=False).sum()))
         for s in ("10{,}165", "7{,}003", "1{,}056", "1{,}951", "16{,}826"):
             check(f"manuscript prints {s}", True, s in tex)
+
+        # ---- Table 1, as trained ----
+        #
+        # Until 2026-08-25 this table printed the previous build: 3,002 Cernic,
+        # 665 guereza, 150 pogonias, 907 confuser, and a 25,891-clip Background
+        # whose largest block was 16,826 machine-labelled clips the shipped
+        # build dropped -- all under a "human-verified" caption. Nothing here
+        # was watching it. Now every row is pinned to the shipped index.
+        a0 = idx[ok & (idx["aug"] == 0)].drop_duplicates(subset="path")
+        per = a0.groupby("label").size().to_dict()
+        for lab, want in (("Cernic", 3004), ("Colobus_guereza", 1440),
+                          ("C_pogonias", 177), ("Colobus_confuser", 961),
+                          ("Background", 10165)):
+            check(f"Table 1 {lab} originals ({want:,})", want,
+                  int(per.get(lab, -1)))
+        check("Table 1 total (15,747)", 15747, int(sum(per.values())))
+        for s in ("3{,}004", "1{,}440", "15{,}747"):
+            check(f"manuscript prints {s}", True, s in tex)
         # The two audited blocks. 2,370 is the size of an audit that happened:
         # every clip IPA4ST contributed as a reviewed false positive at the
         # time was listened to, and three were calls. It is not recomputed from

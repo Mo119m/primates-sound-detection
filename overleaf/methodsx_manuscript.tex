@@ -259,10 +259,12 @@ cleanup, and iterative retraining), augmented by three targeted
 false-positive controls for \textit{Colobus}: a frequency-position-aware
 classifier head that encodes where in frequency a call sits, a
 dedicated hard-negative ``confuser'' class learned during training, and a
-calibrated low-frequency energy gate applied at detection time. All paths,
-species definitions, and hyperparameters live in a single configuration file so
+low-frequency energy ratio computed for every \textit{Colobus} detection ---
+implemented as a gate, shipped as an annotation, for reasons the field data
+decide (\S\,Sliding-window detection). Species definitions, audio parameters,
+and hyperparameters live in a single configuration file so
 the workflow can be re-targeted to new species or sites without touching the
-code.
+model or detection code.
 
 \subsection*{Study area, recordings, and reference clips}
 
@@ -270,16 +272,22 @@ Field recordings are continuous WAV files collected at fixed acoustic stations
 (denoted IPA1ST, IPA2ST, \dots; one subfolder per recording date) in
 rainforest in Ivindo National Park, Gabon, near Makokou.
 
-The model is trained on short reference clips organized into four classes
+The model is trained on short reference clips organized into five classes
 (Table~\ref{tab:traindata}):
 \begin{itemize}
 \item \textbf{Cernic}: all putty-nosed monkey call types (putty-nose, hack,
-kek, pyow) pooled into a single class. Five source folders (one per call type
-plus a folder of recovered field calls) are mapped to
+kek, pyow) pooled into a single class. Six source folders --- putty-nose clips
+at two lengths, one folder each for hacks, keks and pyows, and a folder of
+confirmed field calls --- are mapped to
 the single ``Cernic'' label, so that
 merging happens at training time and the model directly outputs a unified
 putty-nosed decision;
-\item \textbf{Colobus\_guereza}: \textit{Colobus guereza} reference calls;
+\item \textbf{Colobus\_guereza}: \textit{Colobus guereza} reference calls, as
+segmented roar pulses and as contiguous 1.8\,s windows cut from the same
+recordings;
+\item \textbf{C\_pogonias}: \textit{Cercopithecus pogonias} calls --- library
+recordings, plus the field clips from this array that the species expert
+identified during review;
 \item \textbf{Colobus\_confuser}: a dedicated hard-negative class containing
 the forest sounds that earlier model versions repeatedly mis-fired as
 \textit{Colobus}, mined from field detections across the development stations
@@ -290,37 +298,48 @@ hundred hard negatives inside the much larger generic Background class; at
 detection time the class is folded back into the background group (see
 the detection-grouping and hard-negative-mining stages below) so it never
 produces a detection;
-\item \textbf{Background}: a pooled negative class assembled from ambient
-forest noise, calls of non-target animals present at the site (e.g.\
-\textit{Cercocebus torquatus}, \textit{Pan troglodytes}), and previously
-misclassified clips recycled through the hard-negative mining loop.
+\item \textbf{Background}: a pooled negative class assembled from field
+recordings a person has adjudicated individually, bird clips of seven species
+the collaborating expert selected as background, and curated recordings of
+ambient noise and non-target animals present at the site (e.g.\
+\textit{Cercocebus torquatus}, \textit{Pan troglodytes}). Its screening is
+described below.
 \end{itemize}
 
 \begin{table}[H]
 \centering
-\caption{Training-data composition: human-verified reference clips per class,
-before augmentation.}
+\caption{Training-data composition per class, before augmentation, as trained:
+the 22{,}169-row packed set derives from these 15{,}747 clips. Counts are
+unique clips in the shipped training index
+(\texttt{full\_2026-08-19/v13\_index.csv}).}
 \label{tab:traindata}
 \begin{tabularx}{\linewidth}{lrX}
 \toprule
 Class & Clips & Composition \\
 \midrule
-Cernic            & 3{,}002      & 2{,}535 reviewed field detections, 397
-                                   reference calls (putty-nose, hack, kek,
-                                   pyow), 70 recycled false positives \\
-Colobus\_guereza  & 665          & roar pulses segmented from
-                                   \textit{C.\ guereza} reference recordings \\
-C\_pogonias       & 150          & \textit{C.\ pogonias} clips from reference
-                                   recordings \\
-Colobus\_confuser & 907          & 654 curated hard-negatives, 253
+Cernic            & 3{,}004      & 2{,}535 reviewed field detections confirmed
+                                   as calls, 397 reference calls (putty-nose,
+                                   hack, kek, pyow), 72 calls recovered by
+                                   later audits of the negative pool \\
+Colobus\_guereza  & 1{,}440      & 665 roar pulses segmented from
+                                   \textit{C.\ guereza} reference recordings,
+                                   and 775 contiguous 1.8\,s windows cut from
+                                   the same recordings \\
+C\_pogonias       & 177          & 150 \textit{C.\ pogonias} clips from
+                                   reference recordings, and 27 field clips
+                                   from this array identified by the species
+                                   expert (23 among reviewed detections, 4 in
+                                   the negative-pool audit) \\
+Colobus\_confuser & 961          & 654 curated hard-negatives, 307
                                    field false positives, all human-reviewed \\
-Background        & 25{,}891     & 16{,}826 BirdNET bird detections from the
-                                   wider Gabon recording programme (\S\,below),
-                                   3{,}654 reviewed non-calls, 3{,}460
-                                   recycled false positives, 1{,}951 reference
-                                   recordings of non-target species \\
+Background        & 10{,}165     & 7{,}003 field recordings a person has
+                                   adjudicated individually, 1{,}056
+                                   expert-selected bird clips of seven species,
+                                   1{,}951 curated recordings of non-target
+                                   species, and 155 field clips awaiting a
+                                   listener \\
 \midrule
-\textbf{Total}    & 30{,}615     & \\
+\textbf{Total}    & 15{,}747     & \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -330,25 +349,30 @@ Background        & 25{,}891     & 16{,}826 BirdNET bird detections from the
 reported; see \S\,Model training for why a validation accuracy on this pool was
 withdrawn, and Table~\ref{tab:loso} for what replaces it.
 
-\paragraph{Where the bird negatives come from.} The largest single block of the
-Background class, 16\,826 clips, is BirdNET output from the wider recording
-programme this study sits inside, and it is worth being exact about the overlap
-with the deployment, because "detections on the deployment audio" would be the
-natural assumption and it is wrong. Only 1\,475 of those clips (8.6\,\%) carry
+\paragraph{Where the bird negatives come from.} The largest single block of an
+earlier build's Background class, 16\,826 clips, was BirdNET output from the
+wider recording programme this study sits inside. The shipped build keeps none
+of it unheard: it was dropped outright (\S\,Screening below), and what remains
+from that programme is the 1\,056 clips of seven bird species the collaborating
+expert selected. The provenance caveat applies to those equally, so it is worth
+being exact about the overlap with the deployment, because ``detections on the
+deployment audio'' would be the natural assumption and it is wrong. Of the
+original pool, only 1\,475 clips (8.6\,\%) carried
 the coordinates of one of the sixteen analysed stations, and only 2\,068
-(12.1\,\%) fall in the February 2021 window the deployment covers; the rest were
+(12.1\,\%) fell in the February 2021 window the deployment covers; the rest were
 recorded at other points in the same programme in July 2021 and in January,
-February and June 2022. They are the same recorder model, the same forest and
-the same bird community, but they are not this deployment.
+February and June 2022. The same recorder model, the same forest and
+the same bird community, but not this deployment.
 
-That is a limitation and an advantage at once. It means the negative class does
-not describe the exact soundscape of the sixteen stations, so it cannot be
+That is a limitation and an advantage at once. It means the bird negatives do
+not describe the exact soundscape of the sixteen stations, so they cannot be
 claimed to. It also means the model is not being taught the bird community of
 those sixteen points specifically, which is the failure mode a same-site
 negative class invites. The residual risk is unchanged by either: both target
 species range across Gabon, so a monkey call recorded at another site is as
-damaging a negative as one recorded here, which is why these clips are screened
-below rather than trusted.
+damaging a negative as one recorded here --- which is why the machine-labelled
+block was dropped rather than trusted, and why the clips that remain entered
+only by the expert's hand.
 
 \paragraph{Screening the negative class.} A target call filed as a negative is
 the one labelling error that more data cannot undo, because the model is told
@@ -375,9 +399,16 @@ negatives the model flags 2{,}713 clips at the same threshold, at rates reaching
 and those are kept: a high score there is the model's error, not the label's,
 and they are precisely the hard negatives it most needs. Applying the screen by
 score alone would have deleted them in proportion to how badly the model was
-already failing on them. Restricting it correctly requires an exact-match test
-on the source field rather than a prefix test, because a reviewed clip is
-recorded as a suffixed variant of the machine source it came from.
+already failing on them. Two mechanisms enforce the restriction, because one is
+not enough. Reviewed clips recovered through the review table are recorded
+under suffixed variants of the machine source they came from, which the
+screen's exact-match test never touches; but the 3{,}143 clips the expert
+audited in bulk keep their original machine source tag, so for those the
+builder consults the audit's verdict file directly and refuses to treat any
+row it names as machine-prunable. A separate check
+(\texttt{scripts/check\_no\_target\_in\_negatives.py}) reads every source of
+human verdicts --- 2{,}565 in total across four files --- and fails the build
+if any clip a person marked as a target call sits in a trainable negative.
 
 \noindent Because Background is loaded as a single pooled negative with no
 internal sub-labels, a genuine target call anywhere in it teaches the model to
@@ -402,9 +433,13 @@ that a project without an expert on hand is not obviously doomed. But it is not
 zero, the errors are invisible to every automatic check we applied, and both
 blocks were believed clean before anyone listened. \textit{Colobus} false
 positives were separately moved out of the pooled negative into the dedicated
-Colobus\_confuser class, and content-duplicate clips --- the same field
-detection stored more than once by different mining passes --- were removed by
-hashing before training.
+Colobus\_confuser class, and clips whose audio hash appeared under more than
+one label --- the same field detection filed once as a call and once as a
+negative by different mining passes --- were removed by hashing before
+training. The hash test is cross-label by design: a duplicate stored twice
+under the same label costs a little diversity, while the same audio carrying
+two labels teaches a contradiction, and only the second is worth an automatic
+deletion.
 
 \subsection*{Audio preprocessing and mel-spectrogram representation}
 
@@ -412,12 +447,16 @@ All audio is resampled to 44.1\,kHz and standardized to a fixed 2.0\,s
 duration. Clips shorter than the target (e.g.\ hack, kek, and pyow calls,
 typically $\sim$0.3\,s) are embedded at a random position within a 2\,s
 segment of real background noise randomly selected from the Background pool,
-at a call-to-background signal-to-noise ratio drawn uniformly from 3--15\,dB;
+at a call-to-background signal-to-noise ratio drawn uniformly from $-6$ to
+$+9$\,dB;
 this eliminates the silence shortcut that zero-padding would introduce and
 forces the model to distinguish the call from genuine ambient sound. Clips
 longer than 2\,s (e.g.\ putty-nosed 5\,s field recordings) are trimmed to the
-deterministic 2\,s window with the highest short-time energy, ensuring that the segment reviewed by a
-human annotator is identical to the segment used for training. Each 2\,s
+deterministic 2\,s window with the highest short-time energy. Exported review
+detections carry 0.5\,s of padding on either side of the detected window, so
+for those the energy crop recovers a window centred on the call's energy
+within the padded export --- close to, though not provably byte-identical
+with, the window the reviewer heard. Each 2\,s
 waveform is converted to a mel-spectrogram with librosa \cite{mcfee2015} using
 a 2048-sample FFT, 512-sample hop, 128 mel bands, and a 20--8000\,Hz analysis
 range, and is expressed in decibels relative to its per-clip maximum. The
@@ -432,12 +471,14 @@ two feature distributions comparable.
 Two augmentation schemes appear in this work and it matters which produced
 which number, so both are described.
 
-Each target-class spectrogram is expanded by four operations
-(Fig.~\ref{fig:augmentation}A): mixing with a randomly chosen background
-spectrogram at a signal-to-noise ratio drawn uniformly from $-5$ to 10\,dB; a
-time-axis crop; a frequency-axis crop (each removing 5--10\,\% from a randomly
-chosen edge, then resized back to the original shape); and a frequency
-translation of $\pm$9 mel bins. These spectrogram-domain operations are adapted
+Each target-class spectrogram is expanded by four operations, applied in a
+fixed cycle as variants are generated --- the original is kept as variant
+zero, then time-axis crop, frequency-axis crop, frequency translation and
+background mix, repeating (Fig.~\ref{fig:augmentation}A). The crops each
+remove 5--10\,\% from a randomly chosen edge and resize back to the original
+shape; the translation shifts by $\pm$9 mel bins; the mix blends in a randomly
+chosen background spectrogram at a signal-to-noise ratio drawn uniformly from
+$-5$ to 10\,dB. These spectrogram-domain operations are adapted
 from the rainforest-CNN pipeline of Sun et al.\ \cite{sun2022}, and the crop and
 translation ranges follow that study rather than departing from it: it modifies
 each spectrogram by 5--10\,\% of its size on the grounds that this is the range
@@ -622,11 +663,11 @@ per-class accuracy report and a confusion matrix on the validation set.
 A trained model is applied to each long recording with a 2.0\,s window
 advanced in 1.0\,s steps (50\,\% overlap); a final window is anchored at the
 end of the file so trailing audio is not dropped. Every window is converted to
-a mel-spectrogram image and classified. The four softmax classes are first
+a mel-spectrogram image and classified. The five softmax classes are first
 collapsed onto detection groups: the
 putty-nosed call types are already merged into Cernic at training time, so
-Cernic and Colobus\_guereza map to themselves, while the Colobus\_confuser
-class is routed into the Background group. Summing the confuser probability
+Cernic, Colobus\_guereza and C\_pogonias map to themselves, while the
+Colobus\_confuser class is routed into the Background group. Summing the confuser probability
 into Background means a window the model calls ``confuser'' is excluded from
 detections exactly like Background, and, equally important, the confuser
 probability is kept out of the Colobus\_guereza group, so a genuine
@@ -635,6 +676,19 @@ assigned to its highest-scoring group and is kept as a detection if that group
 is not Background and its confidence meets a threshold (default 0.4).
 Overlapping detections of the same group are then reduced by per-class
 non-maximum suppression at an intersection-over-union threshold of 0.5.
+
+\paragraph{Out-of-distribution gate.} Between NMS and the frequency gate
+below, every surviving detection is scored by Mahalanobis distance against
+statistics fitted on the training features of the head that produced it,
+looked up by a fingerprint of that head's weights, and a detection farther
+from its class than the 90th percentile of the class's own training distances
+is dropped (\texttt{OOD\_GATE\_ENABLED}, \texttt{src/config.py}). When no
+statistics exist for a head, the distance column is left empty and nothing is
+dropped, which is the correct failure: statistics fitted in another fold's
+feature space would give meaningless distances, and a silent wrong answer is
+worse than a visible missing one. The distance is recorded before the
+frequency gate so the column exists even for detections that gate would
+remove.
 
 \paragraph{Low-frequency energy gate for \textit{Colobus}.}
 After NMS, a frequency-domain safety net is applied to each remaining
@@ -645,8 +699,12 @@ below 1.5\,kHz is measured. Genuine \textit{Colobus} roars concentrate almost
 all of their energy in the low band and sit well above the gate threshold,
 whereas the high-frequency bird and insect sounds that the classifier
 occasionally mis-fires on carry almost all of their energy above 1.5\,kHz.
-Detections whose low-frequency ratio falls below the threshold are dropped from
-the detection list (i.e.\ treated as non-target Background).
+When the gate is enabled, detections whose low-frequency ratio falls below the
+threshold are dropped from the detection list (i.e.\ treated as non-target
+Background). In the shipped configuration the drop is off
+(\texttt{LOWFREQ\_GATE\_ENABLED = False}) and the gate is an annotation only:
+the ratio is written for every \textit{Colobus} detection and nothing is
+removed. The paragraph below is why.
 
 The deployment reported here used a threshold of 0.20. That value was
 calibrated on the curated \textit{Colobus} reference clips together with the
@@ -688,11 +746,16 @@ original (non-augmented) training clips \cite{lee2018}. For each detection the
 Mahalanobis distance to its candidate class cluster is computed. A real call
 lies close to its training cluster, whereas an unfamiliar sound does not.
 Because field clips are systematically noisier than the curated training clips,
-thresholds calibrated on training data flag almost everything; we therefore
-calibrate the cutoff on the \textbf{detection distances themselves}, flagging,
-per species, the detections beyond the 95th percentile of the observed
-distance distribution (a configurable percentile). This makes the filter a
+thresholds calibrated on training data flag almost everything; the cutoff is
+therefore calibrated on the \textbf{detection distances themselves}, per
+species, at a configurable percentile of the observed distance distribution
+(95th by default). This makes the filter a
 relative-outlier detector that is robust to the train-to-field domain shift.
+In the shipped configuration the flag itself is off
+(\texttt{USE\_MAHALANOBIS\_FILTER = False}): the distance is computed and
+written for every detection and used to rank the review queue, but it marks
+nothing on its own. The held-out evaluation below
+(\S\,Which filters survive) is what set that default.
 
 \paragraph{(b) YAMNet cross-check (implemented, disabled)}
 The pipeline also implements a cross-check against YAMNet, a network trained on
@@ -705,8 +768,11 @@ for targets that AudioSet does represent.
 
 \paragraph{(c) Temporal-isolation filter}
 Primates tend to call in bouts, so a genuine call usually has same-species
-neighbours nearby in time. A detection with no other detection of the same
-species within $\pm$30\,s (configurable) is flagged as temporally isolated.
+neighbours nearby in time. A detection with fewer than two other detections of
+the same species within $\pm$30\,s (both counts configurable,
+\texttt{ISOLATION\_MIN\_NEIGHBOURS = 2}) is flagged as temporally isolated ---
+so a detection with exactly one neighbour is flagged too, not only a detection
+alone in its minute.
 
 A detection is considered \textbf{clean} only when no filter flags it,
 \textbf{suspicious} when at least one filter flags it, and a \textbf{strong
@@ -756,8 +822,10 @@ sound. Because the window advances in steps shorter than itself, and because
 non-maximum suppression is deliberately set to keep neighbouring windows so that
 a boundary-straddling call is not lost, a call longer than one step is reported
 more than once. Detections of one species in one recording whose windows overlap
-or touch are therefore also grouped into a \textbf{call event}, and the pipeline
-reports the event count beside the window count. The distinction matters for two
+or touch are therefore also grouped into a \textbf{call event}. This grouping
+is an analysis step applied to the detection CSVs, not a stage of the detection
+pipeline itself: the pipeline writes windows, and the event counts reported in
+this paper were computed from them. The distinction matters for two
 different readers: review effort is paid per window, but vocal activity is a
 count of events, and only the latter is comparable across studies with different
 window settings. Like the two steps above, this is grouping by timestamp, with
@@ -780,10 +848,23 @@ in one listen.
 The exported strong false positives are the sounds the detector most needs to
 learn to ignore. They are added to the Background class and the model is
 retrained from the preprocessing stage, so that on the next pass the network
-is far less likely to fire on those sounds. Repeating the detect $\rightarrow$
-clean $\rightarrow$ fold-in $\rightarrow$ retrain loop a few times (typically
-three to five iterations) progressively drives down the false-positive rate
-without ever requiring exhaustive manual annotation of the field recordings.
+is far less likely to fire on those sounds. During development, repeating the
+detect $\rightarrow$ clean $\rightarrow$ fold-in $\rightarrow$ retrain loop is
+how the negative pool acquired its recycled false positives, and it required
+no exhaustive manual annotation of the field recordings.
+
+Two honest qualifications. First, the loop as shipped cannot run
+automatically: a strong false positive needs two filters to agree, and with
+the Mahalanobis flag and the YAMNet check both off by default, at most one
+flag (temporal isolation) can ever be raised. That is deliberate. The held-out
+evaluation (\S\,Which filters survive) is what turned those defaults off, and
+re-enabling the flags is a one-line configuration change for a user whose own
+evaluation supports them. Second, this project stopped folding in \emph{any}
+machine-flagged clip unheard: every recycled negative in the shipped training
+set has since been adjudicated by a person (\S\,Screening the negative class),
+and the loop is better read as a candidate-mining procedure whose output a
+human confirms than as a fully automatic one. The dataset this paper trains on
+is the end state of that reading.
 
 When one species' false positives are dominated by a single, recurring
 confuser rather than a diffuse mix of sounds, folding them into the generic
@@ -807,16 +888,23 @@ training, sliding-window detection, and the false-positive cleanup
 --- with no code editing. Notebooks are provided for both running
 locally (on a personal machine, with automatic use of a GPU if present and a
 CPU fallback otherwise) and running in the cloud on Google Colab with a free
-GPU, so users can choose whichever suits their hardware. The Python dependencies
-are pinned so that the exact software environment used to train the released
-model can be recreated on Windows, macOS, or Linux.
+GPU, so users can choose whichever suits their hardware. The dependency file
+records the exact versions the released model was trained with (TensorFlow
+2.20.0, Keras 3.13.2) in its header, and declares compatible version ranges
+rather than hard pins so that the same file installs on Windows, macOS, and
+Linux, whose wheel availability differs.
 
-Crucially, the pipeline is configuration-driven: all paths, class
-definitions, audio parameters, and hyperparameters live in a single
-\texttt{config.py}. Re-targeting the method to a different species or field site
-requires no change to the source code. A user drops their own labelled reference
-clips into the \texttt{data/} folders, lists the new class names in the
-\texttt{SPECIES\_FOLDERS} and \texttt{BACKGROUND\_FOLDERS} dictionaries, and
+Crucially, the pipeline is configuration-driven: class definitions, audio
+parameters, detection and cleanup settings, and hyperparameters live in a
+single \texttt{config.py}. Re-targeting the method to a different species or
+field site requires no change to the model or detection code; the one
+exception is the script that assembled \emph{this} study's training set, which
+carries the paths to its source drives at the top of the file, where its own
+error message directs the user. A user drops their own labelled reference
+clips into the \texttt{data/} folders, maps each new class name to its folder
+in the \texttt{SPECIES\_FOLDERS} dictionary, lists any negative-pool folders
+in \texttt{BACKGROUND\_FOLDERS} (a list, pooled into the single Background
+class), and
 re-runs the same notebook; the number of output classes, class weighting, and
 the detection grouping all follow automatically from that configuration. The
 frequency-position head, confuser-class mechanism, and cleanup filters are

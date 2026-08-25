@@ -269,6 +269,26 @@ def drop_call_like_negatives(df, scores_csv, threshold=0.5):
         (source.str.startswith("birdnet:") | source.eq(MACHINE_PRUNABLE_SOURCE))
         & explicitly_unverified
     )
+    # The suffix convention above is one protection and it is not enough. The
+    # 3,143 auto_flagged_fp clips the expert audited in bulk on 2026-08-18
+    # keep their raw machine source tag and verified=False -- the audit lives
+    # in a labels file, not in this table -- so the source test alone would
+    # still call them machine-prunable, and a model score would overrule a
+    # human ear. Anything the audit file names is off limits.
+    audit = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
+                         "data/labels/auto_flagged_fp_review_2026-08-18.csv")
+    if os.path.exists(audit):
+        heard = set(pd.read_csv(audit)["file"].map(_canon))
+        in_audit = df["path"].map(
+            lambda p: _canon(os.path.basename(str(p)))).isin(heard)
+        n_protected = int((prunable & in_audit).sum())
+        if n_protected:
+            print(f"  {n_protected} clips carry a machine source tag but a "
+                  f"human verdict in the audit file; not prunable")
+        prunable &= ~in_audit
+    else:
+        print(f"  ! audit file missing at {audit}; the 3,143 bulk-audited "
+              f"clips are protected only by the source-suffix convention")
     before = len(df)
     keep = ~(df["label"].eq("Background") & prunable & df["path"].isin(hot))
     dropped = df[~keep]
