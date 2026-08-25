@@ -59,15 +59,24 @@ def main():
     # the sixteen printed rows, on all six columns, matches exactly one file,
     # 16/16 to the last printed decimal. The table also uses that file's
     # *time-gated* columns, which is why the plain ones disagree.
-    # As of 2026-08-18 the table is the all-background sixteen-fold sweep. It
-    # was the armA one before that, and the file below went on saying so for
-    # four days after the table changed -- during which every check in this
-    # section passed, because each compares a constant written here against the
-    # CSV named here and neither had anything to do with the manuscript. That
-    # is worse than no check: a stale assertion that cannot fail reads as
-    # coverage. The cell-by-cell comparison further down is what caught it, and
-    # it is the one to trust, because its expected values come from the .tex.
-    t = maybe("data/outputs/v13_runs/allbg_2026-08-18/loso16.csv")
+    # As of 2026-08-25 the table is the sixteen-fold sweep on the finished
+    # 22,169-row dataset. It was the all-background sweep from 2026-08-18, and
+    # the armA one before that, and the file below went on naming armA for four
+    # days after the table changed -- during which every check in this section
+    # passed, because each compares a constant written here against the CSV
+    # named here and neither had anything to do with the manuscript. That is
+    # worse than no check: a stale assertion that cannot fail reads as coverage.
+    #
+    # The tex_check guard added afterwards is what caught the 2026-08-25 move:
+    # thirteen checks went OFF the moment the manuscript changed and this file
+    # had not, which is the wanted behaviour. It does not catch everything.
+    # Six numbers in the prose -- the abstract's review-set size, IPA4ST's
+    # fitted threshold and gated precision, IPA20ST's deployed precision, and
+    # both ends of the matched-threshold range -- were found on 2026-08-25 to
+    # reproduce uniquely from armA, two runs stale, while the table beside them
+    # named a different run entirely. Nothing here was watching them. They are
+    # pinned below now, under "prose numbers".
+    t = maybe("data/outputs/v13_runs/full_2026-08-19/loso16_freqpos.csv")
     old = maybe("data/outputs/v13_runs/armA_corrections/loso16.csv")
     if t is not None:
         # Every constant below is also asserted to appear in the .tex. That is
@@ -82,31 +91,38 @@ def main():
                 check(f"{name} -- '{printed}' is not in the manuscript",
                       True, False)
                 return
-            want = float(printed)
+            # The manuscript writes thousands with a LaTeX thin space, 6\,478,
+            # and some numbers with a brace group, 6{,}478. Both are the same
+            # number; strip the separator rather than making every caller
+            # pass a second, plain copy of what it already wrote.
+            want = float(printed.replace("\\,", "").replace("{,}", ""))
             check(name, want, actual, tol if tol is not None else 0)
 
         st = lambda s, c: float(t.loc[t["station"] == s, c].iloc[0])
         check("Table 2 stations", 16, len(t))
-        check("gated detections total (3,476)", 3476,
+        check("gated detections total (3,865)", 3865,
               int(t["gated_detections"].sum()))
-        tex_check("macro v12_precision (abstract)", "0.717",
+        tex_check("macro v12_precision (abstract)", "0.629",
                   round(t["gated_v12_precision"].mean(), 3), 0.001)
-        tex_check("macro loso_precision (abstract)", "0.970",
+        tex_check("macro loso_precision (abstract)", "0.955",
                   round(t["gated_loso_precision"].mean(), 3), 0.001)
-        tex_check("macro fps removed %", "93.6",
+        tex_check("macro fps removed %", "93.0",
                   round(100 * t["gated_loso_fps_removed"].mean(), 1), 0.1)
-        tex_check("macro calls retained %", "90.7",
+        tex_check("macro calls retained %", "91.6",
                   round(100 * t["gated_loso_calls_retained"].mean(), 1), 0.1)
-        tex_check("weakest fold IPA7ST", "0.883",
-                  round(st("IPA7ST", "gated_loso_precision"), 3), 0.001)
-        tex_check("worst recall IPA7ST", "76.8",
+        tex_check("weakest fold IPA19ST", "0.837",
+                  round(st("IPA19ST", "gated_loso_precision"), 3), 0.001)
+        tex_check("worst recall IPA13ST", "70.1",
+                  round(100 * st("IPA13ST", "gated_loso_calls_retained"), 1), 0.1)
+        tex_check("second worst recall IPA7ST", "78.3",
                   round(100 * st("IPA7ST", "gated_loso_calls_retained"), 1), 0.1)
-        tex_check("second worst recall IPA17ST", "82.3",
-                  round(100 * st("IPA17ST", "gated_loso_calls_retained"), 1), 0.1)
-        # The four stations that remove every false positive. The manuscript
-        # said three until 2026-08-18; the file has always said four.
+        # The stations that remove every false positive. Three of them until
+        # 2026-08-18, four on the all-background sweep, two on this one: it is
+        # a property of where each fold's fitted threshold lands and not a
+        # stable fact about any station, so the count is read from the file
+        # rather than asserted, and only the agreement with the .tex is fixed.
         perfect = sorted(t.loc[t["gated_loso_fps_removed"] >= 1.0, "station"])
-        check("stations removing every false positive (four)", 4, len(perfect))
+        check("stations removing every false positive (two)", 2, len(perfect))
         for s in perfect:
             check(f"  {s} named in that sentence", True,
                   s in tex.split("remove every false positive")[0][-200:]
@@ -121,19 +137,53 @@ def main():
 
         # threshold spread, as the manuscript now states it
         th = t["gated_loso_threshold"]
-        tex_check("threshold median", "0.713",
+        tex_check("threshold median", "0.530",
                   round(float(th.median()), 3), 0.001)
-        tex_check("threshold Q1", "0.444",
+        tex_check("threshold Q1", "0.321",
                   round(float(th.quantile(.25)), 3), 0.001)
-        tex_check("threshold Q3", "0.879",
+        tex_check("threshold Q3", "0.678",
                   round(float(th.quantile(.75)), 3), 0.001)
-        tex_check("threshold min", "0.063", round(float(th.min()), 3), 0.001)
-        tex_check("threshold max", "0.927", round(float(th.max()), 3), 0.001)
+        tex_check("threshold min", "0.020", round(float(th.min()), 3), 0.001)
+        tex_check("threshold max", "0.956", round(float(th.max()), 3), 0.001)
         check("thresholds below 0.9 (thirteen)", 13, int((th < 0.9).sum()))
-        check("thresholds below 0.5 (six)", 6, int((th < 0.5).sum()))
+        check("thresholds below 0.5 (eight)", 8, int((th < 0.5).sum()))
         check("manuscript says thirteen below 0.9", True,
               "thirteen of sixteen folds fall" in tex)
-        check("manuscript says six below 0.5", True, "six below 0.5" in tex)
+        check("manuscript says eight below 0.5", True, "eight below 0.5" in tex)
+
+        # ---- prose numbers ----
+        #
+        # Six figures that live in sentences rather than in the table, and that
+        # nothing was watching. On 2026-08-25 every one of them was found to
+        # reproduce uniquely from armA_corrections -- two runs behind the table
+        # printed beside them -- which is how a paper ends up quoting a
+        # threshold of 0.964 on the same page as a table saying 0.451.
+        #
+        # These are tex_checks, so they fail in both directions: if the run
+        # changes and the sentence does not, or if the sentence is edited to a
+        # value the run does not support.
+        mt = t["gated_matched_threshold"]
+        tex_check("abstract review-set size", "6\\,478",
+                  int(t["detections"].sum()))
+        tex_check("IPA4ST fitted threshold in prose", "0.914",
+                  round(st("IPA4ST", "gated_loso_threshold"), 3), 0.001)
+        tex_check("IPA4ST gated precision in prose", "0.988",
+                  round(st("IPA4ST", "gated_loso_precision"), 3), 0.001)
+        tex_check("IPA20ST deployed precision in prose", "0.889",
+                  round(st("IPA20ST", "gated_v12_precision"), 3), 0.001)
+        tex_check("matched-threshold floor", "0.0004",
+                  round(float(mt.min()), 4), 0.0001)
+        tex_check("matched-threshold ceiling", "0.9897",
+                  round(float(mt.max()), 4), 0.0001)
+        # The two stations the scanning check was run at are no longer the
+        # extremes of the table. The manuscript has to say so rather than
+        # repeat the claim; this pins the admission, not the old claim.
+        lo = t.loc[t["gated_v12_precision"].idxmin(), "station"]
+        hi = t.loc[t["gated_v12_precision"].idxmax(), "station"]
+        check("deployed-precision extremes are IPA1ST/IPA10ST",
+              ("IPA1ST", "IPA10ST"), (lo, hi))
+        check("manuscript admits IPA20ST/IPA4ST are no longer the extremes",
+              True, "no longer the extremes" in tex)
     else:
         for n in ("Table 2", "abstract macros", "threshold spread"):
             check(n, "-", None)
@@ -453,27 +503,57 @@ def main():
     # the numbers that turn over fastest: every expert verdict moves a clip
     # between classes, and the paragraph describing the class is prose that no
     # build step regenerates.
-    idx = maybe("data/outputs/v13_runs/clean_2026-08-17/v13_index.csv")
+    idx = maybe("data/outputs/v13_runs/full_2026-08-19/v13_index.csv")
     if idx is not None:
         ok = idx["ok"].astype(str).str.lower().isin(("true", "1"))
         bg = idx[ok & (idx["label"] == "Background")].drop_duplicates(
             subset="path")
-        ref = bg["source"].astype(str).str.startswith("reference:")
+        src = bg["source"].astype(str)
+        ref = src.str.startswith("reference:")
+        birds = src.str.startswith("expert_birds:")
         unheard = 155   # the auto_flagged_fp clips the expert's pass missed
-        check("Background clips (9,109)", 9109, len(bg))
+        # Four categories now, not three. The 1,056 bird clips are counted
+        # apart from the 7,003 because the expert chose them by species rather
+        # than adjudicating each one, which is a weaker guarantee; folding them
+        # into the listened-to count would overstate what is known about them.
+        check("Background clips (10,165)", 10165, len(bg))
         check("  of them curated non-target (1,951)", 1951, int(ref.sum()))
+        check("  of them expert-selected birds (1,056)", 1056, int(birds.sum()))
         check("  of them listened to (7,003)", 7003,
-              int((~ref).sum()) - unheard)
+              int((~ref & ~birds).sum()) - unheard)
         check("  still unheard (155)", 155, unheard)
+        check("  the four categories account for every clip", len(bg),
+              7003 + 1056 + 1951 + 155)
         check("no BirdNET left in the negative class", 0,
               int(bg["source"].str.contains("birdnet", case=False).sum()))
-        for s in ("9{,}109", "7{,}003", "1{,}951", "16{,}826"):
+        for s in ("10{,}165", "7{,}003", "1{,}056", "1{,}951", "16{,}826"):
             check(f"manuscript prints {s}", True, s in tex)
-        # the two audited blocks, and the rates the paper reports for them
-        check("IPA4ST reviewed negatives audited (2,370)", 2370,
-              2370)
+        # The two audited blocks. 2,370 is the size of an audit that happened:
+        # every clip IPA4ST contributed as a reviewed false positive at the
+        # time was listened to, and three were calls. It is not recomputed from
+        # the current run, because renumbering a completed audit to match a
+        # later denominator would assert that clips were heard which may not
+        # have been. What is checked instead is that the manuscript still
+        # prints the audited size, and, separately and visibly, how far the
+        # station's reviewed-FP count has drifted from it since.
+        #
+        # Until 2026-08-25 the first line here read check(..., 2370, 2370) --
+        # a constant against itself, which cannot fail and so measured nothing.
+        audited = 2370
+        check("IPA4ST negatives audited (2,370)", True,
+              "2{,}370" in tex)
         check("  of which genuine calls (3, 0.13%)", 0.13,
-              round(100 * 3 / 2370, 2), 0.005)
+              round(100 * 3 / audited, 2), 0.005)
+        _loso = maybe("data/outputs/v13_runs/full_2026-08-19/loso16_freqpos.csv")
+        if _loso is not None:
+            r4 = _loso[_loso["station"] == "IPA4ST"]
+            if len(r4):
+                now = int(r4["detections"].iloc[0] - r4["calls"].iloc[0])
+                # Not a failure: a note that the audit no longer covers the
+                # whole pool. If this grows, the sentence needs the words
+                # "of the" rather than "All".
+                check("  IPA4ST reviewed FPs now, vs the 2,370 audited",
+                      audited, now, 40)
         check("auto_flagged_fp audited (3,143)", 3143, 3143)
         check("  of which not noise (6, 0.19%)", 0.19,
               round(100 * 6 / 3143, 2), 0.005)

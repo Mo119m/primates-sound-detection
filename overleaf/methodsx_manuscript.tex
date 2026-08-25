@@ -112,11 +112,11 @@ and \textit{Colobus guereza} in Ivindo National Park, Gabon; only
 confirmed in the field, and the \textit{C.\ guereza} branch is reported as a
 negative result. Mel-spectrograms are classified by a VGG19 transfer-learning
 model with a band-split CRNN head. Validated by a 16-fold
-leave-one-station-out sweep over 6\,189 manually reviewed field detections,
+leave-one-station-out sweep over 6\,478 manually reviewed field detections,
 retraining on human verdicts rather than filter guesses raises precision from
-0.72 to 0.97 at a threshold fitted on the other stations, removing 94\,\% of
-false positives while keeping 91\,\% of calls --- though recall is an outcome
-rather than a constraint here and falls to 77\,\% at the worst station. The
+0.63 to 0.96 at a threshold fitted on the other stations, removing 93\,\% of
+false positives while keeping 92\,\% of calls --- though recall is an outcome
+rather than a constraint here and falls to 70\,\% at the worst station. The
 fitted threshold varies widely
 across held-out stations, so the fitting procedure transfers but its value does
 not. Run as a scanner over raw audio rather than as a re-ranker, and checked by
@@ -354,11 +354,14 @@ Background class had been selected by a bird detector, too many clips to hear,
 so every Background clip was scored by the current model under the same
 grouped-argmax rule deployment uses and clips scoring $\ge$0.5 on a target group
 were removed. We no longer rely on that. The 16{,}826 machine-labelled clips
-were dropped outright, and the negative class is now 9{,}109 clips of which
-7{,}003 are field recordings a person has listened to individually, 1{,}951 are
-curated recordings of non-target species --- ambient noise, \textit{Pan
-troglodytes}, \textit{Cercocebus torquatus} --- and 155 are field clips awaiting
-a listener. The screen is retained only as a check on the remainder.
+were dropped outright, and the negative class is now 10{,}165 clips of which
+7{,}003 are field recordings a person has listened to individually, 1{,}056 are
+clips of seven bird species the collaborating expert selected as background,
+1{,}951 are curated recordings of non-target species --- ambient noise,
+\textit{Pan troglodytes}, \textit{Cercocebus torquatus} --- and 155 are field
+clips awaiting a listener. The bird clips are counted separately from the
+7{,}003 because they were chosen by species rather than adjudicated one by one,
+which is a weaker guarantee than the rest of the class carries. The screen is retained only as a check on the remainder.
 
 The screen is deliberately restricted to rows whose Background label is a
 machine's opinion --- BirdNET segments and unreviewed detector output --- and
@@ -445,15 +448,16 @@ already has. Each target class here is instead replicated until it reaches
 3{,}000 examples, cycling through the four operations so that a class needing
 many variants receives a spread rather than repeated draws of one. The reason
 for the change is that the classes differ in size by an order of magnitude --
-150 clips against 3{,}002 -- so a fixed multiplier preserves that imbalance
+177 clips against 3{,}004 -- so a fixed multiplier preserves that imbalance
 while a target count removes it. The
-resulting multipliers are unequal by construction --- 4.5$\times$ for
-\textit{Colobus\_guereza} (665 originals), 3.3$\times$ for
-\textit{Colobus\_confuser} (907), and 20$\times$ for \textit{C\_pogonias}
-(150) --- and the last is the weakest point in the training set: 8\,\% of the
-packed dataset derives from 150 acoustic events, so that class is balanced in
+resulting multipliers are unequal by construction --- 2.1$\times$ for
+\textit{Colobus\_guereza} (1{,}440 originals), 3.1$\times$ for
+\textit{Colobus\_confuser} (961), and 17.0$\times$ for \textit{C\_pogonias}
+(177) --- and the last is the weakest point in the training set: 13.5\,\% of the
+packed dataset derives from 177 source clips, 150 of them library recordings and
+27 from this array, so that class is balanced in
 count without being diverse in content. Cernic is left unaugmented, having
-3{,}002 originals already. Replicated variants inherit their original's station
+3{,}004 originals already. Replicated variants inherit their original's station
 attribution, so a variant is withheld whenever its original is
 (\S\,Leave-one-station-out validation) and no replicate crosses a fold boundary;
 no replicate enters the evaluation pool, which is drawn from reviewed field
@@ -1191,7 +1195,7 @@ held-out station's own confirmed calls compares the two models at equal recall,
 which is the right question when asking whether the retrained model \emph{ranks}
 calls above false positives better. It is not an operating point. Choosing it
 needs the answers, and across the sixteen folds the value that retains 95\,\% of
-the calls ranges from 0.0024 to 0.9953, so no single number of that kind could be
+the calls ranges from 0.0004 to 0.9897, so no single number of that kind could be
 handed to anyone. Table~\ref{tab:loso} therefore reports a threshold fitted the
 way a practitioner would fit one: on the reviewed detections of the other fifteen
 stations, then applied unchanged to the held-out sixteenth, under the same
@@ -1220,52 +1224,57 @@ calls and applied unchanged to the sixteenth, so the calls-kept column is an
 outcome rather than a constraint. Stations are averaged unweighted, so the
 macro-average estimates a \emph{typical} station rather than the pooled corpus.
 $^\dagger$The threshold row is the median, and its spread matters more than its
-centre: the same rule gives 0.063 to 0.927 depending on which station is held
-out, thirteen of sixteen below 0.9 and six below 0.5. No single value can be
+centre: the same rule gives 0.020 to 0.956 depending on which station is held
+out, thirteen of sixteen below 0.9 and eight below 0.5. No single value can be
 carried to a new site.
-Run provenance: \texttt{loso16.csv} in
-\texttt{data/outputs/v13\_runs/allbg\_2026-08-18} --- sixteen folds complete,
+Run provenance: \texttt{loso16\_freqpos.csv} in
+\texttt{data/outputs/v13\_runs/full\_2026-08-19} --- sixteen folds complete,
 15 epochs at patience 3, \texttt{--keep-all-background}, five classes, seed 42,
-21\,120 training rows.}
+22\,169 training rows. The review set behind the detection column is 3\,865
+time-gated detections of which 2\,504 are calls; ungated it is 6\,478 and
+2\,536.}
 \label{tab:loso}
 \begin{tabular}{lrrrrrr}
 \toprule
 Station & Detections & Deployed prec. & Threshold & Retrained prec. & FP removed (\%) & Calls kept (\%) \\
 \midrule
-IPA1ST & 276 & 0.438 & 0.847 & 0.980 & 98.7 & 82.6 \\
-IPA11ST & 93 & 0.452 & 0.804 & 0.902 & 92.2 & 88.1 \\
-IPA16ST & 314 & 0.583 & 0.676 & 0.928 & 90.1 & 91.8 \\
-IPA8ST & 249 & 0.619 & 0.927 & 0.987 & 97.9 & 96.1 \\
-IPA19ST & 188 & 0.633 & 0.244 & 0.944 & 89.9 & 99.2 \\
-IPA14ST & 236 & 0.661 & 0.455 & 0.979 & 96.2 & 89.1 \\
-IPA7ST & 101 & 0.683 & 0.621 & 0.883 & 78.1 & 76.8 \\
-IPA4ST & 131 & 0.695 & 0.451 & 1.000 & 100.0 & 93.4 \\
-IPA18ST & 175 & 0.709 & 0.917 & 0.992 & 98.0 & 100.0 \\
-IPA17ST & 501 & 0.723 & 0.063 & 0.984 & 96.4 & 82.3 \\
-IPA13ST & 238 & 0.773 & 0.193 & 0.977 & 92.6 & 91.8 \\
-IPA2ST & 76 & 0.842 & 0.749 & 0.983 & 91.7 & 87.5 \\
-IPA15ST & 183 & 0.896 & 0.874 & 1.000 & 100.0 & 84.2 \\
-IPA6ST & 168 & 0.899 & 0.891 & 0.974 & 76.5 & 98.0 \\
-IPA10ST & 113 & 0.911 & 0.906 & 1.000 & 100.0 & 98.1 \\
-IPA20ST & 434 & 0.959 & 0.423 & 1.000 & 100.0 & 92.3 \\
+IPA1ST & 276 & 0.438 & 0.603 & 0.990 & 99.4 & 79.3 \\
+IPA2ST & 144 & 0.444 & 0.926 & 0.966 & 97.5 & 87.5 \\
+IPA11ST & 93 & 0.452 & 0.326 & 0.911 & 92.2 & 97.6 \\
+IPA7ST & 152 & 0.454 & 0.776 & 0.871 & 90.4 & 78.3 \\
+IPA19ST & 256 & 0.465 & 0.956 & 0.837 & 83.2 & 99.2 \\
+IPA8ST & 300 & 0.513 & 0.291 & 0.968 & 96.6 & 98.7 \\
+IPA18ST & 226 & 0.549 & 0.624 & 0.992 & 99.0 & 98.4 \\
+IPA4ST & 163 & 0.564 & 0.914 & 0.988 & 98.6 & 92.4 \\
+IPA16ST & 314 & 0.583 & 0.457 & 0.903 & 85.5 & 96.2 \\
+IPA14ST & 236 & 0.661 & 0.645 & 0.972 & 95.0 & 89.1 \\
+IPA17ST & 501 & 0.723 & 0.326 & 0.975 & 94.2 & 84.8 \\
+IPA6ST & 202 & 0.748 & 0.338 & 0.949 & 84.3 & 99.3 \\
+IPA13ST & 238 & 0.773 & 0.020 & 1.000 & 100.0 & 70.1 \\
+IPA20ST & 468 & 0.889 & 0.307 & 0.972 & 76.9 & 98.3 \\
+IPA15ST & 183 & 0.896 & 0.131 & 0.994 & 94.7 & 97.0 \\
+IPA10ST & 113 & 0.911 & 0.644 & 1.000 & 100.0 & 100.0 \\
 \midrule
-\textbf{Macro-average} & --- & \textbf{0.717} & 0.713$^\dagger$ & \textbf{0.970} & \textbf{93.6} & \textbf{90.7} \\
+\textbf{Macro-average} & --- & \textbf{0.629} & 0.530$^\dagger$ & \textbf{0.955} & \textbf{93.0} & \textbf{91.6} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Precision improves at all sixteen stations, from a macro-average of 0.717 to
-0.970, removing 93.6\,\% of the false positives while retaining 90.7\,\% of the
-calls. The weakest fold is IPA7ST at 0.883; four stations --- IPA4ST, IPA10ST,
-IPA15ST and IPA20ST --- remove every false positive they were given.
+Precision improves at all sixteen stations, from a macro-average of 0.629 to
+0.955, removing 93.0\,\% of the false positives while retaining 91.6\,\% of the
+calls. The weakest fold is IPA19ST at 0.837; two stations --- IPA10ST and
+IPA13ST --- remove every false positive they were given.
 
 The recall column is the one to read alongside that. Because the threshold is
 fitted on the other fifteen stations rather than on the station it is applied
 to, recall is an outcome and not a constraint, and it is not uniform: it reaches
-100\,\% at IPA18ST and falls to 76.8\,\% at IPA7ST and 82.3\,\% at IPA17ST. A
-macro 90.7\,\% therefore describes a typical station and not a guarantee at any
+100\,\% at IPA10ST and falls to 70.1\,\% at IPA13ST and 78.3\,\% at IPA7ST. A
+macro 91.6\,\% therefore describes a typical station and not a guarantee at any
 particular one, and at the weakest fold a user reviewing at the fitted threshold
-would miss close to a quarter of the calls present in their own detections.
+would miss close to a third of the calls present in their own detections.
+IPA13ST is also the station that removes every false positive it was given, and
+that coincidence is the clearest thing in the table: a threshold decisive enough
+to discard every error at a station discards some of its calls with them.
 
 One design choice behind these numbers is worth isolating, because it is the
 one a reader is most likely to want to vary. Training on 16\,826 BirdNET-labelled
@@ -1281,9 +1290,9 @@ for it.
 
 The fitted thresholds are the part of this table a reader is most likely to want
 to reuse, and they do not support that. Fitting the same 95\,\% recall rule on
-the fifteen other stations gives a median of 0.713 but an interquartile range of
-0.444 to 0.879 and a full range of 0.063 to 0.927; thirteen of sixteen folds fall
-below 0.9 and six below 0.5. No single value can be recommended as a starting
+the fifteen other stations gives a median of 0.530 but an interquartile range of
+0.321 to 0.678 and a full range of 0.020 to 0.956; thirteen of sixteen folds fall
+below 0.9 and eight below 0.5. No single value can be recommended as a starting
 point. What the spread reflects is that the score distribution a station produces
 depends on that station's own noise floor, so the number that buys 95\,\% recall
 on fifteen stations is not the number that buys it on the sixteenth. The
@@ -1303,12 +1312,18 @@ neither model produced.
 It is not a re-ranking result only. Reassembled into a whole model and run over
 raw audio, the
 retrained head was scanned rather than re-ranked at two stations chosen as the
-extremes of Table~\ref{tab:loso}: IPA20ST, where the deployed model reaches
-0.935, and IPA4ST, where it reaches 0.695. Every detection at or above 0.95 in a
+extremes of Table~\ref{tab:loso} as it stood when the scan was run: IPA20ST,
+where the deployed model reaches 0.889, and IPA4ST, where it reaches 0.564. On
+the current dataset these two are no longer the extremes --- IPA1ST at 0.438 and
+IPA10ST at 0.911 are --- but the scan was run on these and is reported as run.
+Every detection at or above 0.95 in a
 stratified sample was listened to by the species expert. At IPA20ST 25 of 27
 were genuine calls; at IPA4ST, 26 of 28; pooled, 51 of 55. All four errors sat
-at the bottom of that band, near 0.95, and the fold-fitted threshold at IPA4ST
-(0.964 in the current sweep, 0.995 in the earlier one) sits above them in both.
+at the bottom of that band, near 0.95. The fold-fitted threshold at IPA4ST sat
+above them in the earlier sweep, at 0.995, and it no longer does: on the current
+dataset it is 0.914. The claim that the fitted operating point would have
+excluded those four errors held for the run it was written against and does not
+hold for this one.
 That last point is reported as it was observed and cannot be re-derived, for the
 reason given immediately below: the per-clip verdicts were never written down.
 
@@ -1338,7 +1353,7 @@ Wilson interval to be inserted here on return; the abstract figure depends on
 it.]}
 
 The comparison between the two stations is the part worth keeping. The deployed
-model's precision differs between them by 24 percentage points; the retrained
+model's precision differs between them by 32 percentage points; the retrained
 model's ear-verified scanning precision differs by 0.3. Whatever makes IPA4ST
 hard for the deployed detector, the retrained head is not subject to it at high
 confidence --- which is the property a method claiming to transfer to a new site
@@ -1490,10 +1505,10 @@ gives 0.9684, 0.9684 and 0.9682, and IPA13ST gives 0.9649, 0.9643 and 0.9591.
 Only IPA4ST moves, and it moves by 0.885.
 
 The reason is in Table~\ref{tab:loso}'s own columns. IPA4ST's evaluation pool is
-100 calls among 2\,470 detections, a base rate of 4.0\,\%; the next most extreme
-station is IPA11ST at 20.8\,\% and the median station is above 60\,\%. Precision
+101 calls among 2\,502 detections, a base rate of 4.0\,\%; the next most extreme
+station is IPA11ST at 21.1\,\% and the median station is 56.1\,\%. Precision
 on a 4\,\% base rate is a knife edge --- at the deployment threshold, keeping 45
-of the 2\,370 false positives gives 0.690 and keeping 1\,059 gives 0.085 --- and
+of the 2\,401 false positives gives 0.692 and keeping 1\,059 gives 0.087 --- and
 which side of that a run lands on depends on where early stopping happens to
 halt. The Colab run stopped at epoch 2.
 
@@ -1504,8 +1519,8 @@ concentrated in time rather than spread through its recordings: 2\,330 of the
 consecutive recordings beginning at 03:00 and 03:30 on a single night, and the
 station averages 36.3 detections per episode against roughly six elsewhere. The
 deployment does not look there. Under the 05:00--19:00 window the station's
-2\,470 detections become 131, which is why Table~\ref{tab:loso} reports 131 for
-IPA4ST and why its gated precision is a stable 0.978 while its ungated precision
+2\,502 detections become 163, which is why Table~\ref{tab:loso} reports 163 for
+IPA4ST and why its gated precision is a stable 0.988 while its ungated precision
 is anything at all. The quantity that swings by 0.885 is therefore computed
 almost entirely on material the pipeline discards before a user ever sees it.
 
@@ -1538,7 +1553,7 @@ happened when we did.
 
 All figures in this paragraph are ungated, which is what makes them comparable
 with each other; Table~\ref{tab:loso} prints the time-gated column and so shows
-0.978 for the same fold.
+0.988 for the same fold.
 
 That instability does not weaken the dissociation, it is the same finding
 approached from the other side. The quantity that swings by 0.79 under choices
@@ -2155,11 +2170,14 @@ stations rather than from a library is the obvious next step, and it has become
 possible since: the species expert has identified 27 \textit{C.\ pogonias} calls
 in this array's own audio --- 21 recovered from clips that had been excluded as
 unidentifiable, four from the pooled negative class, and two that a blanket rule
-had filed as background at a single station. Six are in the build reported here,
-which holds 150 library clips against those six; the remaining 21 require a
-rebuild of the packed feature cache and are not in it. Whether 27 field clips
-against 150 library ones is enough to move the null is untested, and is the
-first thing to try with them.
+had filed as background at a single station. All 27 are in the build reported
+here: the feature cache was rebuilt on 19 August 2026, and the class now holds
+150 library clips against 27 from this array, 177 in all, of which the field
+clips supply 455 of the class's 3{,}000 packed rows. Whether that is enough to
+move the null is still untested. The \texttt{drop\_pogonias} ablation was last
+run on 8 August 2026 against a smaller and differently composed dataset, so the
+null reported above predates every one of these field clips and does not speak
+to them; rerunning it is the first thing to do with the rebuilt cache.
 
 It is worth being exact about what that gap is, because ``library'' and
 ``field'' are not opposites and treating them as such misdescribes the problem.
@@ -2266,7 +2284,7 @@ test either idea than we are.
 
 Table~\ref{tab:loso} reports the configuration \emph{with} this class: its
 \texttt{run.json} records \texttt{drop\_pogonias = False} and 3\,000
-\textit{C.\ pogonias} rows among 21\,120. We report the null above because a
+\textit{C.\ pogonias} rows among 22\,169. We report the null above because a
 null result on the obvious fix is more useful to a practitioner than its
 absence, and the null says the choice between the two configurations costs
 little either way.
