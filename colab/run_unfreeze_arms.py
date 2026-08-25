@@ -85,7 +85,43 @@ def unusable(csv):
         return f"missing {len(gone)} gated columns"
     if d[GATED].isna().all().any():
         return "gated columns present but empty"
+    # One human verdict, one evaluation row. Before 2026-08-25 the evaluation
+    # mask did not restrict to aug == 0, so the sixteen variant rows of every
+    # reviewed clip relabelled C_pogonias were counted as detections: IPA2ST
+    # scored 144 where the review holds 80 originals, 44 percent of its pool
+    # being copies of four sounds. A fold trained in the window between the
+    # gate-table fix and the evaluation fix has all its columns and is still
+    # wrong, so the count is checked against the index this runner trains from.
+    exp = _expected_counts()
+    if exp:
+        try:
+            st = str(d["station"].iloc[0])
+            got = int(d["detections"].iloc[0])
+        except Exception as e:
+            return f"unreadable station/detections ({e})"
+        want = exp.get(st)
+        if want is not None and got != want:
+            return (f"evaluation pool is {got} rows where the review holds "
+                    f"{want} originals -- trained before the aug==0 fix")
     return None
+
+
+_EXPECTED = None
+
+
+def _expected_counts():
+    """Reviewed originals per station, from the index this runner trains from."""
+    global _EXPECTED
+    if _EXPECTED is None:
+        import pandas as pd
+        idx_path = os.path.join(DATA, "v13_index.csv")
+        if not os.path.exists(idx_path):
+            _EXPECTED = {}
+        else:
+            idx = pd.read_csv(idx_path)
+            m = idx["source"].astype(str).str.startswith("review") & (idx["aug"] == 0)
+            _EXPECTED = idx[m].groupby("station").size().to_dict()
+    return _EXPECTED
 
 
 def main():
