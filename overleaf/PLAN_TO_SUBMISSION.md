@@ -1,100 +1,89 @@
-# What is left before this goes to MethodsX
+# The road to MethodsX, in order
 
-Written 2026-08-25, after the dataset was closed at 22,169 rows.
+Rewritten 2026-08-25 after Colab Pro arrived. Supersedes every earlier version.
+One list, ordered by what blocks what. An item is DONE only when its checks
+pass, and "clean" below always names the check that says so.
 
-## Settled
+## Where the clean claims actually stand
 
-The dataset is final and the negative class is no longer machine-labelled at
-all: 15,747 clips, 58.9 % expert-verified per clip, 11.9 % reviewer-verified,
-29.2 % provenance-based curated recordings. C_pogonias has 27 field clips where
-it had none. `check_no_target_in_negatives.py` reads four independent sources of
-human verdicts, 2,565 in total, and finds no target call sitting in a trainable
-negative.
+| claim | status | the check that says so |
+|---|---|---|
+| data | clean | check_no_target_in_negatives.py: 2,565 human verdicts, 4 sources, zero target calls in trainable negatives; pointed at the current 22,169-row index as of today |
+| manuscript numbers | clean | verify_manuscript_numbers.py: 157 OK, 0 OFF, 0 SKIP |
+| manuscript structure | clean | check_manuscript_latex.py, check_manuscript_labels.py: PASS |
+| assembled models | clean | seam + permutation checks inside assemble_fold_model.py, recorded for all 5 scan models |
+| methods text vs code | **being audited now** | 12-agent adversarial audit running 2026-08-25; results pending |
+| fine-tuning experiment | **1/48 folds** | gated-column guard now rejects unusable folds on both machines |
 
-The code that built it is committed, `main` now matches the working branch, and
-the manuscript has moved to its own repository so it can be shared without the
-recorder coordinates that the code repository carries in its history.
+History that justifies the caution: on 2026-08-24 "Colab is running fine"
+was said while it wrote three folds missing every gated column, and six prose
+numbers sat two runs stale while 147 checks passed around them. A claim of
+clean now comes with the name of its check or it is not a claim.
 
-## Blocked on the expert, in priority order
+## 1. The compute, all of it on Colab Pro now
 
-Nothing here can be done without him, and the first item blocks the abstract.
+Open `colab/v13_unfreeze.ipynb` fresh from GitHub -- the title must say
+**edited 2026-08-25** -- and Run All. Everything it needs is in the clone;
+nothing gets uploaded. It refuses to train if the review gate table is missing
+rather than writing 48 more unusable folds.
 
-1. **The 150-clip precision sample.** Built and blinded as `s0000.wav` to
-   `s0149.wav` in `data/outputs/precision_resample/`; 0 of 150 verdicts in.
-   The abstract's 92.7 % came from 55 clips sampled along the confidence axis
-   rather than at random, 56 % inclusion in the top stratum against 2.0 % below
-   it, and the verdicts were never written down. Until these 150 come back the
-   paper has no defensible precision figure, and a Wilson interval on the old
-   sample is invalid for the same reason.
+| arm | folds | cost/fold | what it settles |
+|---|---|---|---|
+| block4 | 16 | ~25 min GPU | is releasing one VGG19 block worth it |
+| block34 | 16 | ~25 min GPU | are two blocks worth it |
+| nopogonias | 16 | minutes | the paper's null on dropping the class, currently measured on a dataset that predates every field pogonias clip |
 
-2. **The 117 dawn windows.** The manuscript currently says they cannot be a
-   low-frequency roar. Our own confirmed field roar has 98.0 % of its in-band
-   energy above 1.5 kHz, so the screen would have discarded it too. Either these
-   are heard, or the sentence and the count come out.
+Local machine works the same arms backwards from IPA20ST as a slow second
+engine; whichever side reaches a station first does it. Colab Pro should carry
+nearly all of it in one long session (~14 GPU-hours).
 
-3. **The 185 clips from the retrained scans** -- 12 Colobus candidates, 68
-   pogonias, 90 Cernic, 22 birds. These decide whether the retrained head's
-   extra detections are calls the deployed model missed or false positives it
-   avoided. The counts alone cannot say, and the 12 Colobus matter out of
-   proportion to their number: the paper reports that branch as a negative
-   result because no field roar has been confirmed here, and one confirmed roar
-   changes both that and the denoising arm.
+When the folds are in: rewrite the fine-tuning section, which currently rests
+on a 3-fold run whose entire spread came from one station with a 4 % base rate.
 
-4. **The 155 still-unheard negatives.** The smallest job and the least urgent.
+## 2. What only Santi can do, in priority order
 
-## Compute we still owe
+| batch | size | blocks |
+|---|---|---|
+| precision sample (`FOR_SANTI_2026-08-25.zip`, on Desktop) | 150 | **the abstract's precision figure -- the submission date itself** |
+| dawn windows | 117 | the "cannot be a roar" sentence stays or goes |
+| new-scan clips (12 Colobus + 68 pogonias + 90 Cernic + 22 birds) | 185 | whether the retrained scanner's extra detections are calls or errors; one confirmed Colobus roar rewrites that branch |
+| leftover negatives | 155 | nothing in the paper; dataset hygiene only |
 
-5. ~~**Table 2 on the current dataset.**~~ **Done 2026-08-25.** The table is
-   generated from the run now rather than transcribed, and every number in the
-   prose that depended on it moved with it. 157 checks pass, 0 OFF, 0 SKIP.
+The zip is 31.9 MB -- too big for a Gmail attachment, send as a Drive link.
 
-   The sweep that did it found more than it was sent for. Six figures in the
-   prose reproduced uniquely from `armA_corrections`, two runs behind the table
-   printed beside them; the augmentation multipliers were stale for every class
-   rather than only *C. pogonias*; the `drop_pogonias` null was last run on 8
-   August against a different dataset and cannot speak to the field clips; and
-   one sentence did not survive at all -- the fitted threshold at IPA4ST no
-   longer sits above the four scanning errors, and the paper now says so.
+## 3. Detections still owed, and what they wait on
 
-   What did **not** change: the base rate at IPA4ST is still 4.0 %, the
-   threshold spread got wider rather than narrower (median 0.713 to 0.530,
-   eight folds below 0.5 where there were six), so the paper's central claim
-   that no single threshold transfers is better supported than before, and
-   precision still improves at all sixteen stations.
+- **Scans of the fine-tuned arms.** The manuscript claims fine-tuning
+  "redistributes false positives rather than reducing them" from the OLD
+  3-fold scans. After item 1, scan block4/block34 at IPA1ST, IPA2ST, IPA4ST at
+  fitted thresholds and either re-support or cut that sentence. Caveat to
+  resolve first: a fine-tuned fold's weights include the unfrozen trunk layers
+  (132 MB vs 23 MB), so verify assemble_fold_model.py restores them before
+  trusting any scan.
+- **OOD statistics for the scan models.** The three existing fitted scans ran
+  un-gated because no stats were fitted for those heads; the counts are upper
+  bounds relative to the described pipeline. Build stats, rerun the three
+  scans, and the numbers become the pipeline's own. (build_ood_stats.py, one
+  command per model.)
+- **Nothing else.** Thirteen unscanned stations stay unscanned; the paper
+  never promises them.
 
-   One thing to carry into the writing: the deployed baseline fell further than
-   the result did, 0.717 to 0.629, because 388 confirmed false positives
-   entered the review table with the expert's verdicts. The model did not get
-   worse. Do not quote the old baseline against the new result.
+## 4. Writing, after the above lands
 
-6. **The sixteen-fold fine-tuning comparison.** 3 of 32 folds done, all on
-   Colab. This is not optional: the manuscript already reports a fine-tuning
-   result from a three-fold run whose entire spread came from IPA4ST, where 100
-   calls in 2,470 detections make precision a knife edge a fitted threshold
-   lands either side of. The local route is dead -- 50 CPU-hours produced zero
-   folds, because unfreezing reads the image pack rather than the feature cache
-   and 10.23M trainable parameters will not backpropagate through a CPU at any
-   useful rate. Colab does a fold in 25 minutes, so 32 folds is about 13 GPU-
-   hours, which on a free quota is several days of starting the notebook.
-   The fallback, if the quota will not stretch: cut the claim back to what three
-   folds support and say plainly that it is three folds and that one station
-   carries it.
+1. Fine-tuning section on 48 folds (after item 1).
+2. Precision paragraph + Wilson interval from the 150 (after Santi).
+3. Dawn-window sentence: keep, weaken, or delete (after the 117).
+4. drop_pogonias null: replace the "predates the field clips" caveat with the
+   remeasured answer (after item 1).
+5. Whatever the methods-vs-code audit returns (pending today).
+6. Placeholders: Santi's affiliation, corresponding-author switch, ethics
+   permit line, funding, CRediT, acknowledgments.
+7. Final gate, in this order: regen_table2.py --write, then
+   verify_manuscript_numbers.py reads 157+ OK 0 OFF 0 SKIP, latex + labels
+   PASS, coordinate scan of every file leaving the machine.
 
-7. **Scans beyond the three stations.** IPA1ST, IPA2ST and IPA4ST are scanned.
-   The paper does not need the other thirteen and should not wait for them.
+## The critical path
 
-## Writing
-
-8. Every number that moved with the dataset, not just Table 2.
-   `verify_manuscript_numbers.py` is the instrument: 147 checks, and it must
-   read 147 OK, 0 OFF, 0 SKIP before submission. A SKIP is not a pass.
-9. The bracketed placeholders: co-author name, second affiliation, ethics
-   permit sentence, funding, CRediT, acknowledgments.
-10. Authorship. Currently the manuscript has Moshi Fu as corresponding author.
-    The intent is for the expert to take last author and corresponding author.
-
-## The one thing that decides the date
-
-Item 1. Everything else is either an afternoon of work or a decision we can
-make ourselves. The precision figure is in the abstract, it is the number a
-reader will quote, and only one person can produce it.
+Santi's 150 is the only item nobody else can start, finish, or hurry. Colab
+Pro makes item 1 an afternoon. Everything in 3 and 4 is hours once its
+dependency lands. Send the zip first.
