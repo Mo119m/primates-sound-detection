@@ -48,6 +48,12 @@ ARMS = [
                 "--finetune-lr", "1e-5"]),
     ("block34", ["--unfreeze", "2", "--finetune-epochs", "5",
                  "--finetune-lr", "1e-5"]),
+    # Not a fine-tuning arm. The paper reports a null on dropping the
+    # C. pogonias class, but that null was last measured on 8 August against a
+    # dataset with no field pogonias in it, so it cannot speak to the 27 field
+    # clips the current dataset carries. This remeasures it where the claim
+    # lives. Frozen trunk, cached features: minutes per fold, not twenty-five.
+    ("nopogonias", ["--drop-pogonias"]),
 ]
 
 
