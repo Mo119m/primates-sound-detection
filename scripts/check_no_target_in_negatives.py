@@ -48,7 +48,7 @@ def main():
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--index", default=os.path.join(
-        REPO, "data/outputs/v13_runs/clean_2026-08-17/v13_index.csv"),
+        REPO, "data/outputs/v13_runs/full_2026-08-19/v13_index.csv"),
         help="Packed index to check")
     ap.add_argument("--pogonias-dir", default=None,
                     help="Optional folder of clips an expert returned as "
