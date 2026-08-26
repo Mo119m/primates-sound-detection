@@ -130,7 +130,7 @@ def main():
         print("  use colab/v13_train.ipynb and keep this machine for the")
         print("  re-detection pass, which needs the 444 GB drive, not speed.")
     else:
-        print("\n  GPU is doing the work. Proceed with HANDOFF.md section 3b.")
+        print("\n  GPU is doing the work. Proceed with docs/history/HANDOFF.md section 3b.")
 
 
 if __name__ == "__main__":

@@ -22,9 +22,19 @@ text = SRC.read_text()
 text = re.sub(r'(\\includegraphics(?:\[[^\]]*\])?\{[^}]+)\.pdf\}',
               r'\1.png}', text)
 TMP.write_text(text)
+
+# The reference doc only supplies fonts and heading styles, and it stopped
+# being tracked on 2026-08-26 along with the .docx export it styled: a Word
+# copy of the manuscript that sat fifteen days behind the .tex was doing more
+# harm as an authoritative-looking stale artifact than the styling was doing
+# good. So the conversion works without it rather than failing on its absence.
+ref = pathlib.Path("reference_academic.docx")
+extra = [f"--reference-doc={ref.name}"] if ref.exists() else []
+if not extra:
+    print("  no reference_academic.docx here; using pandoc's default styles")
 try:
     pypandoc.convert_file(str(TMP), "docx", outputfile=OUT,
-                          extra_args=["--reference-doc=reference_academic.docx"])
+                          extra_args=extra)
     print(f"Wrote {OUT} (figures embedded as PNG so Word can display them)")
 finally:
     TMP.unlink(missing_ok=True)

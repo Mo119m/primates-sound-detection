@@ -103,7 +103,7 @@ DOCS = [
     ("paper/LITERATURE_2026-08-03.md", "literature sweep, 76 sources"),
     ("paper/SUBMISSION_CHECKLIST.md", "submission checklist"),
     ("paper/CORRECTIONS_2026-08-01.md", "earlier round of corrections"),
-    ("SESSION_2026-08-03.md",
+    ("docs/history/SESSION_2026-08-03.md",
      "what was found and fixed, including the defects that inflated earlier "
      "numbers"),
     ("README.md", "how to run any of it"),
@@ -246,7 +246,9 @@ def main():
                 "  git checkout v13-honest-labels\n"
                 "  cp -r <this folder>/data .\n"
                 "  python scripts/check_gpu.py\n\n"
-                "Then read HANDOFF.md -- it opens with a START HERE section.\n\n"
+                "Then read docs/history/HANDOFF.md -- it opens with a START\n"
+                "HERE section, though it is a July snapshot rather than the\n"
+                "current state.\n\n"
                 "The feature cache (data/outputs/v13_features.npy, 24 GB) is\n"
                 "deliberately absent. train_v13_loso.py rebuilds it from the\n"
                 "image pack on first run; on a GPU that is minutes.\n")

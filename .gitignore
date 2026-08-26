@@ -78,3 +78,15 @@ outputs/
 # this one and refuses to write a coordinate or a duplicated key.
 !/data/outputs/auto_cleanup/
 !/data/outputs/auto_cleanup/review_gate_table.csv
+
+# Third-party publisher material. The MethodsX author guide, the article
+# template and the example articles are Elsevier's, not ours; they were
+# tracked here until 2026-08-26 and are 6.3 MB of a 20 MB repository that
+# points at itself from a Data availability statement. Keep a local copy if
+# useful, but it does not ship.
+/paper/methodsx_reference/
+
+# Manuscript copies that are not the source. The .tex in overleaf/ is the
+# manuscript; a .docx export goes stale the moment the .tex moves, and one
+# sat fifteen days behind it while looking authoritative.
+/paper/*.docx
