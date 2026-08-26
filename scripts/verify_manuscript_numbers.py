@@ -525,7 +525,11 @@ def main():
         check("  of them expert-selected birds (1,056)", 1056, int(birds.sum()))
         check("  of them listened to (7,003)", 7003,
               int((~ref & ~birds).sum()) - unheard)
-        check("  still unheard (155)", 155, unheard)
+        # Was check(155, unheard) with unheard = 155 defined ten lines up:
+        # a constant against itself. What can actually fail is whether the
+        # manuscript still prints it and whether the four categories still
+        # add up to the class.
+        check("  manuscript prints 155 unheard", True, "155 are field" in tex)
         check("  the four categories account for every clip", len(bg),
               7003 + 1056 + 1951 + 155)
         check("no BirdNET left in the negative class", 0,
@@ -574,9 +578,24 @@ def main():
                 # Not a failure: a note that the audit no longer covers the
                 # whole pool. If this grows, the sentence needs the words
                 # "of the" rather than "All".
-                check("  IPA4ST reviewed FPs now, vs the 2,370 audited",
-                      audited, now, 40)
-        check("auto_flagged_fp audited (3,143)", 3143, 3143)
+                # Reported, not asserted. This compares two different things
+                # on purpose -- the size of a completed audit against the
+                # station's current reviewed-FP count -- so a tolerance here
+                # is a silent judgement about how much drift is acceptable.
+                # It printed OK across 2,370 against 2,401 under an
+                # undisclosed +/-40 until an audit on 2026-08-26 read it.
+                check("  IPA4ST reviewed FPs now (audit covered 2,370)",
+                      now, now)
+                if now != audited:
+                    print(f"    note: the audit covered {audited} clips and "
+                          f"the station now contributes {now}. If that gap "
+                          f"grows, the manuscript's \"All 2,370\" has to "
+                          f"become \"2,370 of the\".")
+        # Was 3143 against 3143. The audit file is on disk and has one row
+        # per clip the expert heard, so count it.
+        _audit = maybe("data/labels/auto_flagged_fp_review_2026-08-18.csv")
+        check("auto_flagged_fp audited (3,143)", 3143,
+              len(_audit) if _audit is not None else None)
         check("  of which not noise (6, 0.19%)", 0.19,
               round(100 * 6 / 3143, 2), 0.005)
 
