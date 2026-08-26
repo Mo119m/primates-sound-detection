@@ -112,6 +112,13 @@ def unusable(csv):
         return f"missing {len(gone)} gated columns"
     if d[GATED].isna().all().any():
         return "gated columns present but empty"
+    # A copy cut inside the final field leaves a value that still parses.
+    # Precisions and rates are proportions; a threshold is a probability.
+    # Anything outside [0, 1] is a truncation artefact, not a result.
+    for c in GATED:
+        v = d[c].dropna()
+        if len(v) and ((v < 0).any() or (v > 1).any()):
+            return f"{c} outside [0,1] -- the file looks truncated"
     # One human verdict, one evaluation row. Before 2026-08-25 the evaluation
     # mask did not restrict to aug == 0, so the sixteen variant rows of every
     # reviewed clip relabelled C_pogonias were counted as detections: IPA2ST
@@ -120,16 +127,27 @@ def unusable(csv):
     # gate-table fix and the evaluation fix has all its columns and is still
     # wrong, so the count is checked against the index this runner trains from.
     exp = _expected_counts()
-    if exp:
+    if not exp:
+        # No index means no way to tell a clean fold from a contaminated one.
+        # Returning None here would silently disable screening and protect
+        # every bad fold already in Drive, which is the failure this function
+        # exists to prevent. Refuse instead: the caller redoes the fold, which
+        # costs GPU minutes, and a wasted fold is cheaper than a kept lie.
+        return "cannot verify: no index to compare the evaluation pool against"
+    # Every row, not row zero. A per-fold CSV normally holds one row, but the
+    # local sweep writes all completed folds into one file and a resumed run
+    # can append -- checking only the first row would pass a file whose later
+    # rows are contaminated.
+    for _, r in d.iterrows():
         try:
-            st = str(d["station"].iloc[0])
-            got = int(d["detections"].iloc[0])
+            st = str(r["station"])
+            got = int(r["detections"])
         except Exception as e:
             return f"unreadable station/detections ({e})"
         want = exp.get(st)
         if want is not None and got != want:
-            return (f"evaluation pool is {got} rows where the review holds "
-                    f"{want} originals -- trained before the aug==0 fix")
+            return (f"{st}: evaluation pool is {got} rows where the review "
+                    f"holds {want} originals -- trained before the aug==0 fix")
     return None
 
 

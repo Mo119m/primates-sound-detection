@@ -1430,18 +1430,14 @@ def main():
     n_reviewed = int(reviewed_rows.sum())
     n_timed = int(index.loc[reviewed_rows, "hour"].notna().sum())
     if n_reviewed and not n_timed and not args.allow_ungated:
-        # Before blaming the review table, say whether the paths survived the
-        # trip. A separator that means "directory" on one platform and
-        # "filename" on the other produces exactly this symptom, and it took
-        # fourteen wasted Colab folds to find the first time.
-        stray = int(index["path"].astype(str).str.contains(
-            chr(92), regex=False).sum())
-        if stray:
-            sys.exit(
-                f"\nSTOPPING: {stray} of {len(index)} index paths still carry a"
-                f" backslash after normalisation, so the review join cannot"
-                f" match on this platform ({os.name}). This is a bug in the"
-                f" loader, not a missing file.")
+        # A stray-backslash diagnostic used to sit here. It was unreachable:
+        # load_index normalises the column before this line ever runs, so the
+        # count it tested was always zero and its tailored message could never
+        # print. That is the same cannot-fail pattern this file's own header
+        # warns about, introduced by the person who wrote the warning. Removed
+        # rather than moved, because the condition it described is now
+        # impossible by construction and a check for an impossible condition
+        # is decoration.
         sys.exit(
             f"\nSTOPPING: none of the {n_reviewed} reviewed rows could be given"
             f" a detection time, so every gated_ column would be written empty"
@@ -1622,6 +1618,28 @@ def main():
         row.update(station=station, grouped_val_accuracy=round(val_acc, 4),
                    minutes=round((time.time() - t0) / 60, 1))
         results.append(row)
+
+        # Check the fold that was just computed, not the corpus. The earlier
+        # version of this guard sat before training and asked whether ANY
+        # reviewed row in the whole index had a time; an adversarial audit on
+        # 2026-08-26 showed that is nearly useless here, because the CSV is
+        # written per fold and Colab runs one fold per invocation. One timed
+        # row anywhere let the guard pass while a fold whose own evaluation
+        # pool was untimed still wrote gated_detections=0, a blank
+        # gated_v12_precision and no gated_loso_ columns -- the exact artifact
+        # the guard existed to stop.
+        if not args.allow_ungated:
+            missing = [c for c in ("gated_detections", "gated_loso_precision")
+                       if row.get(c) in (None, 0)]
+            if missing:
+                sys.exit(
+                    f"\nSTOPPING after {station}: this fold came out with "
+                    f"{', '.join(missing)} empty, so it cannot enter Table 2 "
+                    f"or any arm comparison. Its {int(row.get('detections', 0))}"
+                    f" reviewed detections received no usable time from the "
+                    f"review table.\n"
+                    f"  Nothing was written. Fix the review table or pass "
+                    f"--allow-ungated if you mean to run without one.")
 
         # Write after every fold. The sweep is 16 folds over a 25 GB memmap and
         # an OOM or a stray Ctrl-C at fold 15 used to discard the other 14.
