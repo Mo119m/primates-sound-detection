@@ -28,7 +28,10 @@ import pandas as pd
 REPO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 DEFAULT_TEX = os.path.join(REPO, "overleaf", "methodsx_manuscript.tex")
 DEFAULT_RUN = os.path.join(
-    REPO, "data/outputs/v13_runs/full_2026-08-19/loso16_freqpos.csv")
+    # The _evalfix rerun, not the original: the 2026-08-19 sweep scored the
+    # augmented copies of 23 reviewed clips as detections (6,478 rows where
+    # the review holds 6,110 originals) and every gated number moved with it.
+    REPO, "data/outputs/v13_runs/full_2026-08-19/loso16_freqpos_evalfix.csv")
 
 HEADER = ("Station & Detections & Deployed prec. & Threshold & Retrained prec. "
           "& FP removed (\\%) & Calls kept (\\%) \\\\")

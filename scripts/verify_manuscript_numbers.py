@@ -76,7 +76,7 @@ def main():
     # reproduce uniquely from armA, two runs stale, while the table beside them
     # named a different run entirely. Nothing here was watching them. They are
     # pinned below now, under "prose numbers".
-    t = maybe("data/outputs/v13_runs/full_2026-08-19/loso16_freqpos.csv")
+    t = maybe("data/outputs/v13_runs/full_2026-08-19/loso16_freqpos_evalfix.csv")
     old = maybe("data/outputs/v13_runs/armA_corrections/loso16.csv")
     if t is not None:
         # Every constant below is also asserted to appear in the .tex. That is
@@ -100,22 +100,22 @@ def main():
 
         st = lambda s, c: float(t.loc[t["station"] == s, c].iloc[0])
         check("Table 2 stations", 16, len(t))
-        check("gated detections total (3,865)", 3865,
+        check("gated detections total (3,497)", 3497,
               int(t["gated_detections"].sum()))
-        tex_check("macro v12_precision (abstract)", "0.629",
+        tex_check("macro v12_precision (abstract)", "0.711",
                   round(t["gated_v12_precision"].mean(), 3), 0.001)
-        tex_check("macro loso_precision (abstract)", "0.955",
+        tex_check("macro loso_precision (abstract)", "0.960",
                   round(t["gated_loso_precision"].mean(), 3), 0.001)
-        tex_check("macro fps removed %", "93.0",
+        tex_check("macro fps removed %", "90.4",
                   round(100 * t["gated_loso_fps_removed"].mean(), 1), 0.1)
-        tex_check("macro calls retained %", "91.6",
+        tex_check("macro calls retained %", "92.0",
                   round(100 * t["gated_loso_calls_retained"].mean(), 1), 0.1)
-        tex_check("weakest fold IPA19ST", "0.837",
-                  round(st("IPA19ST", "gated_loso_precision"), 3), 0.001)
-        tex_check("worst recall IPA13ST", "70.1",
-                  round(100 * st("IPA13ST", "gated_loso_calls_retained"), 1), 0.1)
-        tex_check("second worst recall IPA7ST", "78.3",
+        tex_check("weakest fold IPA7ST", "0.873",
+                  round(st("IPA7ST", "gated_loso_precision"), 3), 0.001)
+        tex_check("worst recall IPA7ST", "79.7",
                   round(100 * st("IPA7ST", "gated_loso_calls_retained"), 1), 0.1)
+        tex_check("second worst recall IPA13ST", "82.6",
+                  round(100 * st("IPA13ST", "gated_loso_calls_retained"), 1), 0.1)
         # The stations that remove every false positive. Three of them until
         # 2026-08-18, four on the all-background sweep, two on this one: it is
         # a property of where each fold's fitted threshold lands and not a
@@ -137,19 +137,19 @@ def main():
 
         # threshold spread, as the manuscript now states it
         th = t["gated_loso_threshold"]
-        tex_check("threshold median", "0.530",
+        tex_check("threshold median", "0.806",
                   round(float(th.median()), 3), 0.001)
-        tex_check("threshold Q1", "0.321",
+        tex_check("threshold Q1", "0.627",
                   round(float(th.quantile(.25)), 3), 0.001)
-        tex_check("threshold Q3", "0.678",
+        tex_check("threshold Q3", "0.908",
                   round(float(th.quantile(.75)), 3), 0.001)
-        tex_check("threshold min", "0.020", round(float(th.min()), 3), 0.001)
-        tex_check("threshold max", "0.956", round(float(th.max()), 3), 0.001)
-        check("thresholds below 0.9 (thirteen)", 13, int((th < 0.9).sum()))
-        check("thresholds below 0.5 (eight)", 8, int((th < 0.5).sum()))
+        tex_check("threshold min", "0.238", round(float(th.min()), 3), 0.001)
+        tex_check("threshold max", "0.946", round(float(th.max()), 3), 0.001)
+        check("thresholds below 0.9 (ten)", 10, int((th < 0.9).sum()))
+        check("thresholds below 0.5 (two)", 2, int((th < 0.5).sum()))
         check("manuscript says thirteen below 0.9", True,
-              "thirteen of sixteen folds fall" in tex)
-        check("manuscript says eight below 0.5", True, "eight below 0.5" in tex)
+              "ten of sixteen folds fall" in tex)
+        check("manuscript says two below 0.5", True, "two below 0.5" in tex)
 
         # ---- prose numbers ----
         #
@@ -163,27 +163,31 @@ def main():
         # changes and the sentence does not, or if the sentence is edited to a
         # value the run does not support.
         mt = t["gated_matched_threshold"]
-        tex_check("abstract review-set size", "6\\,478",
+        tex_check("abstract review-set size", "6\\,110",
                   int(t["detections"].sum()))
-        tex_check("IPA4ST fitted threshold in prose", "0.914",
+        tex_check("IPA4ST fitted threshold in prose", "0.844",
                   round(st("IPA4ST", "gated_loso_threshold"), 3), 0.001)
-        tex_check("IPA4ST gated precision in prose", "0.988",
+        tex_check("IPA4ST gated precision in prose", "0.978",
                   round(st("IPA4ST", "gated_loso_precision"), 3), 0.001)
-        tex_check("IPA20ST deployed precision in prose", "0.889",
+        tex_check("IPA20ST deployed precision in prose", "0.954",
                   round(st("IPA20ST", "gated_v12_precision"), 3), 0.001)
-        tex_check("matched-threshold floor", "0.0004",
+        tex_check("matched-threshold floor", "0.0021",
                   round(float(mt.min()), 4), 0.0001)
-        tex_check("matched-threshold ceiling", "0.9897",
+        tex_check("matched-threshold ceiling", "0.9775",
                   round(float(mt.max()), 4), 0.0001)
         # The two stations the scanning check was run at are no longer the
         # extremes of the table. The manuscript has to say so rather than
         # repeat the claim; this pins the admission, not the old claim.
         lo = t.loc[t["gated_v12_precision"].idxmin(), "station"]
         hi = t.loc[t["gated_v12_precision"].idxmax(), "station"]
-        check("deployed-precision extremes are IPA1ST/IPA10ST",
-              ("IPA1ST", "IPA10ST"), (lo, hi))
-        check("manuscript admits IPA20ST/IPA4ST are no longer the extremes",
-              True, "no longer the extremes" in tex)
+        check("deployed-precision extremes are IPA1ST/IPA20ST",
+              ("IPA1ST", "IPA20ST"), (lo, hi))
+        # The scanning check was run at IPA20ST and IPA4ST as the extremes of
+        # the table as it then stood. On the corrected run IPA20ST is still
+        # the upper extreme and IPA1ST has displaced IPA4ST as the lower; the
+        # manuscript must say so rather than repeat the original claim.
+        check("manuscript places the lower extreme at IPA1ST",
+              True, "the lower is now" in tex and "IPA1ST at 0.438" in tex)
     else:
         for n in ("Table 2", "abstract macros", "threshold spread"):
             check(n, "-", None)
@@ -562,7 +566,7 @@ def main():
               "2{,}370" in tex)
         check("  of which genuine calls (3, 0.13%)", 0.13,
               round(100 * 3 / audited, 2), 0.005)
-        _loso = maybe("data/outputs/v13_runs/full_2026-08-19/loso16_freqpos.csv")
+        _loso = maybe("data/outputs/v13_runs/full_2026-08-19/loso16_freqpos_evalfix.csv")
         if _loso is not None:
             r4 = _loso[_loso["station"] == "IPA4ST"]
             if len(r4):
