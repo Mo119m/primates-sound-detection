@@ -57,6 +57,33 @@ ARMS = [
 ]
 
 
+def _atomic_copy(src, dst):
+    """Copy so the destination is never half-written.
+
+    Drive is a network filesystem behind a FUSE mount and a copy into it is not
+    instantaneous. A session killed mid-copy -- a closed lid, a lost tab, an
+    exhausted quota -- leaves a partial file whose presence the resume rule
+    would read as a finished fold. Writing beside it and renaming makes the
+    destination appear whole or not at all.
+    """
+    tmp = dst + ".part"
+    if os.path.exists(tmp):
+        os.remove(tmp)
+    shutil.copy(src, tmp)
+    os.replace(tmp, dst)
+
+
+def _sweep_partials(arm_dir):
+    """Remove .part files a previous session left behind."""
+    n = 0
+    for f in os.listdir(arm_dir):
+        if f.endswith(".part"):
+            os.remove(os.path.join(arm_dir, f))
+            n += 1
+    if n:
+        print(f"  cleared {n} partial file(s) from an interrupted session")
+
+
 GATED = ["gated_loso_threshold", "gated_loso_calls_retained",
          "gated_loso_fps_removed", "gated_loso_precision"]
 
@@ -141,10 +168,34 @@ def main():
         os.makedirs(arm_dir, exist_ok=True)
         heads = f"/content/heads_unf_{name}"
         os.makedirs(heads, exist_ok=True)
+        _sweep_partials(arm_dir)
         done = sorted(f[:-4] for f in os.listdir(arm_dir) if f.endswith(".csv"))
+        # Say what survives from previous sessions, per fold, before doing
+        # anything. Interruption is the normal case here -- a closed lid, a
+        # lost tab, an exhausted quota -- so the run should open by showing
+        # exactly what it resumes from rather than leaving it to be inferred
+        # from a fold count.
+        usable, redo = [], []
+        for st in STATIONS:
+            why = unusable(os.path.join(arm_dir, f"{st}.csv"))
+            (redo if why else usable).append((st, why))
         print(f"\n{'=' * 62}\n=== arm {name}   {' '.join(extra)}"
-              f"\n=== {len(done)} of {len(STATIONS)} folds already in Drive"
+              f"\n=== {len(usable)} of {len(STATIONS)} folds usable in Drive"
               f"\n{'=' * 62}", flush=True)
+        if usable:
+            print("  keeping:  " + " ".join(st for st, _ in usable))
+        stale = [(st, why) for st, why in redo if why != "missing"]
+        if stale:
+            print(f"  redoing {len(stale)} fold(s) already in Drive:")
+            for st, why in stale:
+                print(f"    {st}: {why}")
+        todo = [st for st, _ in redo]
+        eta = len(todo) * 25
+        print(f"  to run:   {len(todo)} fold(s), about {eta // 60}h {eta % 60}m"
+              f" on a T4")
+        print("  safe to interrupt: each fold syncs to Drive as it finishes,"
+              " and re-running\n  this cell picks up from whatever is already"
+              " there.", flush=True)
 
         for st in STATIONS:
             landed = os.path.join(arm_dir, f"{st}.csv")
@@ -164,14 +215,24 @@ def main():
             if subprocess.run(cmd).returncode != 0:
                 print(f"!! {name}/{st} failed, moving on")
                 continue
-            # Sync immediately. One fold in flight is the most a dead session
-            # can cost, which is the whole point of doing it here.
-            shutil.copy(csv, landed)
-            if os.path.exists(meta):
-                shutil.copy(meta, os.path.join(arm_dir, f"{st}.run.json"))
+            # Sync immediately, and sync atomically. One fold in flight is the
+            # most a dead session can cost, which is the whole point of doing
+            # it here -- but a runtime that dies *during* the copy leaves a
+            # truncated file in Drive, and a truncated CSV that still parses
+            # would be skipped forever by the resume rule. Copy to a temp name
+            # beside the target and rename, so the target either does not
+            # exist or is complete.
+            #
+            # The heavy file goes first and the CSV last, because the CSV is
+            # what resume keys on: if the session dies between them the fold
+            # is simply redone, which costs 25 minutes and nothing else.
             hf = os.path.join(heads, f"head_{st}.weights.h5")
             if os.path.exists(hf):
-                shutil.copy(hf, os.path.join(arm_dir, f"head_{st}.weights.h5"))
+                _atomic_copy(hf, os.path.join(arm_dir,
+                                              f"head_{st}.weights.h5"))
+            if os.path.exists(meta):
+                _atomic_copy(meta, os.path.join(arm_dir, f"{st}.run.json"))
+            _atomic_copy(csv, landed)
             print(f"++ {name}/{st} synced")
 
     summarise()
