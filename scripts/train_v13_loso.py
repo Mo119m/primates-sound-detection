@@ -426,6 +426,25 @@ def load_index(index_path, manifest_path=None, verified_only=False,
     _require_columns(raw_index, ("path", "label", "station",
                                  "possible_stations", "source", "verified"),
                      "v13_index.csv")
+    # Normalise the separator the moment the index is read, once, for
+    # everything downstream.
+    #
+    # The index is built on Windows and every one of its 22,169 paths uses
+    # backslashes. os.path.basename is platform-dependent: a backslash is a
+    # separator on Windows and an ordinary filename character on Linux. So
+    # basename('data\\species\\x\\clip.wav') returns 'clip.wav' here and the
+    # entire unsplit string on Colab -- and the code that joins the review
+    # table on that basename then matches 6,478 rows here and zero there.
+    #
+    # Zero matches does not raise. It writes every gated_ column empty, which
+    # is how fourteen Colab folds across 2026-08-24 and 25 were trained, synced
+    # and counted as progress while being unusable for Table 2 or any arm
+    # comparison. source_group() splits the same field and was equally exposed.
+    #
+    # Forward slashes work for file I/O on both platforms, so this is safe in
+    # the other direction too.
+    raw_index["path"] = raw_index["path"].astype(str).str.replace(
+        chr(92), "/", regex=False)
     index_ok = _validate_index_rows(raw_index)
     index_verified = _bool_values(raw_index["verified"], "v13_index.csv",
                                   "verified")
@@ -1403,6 +1422,18 @@ def main():
     n_reviewed = int(reviewed_rows.sum())
     n_timed = int(index.loc[reviewed_rows, "hour"].notna().sum())
     if n_reviewed and not n_timed and not args.allow_ungated:
+        # Before blaming the review table, say whether the paths survived the
+        # trip. A separator that means "directory" on one platform and
+        # "filename" on the other produces exactly this symptom, and it took
+        # fourteen wasted Colab folds to find the first time.
+        stray = int(index["path"].astype(str).str.contains(
+            chr(92), regex=False).sum())
+        if stray:
+            sys.exit(
+                f"\nSTOPPING: {stray} of {len(index)} index paths still carry a"
+                f" backslash after normalisation, so the review join cannot"
+                f" match on this platform ({os.name}). This is a bug in the"
+                f" loader, not a missing file.")
         sys.exit(
             f"\nSTOPPING: none of the {n_reviewed} reviewed rows could be given"
             f" a detection time, so every gated_ column would be written empty"
