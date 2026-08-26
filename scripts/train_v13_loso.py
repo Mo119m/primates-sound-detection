@@ -458,6 +458,14 @@ def load_index(index_path, manifest_path=None, verified_only=False,
                 "the manifest is required to prove that labels and image rows "
                 "belong to the same dataset.")
         manifest = pd.read_csv(manifest_path)
+        # Same normalisation as the index, and for the same reason. These two
+        # files are compared row by row to prove the labels and the packed
+        # image rows describe one dataset, so normalising one side only turns
+        # a real integrity check into a guaranteed failure -- which is exactly
+        # what a fresh clone did on the first end-to-end rehearsal of this fix.
+        if "path" in manifest.columns:
+            manifest["path"] = manifest["path"].astype(str).str.replace(
+                chr(92), "/", regex=False)
         manifest_verified, index_verified = _validate_manifest_index(
             manifest, raw_index)
     elif verified_only:
