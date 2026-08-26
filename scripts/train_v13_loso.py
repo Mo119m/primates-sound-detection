@@ -1191,6 +1191,15 @@ def main():
                          "Background rather than discarded because deployment "
                          "already routes them there "
                          "(config.DETECTION_GROUPS).")
+    ap.add_argument("--allow-ungated", action="store_true",
+                    help="Train even when no review table can be found, "
+                         "accepting that every gated_ column will be empty. "
+                         "Without this the run stops rather than write a CSV "
+                         "that silently drops out of Table 2 and every arm "
+                         "comparison -- which is what seven Colab folds did "
+                         "across 2026-08-24 and 25 before a header was read "
+                         "by hand. Meant for a genuinely review-free site, "
+                         "not as a way past a missing file.")
     ap.add_argument("--drop-extra-confuser", action="store_true",
                     help="Ablation: drop everything sourced colobus_field_fp "
                          "from Colobus_confuser, keeping only the reference "
@@ -1380,6 +1389,37 @@ def main():
         print(f"Ablation --drop-extra-confuser: removed {n_extra} reviewed "
               f"deployment detections from Colobus_confuser")
     index["hour"] = detection_hours(index)
+    # Stop here rather than train a fold nobody can use. Without an hour on the
+    # reviewed rows the gated_ columns come out empty, and gated_loso_precision
+    # is the column Table 2 prints and every arm comparison reads -- so the run
+    # would spend its GPU time producing a CSV that silently drops out of every
+    # analysis. Colab did exactly that on 2026-08-24 and again on 2026-08-25:
+    # twenty-five minutes a fold, seven folds, one warning line each, and
+    # nothing downstream noticed until a header was read by hand.
+    #
+    # --allow-ungated exists for the deliberate case (a site with no review
+    # table at all, where ungated numbers are the only ones available).
+    reviewed_rows = index["source"].astype(str).str.startswith("review")
+    n_reviewed = int(reviewed_rows.sum())
+    n_timed = int(index.loc[reviewed_rows, "hour"].notna().sum())
+    if n_reviewed and not n_timed and not args.allow_ungated:
+        sys.exit(
+            f"\nSTOPPING: none of the {n_reviewed} reviewed rows could be given"
+            f" a detection time, so every gated_ column would be written empty"
+            f" and this fold would be unusable for Table 2 or any arm"
+            f" comparison.\n"
+            f"  Expected one of:\n"
+            f"    data/outputs/auto_cleanup/cleanup_vs_review.csv   (local only,"
+            f" carries recorder coordinates)\n"
+            f"    data/outputs/auto_cleanup/review_gate_table.csv   (committed,"
+            f" safe to share -- build with scripts/make_review_gate_table.py)\n"
+            f"  Neither resolved. On a fresh clone, check the second path"
+            f" exists and that the branch is up to date.\n"
+            f"  Pass --allow-ungated only if you mean to run without a review"
+            f" table and accept that the gated columns will be absent.")
+    if n_reviewed and n_timed < n_reviewed:
+        print(f"  ! {n_reviewed - n_timed} of {n_reviewed} reviewed rows have no"
+              f" detection time; their gated_ contribution is dropped")
     print(f"Manifest: {len(index)} clips")
     pack_row = index["row"].to_numpy()
 
