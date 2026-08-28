@@ -30,20 +30,23 @@ next door.
 printed by a fresh clone on a T4. The same line read 0 before the fix. Seven
 folds already in Drive were correctly identified as unusable and redone.
 
-## Experiments still running
+## Experiments
 
-1. **`block4`, sixteen folds.** Colab forwards from IPA1ST, this machine
-   backwards from IPA20ST, converging. Eleven distinct stations done.
-   The answer so far is a null and should be reported as one: paired mean
-   +0.0051, t = +1.38, better at 7 of 11; without IPA4ST, +0.0034 at
-   t = +0.94. The manuscript currently reports a three-fold version of this
-   experiment as frozen 0.6992 to block4 0.9416, which is an artifact of one
-   station's threshold placement and has to go.
-   **Done when:** sixteen folds exist with `gated_loso_precision` populated,
-   and the paired test is reported with its t and its without-IPA4ST twin.
+1. **`block4`, sixteen folds: DONE 2026-08-27, and the answer is a null.**
+   All sixteen folds archived locally from Drive
+   (`unfreeze_2026-08-21_drive/block4_loso16.csv`). Frozen macro 0.9604,
+   block4 macro 0.9654; paired mean +0.0050 at t = +1.74, better at 10 of 16;
+   without IPA4ST +0.0039 at t = +1.37. The stronger sentence than any t:
+   IPA19ST was trained once per machine and the two runs differ by 0.0072 --
+   **the effect of fine-tuning is smaller than the effect of rerunning the
+   same configuration.** The manuscript's three-fold 0.6992-to-0.9416 story
+   is an artifact of one station's threshold placement and comes out.
+   **Remaining:** write this into the manuscript once block34 lands, so the
+   section is rewritten once, not twice.
 
-2. **`block34`, sixteen folds.** Not started. Same design, both blocks
-   released.
+2. **`block34`, sixteen folds: 7 of 16**, running on Colab in ~2 h sessions
+   (the free tier reclaims the runtime; each disconnect costs only the fold in
+   flight and a click on the Drive consent when resumed).
 
 3. **`nopogonias`, sixteen folds.** Not started. Frozen trunk, *C. pogonias*
    dropped. The paper reports a null on this, but that null was last measured
@@ -67,11 +70,21 @@ corrected, and not slightly:
 | IPA19ST | 0.9560 | 0.9007 | -0.0553 |
 | IPA20ST | 0.3067 | 0.2382 | -0.0685 |
 
-4. **Rescan at the corrected thresholds.** The sixteen corrected head weights
-   exist (`heads_freqpos_evalfix/`), so this needs assembly and a scan pass,
-   not retraining.
-   **Done when:** each scanned station's detections come from a model whose
-   threshold matches the one Table 2 prints for that fold.
+4. **Rescan at the corrected thresholds: 3 of 4 done 2026-08-27**
+   (IPA2ST 330, IPA4ST 386, IPA19ST 501; IPA20ST overnight). Two findings the
+   listening design must carry:
+   - **The pogonias classes of different folds contradict each other**:
+     IPA2ST went 4 to 24 pogonias under the corrected threshold while IPA4ST
+     went 44 to 1, the 44 reassigned to Cernic. A 177-clip congener boundary
+     is exactly where fold-to-fold instability should show first. Sample
+     pogonias from both stations separately or the disagreement averages away.
+   - **IPA19ST returned 49 Colobus candidates** (old scan: 2). 35 on one day,
+     28 in the 07:00 hour -- the shape of a dawn chorus. Median low-frequency
+     ratio 0.068, i.e. they fail the same screen our one confirmed field roar
+     fails, which is either the screen refuted or the candidates refuted, and
+     only ears decide. One confirmed roar rewrites the C. guereza section.
+   **Done when:** IPA20ST lands and the stratified expert package is built:
+   all 49 Colobus, pogonias from both disagreeing stations, Cernic at random.
 
 ## The expert's ears
 
