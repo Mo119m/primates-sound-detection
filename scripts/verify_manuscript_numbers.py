@@ -613,7 +613,16 @@ def main():
     # the tex is read only to confirm the file we are checking is the live one
     print(f"\nchecked against {os.path.relpath(TEX, REPO)}, "
           f"{len(tex.splitlines())} lines")
+    # Exit nonzero on any disagreement. Until 2026-08-28 this script always
+    # exited 0 -- a run with failing checks reported success to anything that
+    # reads exit codes, which is every wrapper in this repo. That is the exact
+    # silent-pass failure mode the docstring above was written against, found
+    # by an audit that perturbed a Table 2 cell and watched the exit code stay
+    # green. SKIPs stay 0: "not verified here" is not a failure, but it is
+    # counted and printed so it cannot pass for coverage.
+    return 1 if n_off else 0
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    sys.exit(main())

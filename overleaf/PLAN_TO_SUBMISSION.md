@@ -36,11 +36,16 @@ folds already in Drive were correctly identified as unusable and redone.
    All sixteen folds archived locally from Drive
    (`unfreeze_2026-08-21_drive/block4_loso16.csv`). Frozen macro 0.9604,
    block4 macro 0.9654; paired mean +0.0050 at t = +1.74, better at 10 of 16;
-   without IPA4ST +0.0039 at t = +1.37. The stronger sentence than any t:
-   IPA19ST was trained once per machine and the two runs differ by 0.0072 --
-   **the effect of fine-tuning is smaller than the effect of rerunning the
-   same configuration.** The manuscript's three-fold 0.6992-to-0.9416 story
-   is an artifact of one station's threshold placement and comes out.
+   without IPA4ST +0.0039 at t = +1.37. The stronger sentence than any t,
+   corrected by the 2026-08-28 audit: three stations were genuinely trained
+   twice (once per machine, same seed, different hardware), and the two runs
+   differ by 0.0056 (IPA17ST), 0.0230 (IPA18ST) and 0.0072 (IPA19ST).
+   **The largest run-to-run gap, 0.0230, is 4.6 times the mean effect of
+   fine-tuning**, and at IPA18ST the sign against frozen flips with the rerun
+   (-0.0076 archived, +0.0154 local). Quote the largest gap, not a middling
+   one, and note IPA20ST's 0.0000 is the same file twice, not a replication.
+   The manuscript's three-fold 0.6992-to-0.9416 story is an artifact of one
+   station's threshold placement and comes out.
    **Remaining:** write this into the manuscript once block34 lands, so the
    section is rewritten once, not twice.
 
