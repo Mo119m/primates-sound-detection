@@ -59,8 +59,9 @@ folds already in Drive were correctly identified as unusable and redone.
    0.0000 gap is the same file twice, not a replication. The three-fold
    0.6992-to-0.9416 story is an artifact of one station's threshold
    placement and comes out.
-   **Remaining:** write this into the manuscript once block34 lands, so the
-   section is rewritten once, not twice.
+   **Done 2026-08-29:** written into the manuscript as the sixteen-fold
+   sweep paragraph (limitations, fourth item), once all four arms were in
+   clean.
 
 2. **`block34`, sixteen folds: DONE 2026-08-28.** Macro 0.9713 / recall
    0.9217; paired vs frozen +0.0109 at t = +2.45 (without IPA4ST t = +2.28),
@@ -69,29 +70,33 @@ folds already in Drive were correctly identified as unusable and redone.
    paired mean by ~0.002-0.003. The gap between block34 (+0.0109) and block4
    (+0.0050) is ~2x that scale: suggestive, not provable from one run each.
 
-3. **`nopogonias`: the 2026-08-28 run is INVALID and is being redone.**
-   The 2026-08-29 audit found it training on 23 of its own scored windows
-   (plus 368 augmented copies) at eight stations: --drop-pogonias relabelled
-   the class to Background before the fold masks, and keep-all-background
-   exempts Background from station withholding. Its +0.0135 precision points
-   exactly where memorising your own evaluation false positives points.
+3. **`nopogonias`: leak-free rerun DONE 2026-08-29; the 2026-08-28 run is
+   retired.** The audit had found the first run training on 23 of its own
+   scored windows (plus 368 augmented copies) at eight stations:
+   --drop-pogonias relabelled the class to Background before the fold masks,
+   and keep-all-background exempts Background from station withholding.
    Fixed (relabelled rows keep their station wall; --drop-colobus had the
-   same latent hole), verified leak-free at all affected stations, rerunning
-   on cached features. The trade description below is provisional until the
-   clean run lands.
-   ~~DONE 2026-08-28, and the null is now a trade.~~ Macro precision 0.9739 (+0.0135 vs frozen, t = +2.40) bought with
-   recall 0.9037 (-0.0165, t = -1.45). Dropping the class no longer "costs
-   little either way": it buys precision by dropping calls. The limitations
-   section must state this measured-on-the-right-dataset result and retire
-   the 8 August null.
+   same latent hole), verified leak-free at all affected stations, rerun on
+   cached features: data/outputs/v13_runs/nopogonias_fixed_2026-08-29/.
+   Clean result: macro precision 0.9705 (+0.0102 vs frozen, t = +1.92 --
+   no longer nominally past 2), calls kept 87.4% (-0.0462, t = -2.83).
+   Eval pools verified identical to frozen at all sixteen stations. The
+   leak had inflated macro precision by +0.0034 (per-station up to +-0.019)
+   and hidden two thirds of the recall cost (-0.0165 leaky vs -0.0462
+   clean). The trade is sharper than the leaky run showed: dropping the
+   class buys precision it cannot statistically defend by dropping one
+   kept call in twenty, the only effect in the sweep larger than the
+   training-noise floor.
    **The one manuscript sentence all four arms support:** every variant moves
-   macro precision by at most ~0.014 on single unseeded runs whose
+   macro precision by at most ~0.011 on single unseeded runs whose
    demonstrated run-to-run mean-shift is ~0.002-0.003 and single-fold shift
    up to 0.023; block4's effect is not separable from that noise (replicated),
    block34's and nopogonias's nominal significance cannot be distinguished
    from run-selection luck (unreplicated); and the only variant that moves
    recall, nopogonias, moves it down. The scan comparison, not the re-ranking
    table, is where a real difference would have to show.
+   **Written into the manuscript 2026-08-29** (sixteen-fold sweep paragraph,
+   limitations, fourth item; guarded by verify_manuscript_numbers.py).
 
 ## Rescans, and why the existing ones cannot be used
 

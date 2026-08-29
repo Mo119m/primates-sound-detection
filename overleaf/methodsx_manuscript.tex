@@ -1692,6 +1692,37 @@ these runs --- they are uninformative about each other in both directions. That
 is the property a practitioner needs to know about before tuning on the first
 and deploying on the second.
 
+That dissociation was measured on three folds; the sixteen-fold protocol of
+Table~\ref{tab:loso} closes the loop on it. The three configurations above,
+plus a fourth trained with \textit{C.\ pogonias} removed from the target set,
+were each swept through all sixteen folds, every arm scoring an evaluation
+pool identical to the frozen run's at every station. On the time-gated macro
+averages the whole sweep is compressed: frozen gives 0.9604 precision with
+92.0\,\% of confirmed calls kept; block4 gives 0.9654 and 93.6\,\%; blocks
+3+4 give 0.9713 and 92.2\,\%; the pogonias-free variant gives 0.9705 and
+87.4\,\%. No precision effect exceeds +0.011, and the training procedure is
+unseeded: repeat runs of the block4 specification alone move the paired
+sixteen-station mean by 0.002--0.003 and a single station by up to 0.023.
+Against that floor, block4's +0.0050 ($t=+1.74$) is not separable from
+run-to-run noise at all --- this is the replicated case --- and the nominal
+significance of blocks 3+4's +0.0109 ($t=+2.45$) and the pogonias-free
+variant's +0.0102 ($t=+1.92$), each measured once, cannot be distinguished
+from the luck of which run happened to be analysed. The one effect that does
+clear the floor is a cost: removing \textit{C.\ pogonias} buys its precision
+by dropping calls, $-0.0462$ of calls kept ($t=-2.83$) --- one confirmed call
+in twenty of those the frozen model keeps --- which is why the deployed
+configuration retains the class. An earlier run of that variant had trained
+on 23 of its own evaluation windows: class relabelling ran before the fold
+masks, and the relabelled clips inherited the exemption that keeps background
+material unwithheld. It reported +0.0135 where the corrected run reports
++0.0102, and hid two thirds of the recall cost. The released code closes the
+path (relabelled clips keep their station wall) and the figures here are from
+the corrected run
+(\texttt{data/outputs/v13\_runs/nopogonias\_fixed\_2026-08-29/}). The
+sweep's verdict matches the scan's: within the noise of its own training
+procedure, re-ranked precision cannot pick between these backbones, and where
+it does show a nominal winner it is silent about what the win cost.
+
 Fifth, holding out a station does not by itself hold out an event. A
 \textit{C.\ nictitans} call carries far enough to reach two recorders, and a bout
 that appears at a training station and at the held-out station would let the

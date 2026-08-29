@@ -599,6 +599,72 @@ def main():
         check("  of which not noise (6, 0.19%)", 0.19,
               round(100 * 6 / 3143, 2), 0.005)
 
+    # ---- the sixteen-fold four-arm sweep (limitations, fourth item) ----
+    #
+    # The nopogonias arm exists twice on disk: the 2026-08-28 run under
+    # unfreeze_2026-08-21_drive/nopogonias/ trained on 23 of its own
+    # evaluation windows and is retired; only nopogonias_fixed_2026-08-29
+    # may back a manuscript figure. The +0.0135 check below reads the leaky
+    # files on purpose -- the manuscript quotes that number as the size of
+    # the artefact, and the claim should fail if those files change.
+    from math import sqrt as _sqrt
+    import glob as _glob
+    _fz = maybe("data/outputs/v13_runs/full_2026-08-19/loso16_freqpos_evalfix.csv")
+    _arms = {
+        "block4": maybe("data/outputs/v13_runs/unfreeze_2026-08-21_drive/block4_loso16.csv"),
+        "block34": maybe("data/outputs/v13_runs/unfreeze_2026-08-21_drive/block34_loso16.csv"),
+        "nopogonias": maybe("data/outputs/v13_runs/nopogonias_fixed_2026-08-29/loso16_nopogonias.csv"),
+    }
+    if _fz is None or any(v is None for v in _arms.values()):
+        check("four-arm sweep (sixteen-fold) source files", "present", None)
+    else:
+        _fz = _fz.set_index("station").sort_index()
+
+        def _paired(_a, _col):
+            _d = (_a[_col] - _fz[_col]).to_numpy()
+            return (round(_d.mean(), 4),
+                    round(_d.mean() / (_d.std(ddof=1) / _sqrt(len(_d))), 2))
+
+        check("frozen macro gated precision (0.9604)", 0.9604,
+              round(_fz.gated_loso_precision.mean(), 4))
+        check("frozen macro calls kept (92.0%)", 92.0,
+              round(100 * _fz.gated_loso_calls_retained.mean(), 1))
+        _claim = {  # macro prec, calls kept %, paired d_prec, t
+            "block4": (0.9654, 93.6, 0.0050, 1.74),
+            "block34": (0.9713, 92.2, 0.0109, 2.45),
+            "nopogonias": (0.9705, 87.4, 0.0102, 1.92),
+        }
+        for _nm, _a in _arms.items():
+            _a = _a.set_index("station").sort_index()
+            for _c in ("detections", "gated_detections"):
+                check(f"{_nm} eval pool identical to frozen ({_c}, 16/16)",
+                      16, int((_a[_c] == _fz[_c]).sum()))
+            _p, _k, _dp, _tp = _claim[_nm]
+            check(f"{_nm} macro gated precision", _p,
+                  round(_a.gated_loso_precision.mean(), 4))
+            check(f"{_nm} macro calls kept %", _k,
+                  round(100 * _a.gated_loso_calls_retained.mean(), 1))
+            _got_dp, _got_tp = _paired(_a, "gated_loso_precision")
+            check(f"{_nm} paired precision delta vs frozen", _dp, _got_dp)
+            check(f"{_nm} paired precision t", _tp, _got_tp, 0.005)
+            _arms[_nm] = _a
+        _dr, _tr = _paired(_arms["nopogonias"], "gated_loso_calls_retained")
+        check("nopogonias paired calls-kept delta (-0.0462)", -0.0462, _dr)
+        check("nopogonias paired calls-kept t (-2.83)", -2.83, _tr, 0.005)
+        _leak_files = sorted(_glob.glob(os.path.join(
+            REPO, "data/outputs/v13_runs/unfreeze_2026-08-21_drive/nopogonias/*.csv")))
+        if len(_leak_files) == 16:
+            _lk = pd.concat(map(pd.read_csv, _leak_files)).set_index("station").sort_index()
+            _got_dp, _ = _paired(_lk, "gated_loso_precision")
+            check("retired leaky nopogonias delta the tex quotes (+0.0135)",
+                  0.0135, _got_dp)
+        else:
+            check("retired leaky nopogonias files (16 stations)", 16, None)
+        for _s in ("0.9604", "0.9654", "0.9713", "0.9705", "93.6", "92.2",
+                   "87.4", "+0.0050", "+0.0109", "+0.0102", "-0.0462",
+                   "t=-2.83", "nopogonias\\_fixed\\_2026-08-29"):
+            check(f"sweep figure in tex: {_s}", 1, int(_s in tex))
+
     # ---- report ----
     w = max(len(n) for _, n, _, _ in RESULTS)
     print()
