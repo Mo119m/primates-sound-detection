@@ -636,6 +636,7 @@ def main():
         "block4": maybe("data/outputs/v13_runs/unfreeze_2026-08-21_drive/block4_loso16.csv"),
         "block34": maybe("data/outputs/v13_runs/unfreeze_2026-08-21_drive/block34_loso16.csv"),
         "nopogonias": maybe("data/outputs/v13_runs/nopogonias_fixed_2026-08-29/loso16_nopogonias.csv"),
+        "nocolobus": maybe("data/outputs/v13_runs/nocolobus_2026-08-29/loso16_nocolobus.csv"),
     }
     if _fz is None or any(v is None for v in _arms.values()):
         check("four-arm sweep (sixteen-fold) source files", "present", None)
@@ -655,6 +656,7 @@ def main():
             "block4": (0.9654, 93.6, 0.0050, 1.74),
             "block34": (0.9713, 92.2, 0.0109, 2.45),
             "nopogonias": (0.9705, 87.4, 0.0102, 1.92),
+            "nocolobus": (0.9680, 90.7, 0.0076, 1.37),
         }
         for _nm, _a in _arms.items():
             _a = _a.set_index("station").sort_index()
@@ -682,8 +684,9 @@ def main():
                   0.0135, _got_dp)
         else:
             check("retired leaky nopogonias files (16 stations)", 16, None)
-        for _s in ("0.9604", "0.9654", "0.9713", "0.9705", "93.6", "92.2",
-                   "87.4", "+0.0050", "+0.0109", "+0.0102", "-0.0462",
+        for _s in ("0.9604", "0.9654", "0.9713", "0.9705", "0.9680", "93.6",
+                   "92.2", "87.4", "90.7", "+0.0050", "+0.0109", "+0.0102",
+                   "+0.0076", "t = +1.37", "-0.0462",
                    "t=-2.83", "nopogonias\\_fixed\\_2026-08-29"):
             check(f"sweep figure in tex: {_s}", 1, int(_s in tex))
 
@@ -714,8 +717,13 @@ def main():
         # The floor must stay below the effects it is used to judge, or the
         # sentences that judge them are wrong in the other direction.
         _floor = abs((_rep.gated_loso_precision - _fz.gated_loso_precision).mean())
+        # The Colobus-free arm's t is quoted in the text as matching the
+        # floor's to two decimals. If either moves, that sentence is wrong.
+        _dk, _tk = _paired(_arms["nocolobus"], "gated_loso_calls_retained")
+        check("nocolobus paired calls-kept delta (-0.0133)", -0.0133, _dk)
+        check("nocolobus paired calls-kept t (-1.31)", -1.31, _tk, 0.005)
         for _nm, _eff in (("block4", 0.0050), ("block34", 0.0109),
-                          ("nopogonias", 0.0102)):
+                          ("nopogonias", 0.0102), ("nocolobus", 0.0076)):
             check(f"{_nm} effect as a multiple of the floor", True,
                   bool(_eff > _floor))
         for _s in ("+0.0035", "t = +1.34", "0.0103", "0.0256", "-0.0039",

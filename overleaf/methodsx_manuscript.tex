@@ -1694,13 +1694,15 @@ and deploying on the second.
 
 That dissociation was measured on three folds; the sixteen-fold protocol of
 Table~\ref{tab:loso} closes the loop on it. The three configurations above,
-plus a fourth trained with \textit{C.\ pogonias} removed from the target set,
-were each swept through all sixteen folds, every arm scoring an evaluation
+plus two trained with a class removed from the target set --- \textit{C.\
+pogonias} in one, both \textit{Colobus} classes in the other --- were each
+swept through all sixteen folds, every arm scoring an evaluation
 pool identical to the frozen run's at every station. On the time-gated macro
 averages the whole sweep is compressed: frozen gives 0.9604 precision with
 92.0\,\% of confirmed calls kept; block4 gives 0.9654 and 93.6\,\%; blocks
 3+4 give 0.9713 and 92.2\,\%; the pogonias-free variant gives 0.9705 and
-87.4\,\%. No precision effect exceeds +0.011.
+87.4\,\%; the \textit{Colobus}-free variant gives 0.9680 and 90.7\,\%. No
+precision effect exceeds +0.011.
 
 That number means nothing without knowing what this training procedure does
 when nothing is changed at all, and the procedure is unseeded: \texttt{--seed}
@@ -1726,7 +1728,25 @@ three times the floor, but each was measured once, and the null comparison
 itself reached $t = +1.34$: a single unseeded run can manufacture most of a
 conventional significance threshold without any change to the model. We
 therefore report these two as suggestive and decline to rank the backbones on
-them. The one effect that does clear the floor is a cost: removing \textit{C.\ pogonias} buys its precision
+them.
+
+The \textit{Colobus}-free arm is the cleanest null in the set, and it answers a
+question the rest of this paper raises without settling. Balanced class weights
+give each of the five trained classes exactly 0.200 of the loss, so the two
+\textit{Colobus} classes take 0.400 of it --- and no \textit{Colobus} row is
+scored in any of the sixteen folds, because every \textit{C.\ guereza} clip is
+library audio carrying no station. The measured species is therefore paying, in
+capacity, for a class the evaluation cannot see. Removing both classes (the
+confuser clips folded into Background, where deployment already routes them)
+raises \textit{C.\ nictitans} precision by $+0.0076$ at $t = +1.37$ and costs
+$0.0133$ of calls kept at $t = -1.31$. Set that against the floor: one
+specification against itself gave $+0.0035$ at $t = +1.34$. The two
+$t$-statistics agree to two decimal places. Freeing two fifths of the
+loss returns a result indistinguishable from changing nothing at all, which is
+the strongest statement available here that carrying an unscored class is not
+what limits the measured one.
+
+The one effect that does clear the floor is a cost: removing \textit{C.\ pogonias} buys its precision
 by dropping calls, $-0.0462$ of calls kept ($t=-2.83$) --- one confirmed call
 in twenty of those the frozen model keeps --- which is why the deployed
 configuration retains the class. An earlier run of that variant had trained
