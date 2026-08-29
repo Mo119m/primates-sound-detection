@@ -133,14 +133,22 @@ Nothing here can be done without him, and the first item blocks the abstract.
 
 ## Repository and manuscript hygiene
 
-9. **`primates-sound-detection` is public and its history carries recorder
-   coordinates** -- 304 instances across nine positions, for a primate that is
-   hunted. `primates-paper` is private and clean. The manuscript's Data
-   availability section points at the public one, so making it private breaks
-   the link a reviewer follows.
-   **Done when:** either a coordinate-clean public mirror exists and the
-   manuscript points at it, or the availability statement is rewritten around
-   what will actually be public.
+9. ~~Coordinates in the public repository's history~~ **RESOLVED 2026-08-28.**
+   The audit showed all nine recorder positions recoverable from pushed
+   history (55 commits, two files), and -- decisive -- from GitHub's 28
+   immutable `refs/pull/*/head`, which no force-push can touch. So the fix was
+   not a rewrite alone: history was scrubbed with `git filter-repo`
+   (`+XX.XXXX+XXX.XXXX` placeholders; fresh-clone sweep finds zero matches on
+   any branch), the polluted original was renamed to
+   `primates-sound-detection-archive` and stays private with its PR refs
+   locked inside, and a fresh repository was created **under the original
+   name** with only the clean history -- no PR refs, no dangling objects, no
+   forks. The manuscript's Data availability URL is therefore correct without
+   edits, and Colab's clone URLs are unchanged. Two full `--all` bundle
+   backups predate the rewrite. Residual risk: the nine positions were public
+   from 2026-07-31 to 2026-08-28 in a zero-fork, low-traffic repository;
+   nothing can retract that interval, and the paper should never cite the
+   archive repo.
 
 10. **Verifier gaps found by adversarial audit, 2026-08-26.** Four of the 166
     checks are provably incapable of failing; one reports OK across a
