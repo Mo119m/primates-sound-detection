@@ -36,16 +36,29 @@ folds already in Drive were correctly identified as unusable and redone.
    All sixteen folds archived locally from Drive
    (`unfreeze_2026-08-21_drive/block4_loso16.csv`). Frozen macro 0.9604,
    block4 macro 0.9654; paired mean +0.0050 at t = +1.74, better at 10 of 16;
-   without IPA4ST +0.0039 at t = +1.37. The stronger sentence than any t,
-   corrected by the 2026-08-28 audit: three stations were genuinely trained
-   twice (once per machine, same seed, different hardware), and the two runs
-   differ by 0.0056 (IPA17ST), 0.0230 (IPA18ST) and 0.0072 (IPA19ST).
-   **The largest run-to-run gap, 0.0230, is 4.6 times the mean effect of
-   fine-tuning**, and at IPA18ST the sign against frozen flips with the rerun
-   (-0.0076 archived, +0.0154 local). Quote the largest gap, not a middling
-   one, and note IPA20ST's 0.0000 is the same file twice, not a replication.
-   The manuscript's three-fold 0.6992-to-0.9416 story is an artifact of one
-   station's threshold placement and comes out.
+   without IPA4ST +0.0039 at t = +1.37. What the 2026-08-28 audit then
+   established, twice-corrected and verified by hand:
+   - The training is **unseeded by construction**: `--seed` reaches only the
+     train/val split; weight init and batch shuffling use unseeded global
+     RNGs. Do not attribute rerun gaps to hardware; the honest word is
+     training noise. (Curious but unclaimable: all three CPU reruns beat
+     their GPU twins, +0.0056/+0.0230/+0.0072 -- 3 of 3 one direction is
+     p = 0.25 under a fair coin. Note it, claim nothing.)
+   - Three stations were genuinely trained twice, and the largest rerun gap,
+     **0.0230 at IPA18ST, is 4.6x the mean fine-tuning effect**; that
+     station's sign against frozen flips with the rerun.
+   - **The experiment's overall inference is not robust to run selection**:
+     the archived runs give t = +1.74 (p = 0.10); substituting the three
+     equivalent local reruns gives t = +2.44 (p = 0.028); substituting
+     IPA18ST alone gives t = +2.28. Two defensible analyses of the same
+     experiment land on opposite sides of 0.05.
+   The only sentence the manuscript can carry: any effect of releasing
+   block4 is smaller than the run-to-run variability of the unseeded
+   training procedure, and no significance claim in either direction
+   survives the choice of which equivalent run is analysed. IPA20ST's
+   0.0000 gap is the same file twice, not a replication. The three-fold
+   0.6992-to-0.9416 story is an artifact of one station's threshold
+   placement and comes out.
    **Remaining:** write this into the manuscript once block34 lands, so the
    section is rewritten once, not twice.
 
