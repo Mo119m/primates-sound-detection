@@ -319,7 +319,8 @@ Class & Clips & Composition \\
 \midrule
 Cernic            & 3{,}004      & 2{,}535 reviewed field detections confirmed
                                    as calls, 397 reference calls (putty-nose,
-                                   hack, kek, pyow), 72 calls recovered by
+                                   hack, kek, pyow, and 19 confirmed field
+                                   calls), 72 calls recovered by
                                    later audits of the negative pool \\
 Colobus\_guereza  & 1{,}440      & 665 roar pulses segmented from
                                    \textit{C.\ guereza} reference recordings,
@@ -358,7 +359,7 @@ expert selected. The provenance caveat applies to those equally, so it is worth
 being exact about the overlap with the deployment, because ``detections on the
 deployment audio'' would be the natural assumption and it is wrong. Of the
 original pool, only 1\,475 clips (8.6\,\%) carried
-the coordinates of one of the sixteen analysed stations, and only 2\,068
+the coordinates of one of the sixteen analysed stations, and only 2\,063
 (12.1\,\%) fell in the February 2021 window the deployment covers; the rest were
 recorded at other points in the same programme in July 2021 and in January,
 February and June 2022. The same recorder model, the same forest and
@@ -389,7 +390,14 @@ clips of seven bird species the collaborating expert selected as background,
 \textit{Pan troglodytes}, \textit{Cercocebus torquatus} --- and 155 are field
 clips awaiting a listener. The bird clips are counted separately from the
 7{,}003 because they were chosen by species rather than adjudicated one by one,
-which is a weaker guarantee than the rest of the class carries. The screen is retained only as a check on the remainder.
+which is a weaker guarantee than the rest of the class carries. The 155 deserve
+the bluntest sentence in this section: they are not a random residue but
+precisely the rows the automatic filters selected as call-like --- every one
+of them scores at or above 0.5 on a target group under the screen's own rule
+--- and they ship as trainable negatives while their adjudication is pending
+with the species expert. At 155 of 10{,}165 they bound the worst case at
+1.5\,\% of the class, but they are the 1.5\,\% most likely to contain the one
+labelling error this section calls irreversible.
 
 The screen is deliberately restricted to rows whose Background label is a
 machine's opinion --- BirdNET segments and unreviewed detector output --- and
@@ -407,7 +415,7 @@ audited in bulk keep their original machine source tag, so for those the
 builder consults the audit's verdict file directly and refuses to treat any
 row it names as machine-prunable. A separate check
 (\texttt{scripts/check\_no\_target\_in\_negatives.py}) reads every source of
-human verdicts --- 2{,}565 in total across four files --- and fails the build
+human verdicts --- 2{,}565 in total across three files --- and fails the build
 if any clip a person marked as a target call sits in a trainable negative.
 
 \noindent Because Background is loaded as a single pooled negative with no
@@ -452,11 +460,13 @@ $+9$\,dB;
 this eliminates the silence shortcut that zero-padding would introduce and
 forces the model to distinguish the call from genuine ambient sound. Clips
 longer than 2\,s (e.g.\ putty-nosed 5\,s field recordings) are trimmed to the
-deterministic 2\,s window with the highest short-time energy. Exported review
-detections carry 0.5\,s of padding on either side of the detected window, so
-for those the energy crop recovers a window centred on the call's energy
-within the padded export --- close to, though not provably byte-identical
-with, the window the reviewer heard. Each 2\,s
+deterministic 2\,s window with the highest short-time energy --- a rule
+applied to reference and machine-collected clips only. Exported review
+detections carry 0.5\,s of padding on either side of the detected window, and
+for those the packer does not hunt for energy at all: it skips the padding
+deterministically (an offset of $\min(\mathrm{start}, 0.5\,\mathrm{s})$) and
+takes the following 2.0\,s, recovering exactly the window the detector fired
+on and the reviewer judged. A unit test pins the convention. Each 2\,s
 waveform is converted to a mel-spectrogram with librosa \cite{mcfee2015} using
 a 2048-sample FFT, 512-sample hop, 128 mel bands, and a 20--8000\,Hz analysis
 range, and is expressed in decibels relative to its per-clip maximum. The
@@ -535,7 +545,11 @@ untouched. Swapping in varied high-frequency content across training examples
 decorrelates the high band from the label and forces the model to rely on the
 invariant low-frequency roar (Fig.~\ref{fig:augmentation}B). The augmentation
 is deliberately not applied to Cernic, whose calls genuinely occupy higher
-frequencies and must keep their high band intact.
+frequencies and must keep their high band intact. One scope statement a
+reproducer needs: this augmentation is implemented in the released code and
+was used in earlier builds, but the shipped 22{,}169-row packed set cycles
+only the four operations above --- the nuisance variants are not part of the
+training set the results in this paper were measured on.
 
 \begin{figure}[H]
 \centering
@@ -682,7 +696,11 @@ below, every surviving detection is scored by Mahalanobis distance against
 statistics fitted on the training features of the head that produced it,
 looked up by a fingerprint of that head's weights, and a detection farther
 from its class than the 90th percentile of the class's own training distances
-is dropped (\texttt{OOD\_GATE\_ENABLED}, \texttt{src/config.py}). When no
+is dropped (\texttt{OOD\_GATE\_ENABLED}, \texttt{src/config.py}) --- with one
+per-class override a reproducer must copy: \textit{Colobus\_guereza} uses the
+97th percentile (\texttt{OOD\_GATE\_PERCENTILE\_BY\_CLASS}), loosened so that
+all nine field-verified roars pass the gate; at the global 90th they do not
+all survive. When no
 statistics exist for a head, the distance column is left empty and nothing is
 dropped, which is the correct failure: statistics fitted in another fold's
 feature space would give meaningless distances, and a silent wrong answer is
@@ -708,9 +726,14 @@ removed. The paragraph below is why.
 
 The deployment reported here used a threshold of 0.20. That value was
 calibrated on the curated \textit{Colobus} reference clips together with the
-\textit{Colobus\_confuser} training clips, whose low-frequency ratios do not
-exceed 0.09; 0.20 therefore sat in a wide empty gap and retained 97.6\,\% of
-the reference clips. The calibration did not survive contact with the field.
+\textit{Colobus\_confuser} pool as it stood at calibration time, whose
+low-frequency ratios then topped out at 0.09, leaving 0.20 in a wide empty
+gap that retained 97.6\,\% of the reference clips. The shipped confuser class
+no longer has that gap: after 307 field false positives joined it, 124 of its
+654 curated clips plus field material sit at or above 0.20 (class maximum
+0.855), so the calibration story describes the pool it was computed on and
+not the class as released. The calibration also did not survive contact with
+the field.
 Of the 253 \textit{Colobus} detections the deployment returned, \emph{none}
 has a low-frequency ratio below 0.20 (minimum 0.2007, median 0.4231, upper
 quartile 0.8365, maximum 0.9831), so the gate removed none of them. The

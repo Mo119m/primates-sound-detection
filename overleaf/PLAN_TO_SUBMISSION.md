@@ -69,8 +69,17 @@ folds already in Drive were correctly identified as unusable and redone.
    paired mean by ~0.002-0.003. The gap between block34 (+0.0109) and block4
    (+0.0050) is ~2x that scale: suggestive, not provable from one run each.
 
-3. **`nopogonias`, sixteen folds: DONE 2026-08-28, and the null is now a
-   trade.** Macro precision 0.9739 (+0.0135 vs frozen, t = +2.40) bought with
+3. **`nopogonias`: the 2026-08-28 run is INVALID and is being redone.**
+   The 2026-08-29 audit found it training on 23 of its own scored windows
+   (plus 368 augmented copies) at eight stations: --drop-pogonias relabelled
+   the class to Background before the fold masks, and keep-all-background
+   exempts Background from station withholding. Its +0.0135 precision points
+   exactly where memorising your own evaluation false positives points.
+   Fixed (relabelled rows keep their station wall; --drop-colobus had the
+   same latent hole), verified leak-free at all affected stations, rerunning
+   on cached features. The trade description below is provisional until the
+   clean run lands.
+   ~~DONE 2026-08-28, and the null is now a trade.~~ Macro precision 0.9739 (+0.0135 vs frozen, t = +2.40) bought with
    recall 0.9037 (-0.0165, t = -1.45). Dropping the class no longer "costs
    little either way": it buys precision by dropping calls. The limitations
    section must state this measured-on-the-right-dataset result and retire
@@ -155,10 +164,16 @@ Nothing here can be done without him, and the first item blocks the abstract.
    name** with only the clean history -- no PR refs, no dangling objects, no
    forks. The manuscript's Data availability URL is therefore correct without
    edits, and Colab's clone URLs are unchanged. Two full `--all` bundle
-   backups predate the rewrite. Residual risk: the nine positions were public
-   from 2026-07-31 to 2026-08-28 in a zero-fork, low-traffic repository;
-   nothing can retract that interval, and the paper should never cite the
-   archive repo.
+   backups predate the rewrite. Addendum 2026-08-29: an exhaustive raw-byte
+   audit of every object found ONE survivor the blob scrub missed -- a commit
+   MESSAGE quoting IPA11ST's coordinate (filter-repo --replace-text does not
+   touch messages, and the verification grep read only file contents). Scrubbed
+   with --replace-message, force-pushed (0 forks, 0 PR refs, so nothing pinned
+   the old SHAs), and re-verified from an anonymous clone across all three
+   channels: blobs 0, messages 0, path names 0. Residual risk: the nine
+   positions were public from 2026-07-31 to 2026-08-28 in a zero-fork,
+   low-traffic repository; nothing can retract that interval, and the paper
+   should never cite the archive repo.
 
 10. **Verifier gaps found by adversarial audit, 2026-08-26.** Four of the 166
     checks are provably incapable of failing; one reports OK across a
