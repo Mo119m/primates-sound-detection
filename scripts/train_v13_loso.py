@@ -636,7 +636,16 @@ def fold_masks(index, station, keep_all_background=False):
         # not transfer to a station never heard. The station's confirmed CALLS
         # stay withheld -- those need an expert, a new site does not have them,
         # and they are the numerator of the very score being reported.
-        withheld = withheld & (index["label"] != "Background")
+        # ...except rows an ablation relabelled INTO Background from a target
+        # class. Those carry human verdicts and sit in evaluation pools; the
+        # 2026-08-29 audit caught the nopogonias arm training on 23 of its own
+        # scored windows (plus 368 augmented copies) at eight stations through
+        # exactly this exemption. An ablation may change what a row is called,
+        # not which side of the station wall it stands on.
+        bg_exempt = index["label"] == "Background"
+        if "relabelled_from_target" in index.columns:
+            bg_exempt &= ~index["relabelled_from_target"].fillna(False)
+        withheld = withheld & ~bg_exempt
     train = ~withheld
     # Original clips only. A reviewed detection is one human verdict and must
     # count once, but 23 reviewed clips were relabelled C_pogonias on
@@ -1399,16 +1408,33 @@ def main():
         before = len(index)
         index = index[index["label"] != "Colobus_guereza"].copy()
         n_conf = int((index["label"] == "Colobus_confuser").sum())
+        # Same withholding-preservation as --drop-pogonias below, same reason.
+        if "relabelled_from_target" not in index.columns:
+            index["relabelled_from_target"] = False
+        index.loc[index["label"] == "Colobus_confuser",
+                  "relabelled_from_target"] = True
         index.loc[index["label"] == "Colobus_confuser", "label"] = "Background"
         index = index.reset_index(drop=True)
         print(f"Ablation --drop-colobus: removed {before - len(index)} guereza "
               f"clips, folded {n_conf} confuser clips into Background")
     if args.drop_pogonias:
         n_pog = int((index["label"] == "C_pogonias").sum())
+        # Mark before relabelling. Under --keep-all-background, Background is
+        # exempt from station withholding -- and an audit on 2026-08-29 found
+        # that this relabel therefore put 23 reviewed pogonias clips plus
+        # their 368 augmented copies into their own fold's TRAINING set at
+        # eight stations, while the same 23 sat in those folds' evaluation
+        # pools. The arm scored, in part, its memory of its own eval rows,
+        # in the exact direction its precision "gain" pointed. Rows folded
+        # into Background by an ablation keep their target-class withholding.
+        if "relabelled_from_target" not in index.columns:
+            index["relabelled_from_target"] = False
+        index.loc[index["label"] == "C_pogonias",
+                  "relabelled_from_target"] = True
         index.loc[index["label"] == "C_pogonias", "label"] = "Background"
         index = index.reset_index(drop=True)
         print(f"Ablation --drop-pogonias: folded {n_pog} pogonias clips "
-              f"into Background")
+              f"into Background (station withholding preserved)")
     if args.drop_extra_confuser:
         extra = index["source"] == "colobus_field_fp"
         n_extra = int(extra.sum())
