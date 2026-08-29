@@ -87,10 +87,18 @@ folds already in Drive were correctly identified as unusable and redone.
    class buys precision it cannot statistically defend by dropping one
    kept call in twenty, the only effect in the sweep larger than the
    training-noise floor.
+   **The noise floor is now MEASURED, not estimated (2026-08-29).** The
+   frozen spec was trained twice; only one draw had been scored under the
+   corrected masks. Scoring the other through a harness first validated to
+   reproduce the published run 16/16 across 12 columns gives, for one
+   specification against itself: precision paired mean +0.0035 (t = +1.34),
+   SD 0.0103, max single station 0.0256; calls kept -0.0039 (t = -0.33),
+   SD 0.046, max single station 0.125. A null comparison reached t = +1.34
+   on its own. File: full_2026-08-19/loso16_freqpos_replicate.csv.
    **The one manuscript sentence all four arms support:** every variant moves
    macro precision by at most ~0.011 on single unseeded runs whose
-   demonstrated run-to-run mean-shift is ~0.002-0.003 and single-fold shift
-   up to 0.023; block4's effect is not separable from that noise (replicated),
+   MEASURED run-to-run mean-shift is 0.0035 and single-fold shift
+   up to 0.026; block4's effect is not separable from that noise (replicated),
    block34's and nopogonias's nominal significance cannot be distinguished
    from run-selection luck (unreplicated); and the only variant that moves
    recall, nopogonias, moves it down. The scan comparison, not the re-ranking
@@ -193,10 +201,22 @@ Nothing here can be done without him, and the first item blocks the abstract.
     (IPA10ST 0.911 against 0.912, IPA8ST 98.0 against 98.1). The table
     faithfully reproduces a 4-decimal CSV; the CSV rounds.
 
-12. **The graphical abstract contradicts the paper.** It prints "98.12 %
-    validation accuracy", which the manuscript has a section explaining it
-    will not report; it says four classes where there are five; it says
-    7x augmentation where the scheme is a target count.
+12. ~~**The graphical abstract contradicts the paper.**~~ **RESOLVED
+    2026-08-29.** It printed "98.12 % validation accuracy" and "zero
+    confusion between the two primate species", both withdrawn in the text;
+    "four classes" where five ship; "7x augmentation" where the packer
+    cycles four operations to a 3,000-row target; and it listed three
+    cleanup filters where two ship disabled. Regenerated from
+    make_graphical_abstract.py with the abstract's own validated figures
+    (16-fold LOSO over 6,110 reviewed detections, precision 0.71 -> 0.96).
+    Figure 1 was found to have the same problem in the same audit and was
+    regenerated too: it printed 10-30 % crops against a shipped CHOP_RANGE
+    of (0.05, 0.10), +-20 mel bins against TRANSLATE_RANGE (-9, 9), and a
+    fixed 7x multiplier from the legacy src/augmentation.py path that the
+    v13 packer never calls. Both PDFs had been byte-identical to their
+    2026-07-31 renders. NOTE: no automated check covers either file -- the
+    verifier's 223 checks read one .tex and nothing else, so a future edit
+    to these figures will not be caught.
 
 13. **MethodsX house style.** Bracketed placeholders remain: co-author name,
     second affiliation, the ethics permit sentence, funding, CRediT.
