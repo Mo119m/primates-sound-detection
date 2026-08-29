@@ -555,9 +555,9 @@ training set the results in this paper were measured on.
 \centering
 \includegraphics[width=\linewidth]{Figure_1.pdf}
 \caption{Spectrogram data augmentation. (A)~Each target-class clip is expanded
-by four operations, cycled until the class reaches 3{,}000 examples: a
-background mix at $-5$ to 10\,dB SNR, a time crop, a frequency crop (each
-5--10\,\% of the axis), and a $\pm$9-mel-bin frequency shift.
+by four operations, applied in this cycle until the class reaches 3{,}000
+examples: a time crop, a frequency crop (each 5--10\,\% of the axis), a
+$\pm$9-mel-bin frequency shift, and a background mix at $-5$ to 10\,dB SNR.
 (B)~High-frequency nuisance augmentation adds two further
 variants for \textit{Colobus guereza} only: the mel band above 1.5\,kHz is
 replaced with the high band of a random background clip while the
@@ -1700,15 +1700,33 @@ pool identical to the frozen run's at every station. On the time-gated macro
 averages the whole sweep is compressed: frozen gives 0.9604 precision with
 92.0\,\% of confirmed calls kept; block4 gives 0.9654 and 93.6\,\%; blocks
 3+4 give 0.9713 and 92.2\,\%; the pogonias-free variant gives 0.9705 and
-87.4\,\%. No precision effect exceeds +0.011, and the training procedure is
-unseeded: repeat runs of the block4 specification alone move the paired
-sixteen-station mean by 0.002--0.003 and a single station by up to 0.023.
-Against that floor, block4's +0.0050 ($t=+1.74$) is not separable from
-run-to-run noise at all --- this is the replicated case --- and the nominal
-significance of blocks 3+4's +0.0109 ($t=+2.45$) and the pogonias-free
-variant's +0.0102 ($t=+1.92$), each measured once, cannot be distinguished
-from the luck of which run happened to be analysed. The one effect that does
-clear the floor is a cost: removing \textit{C.\ pogonias} buys its precision
+87.4\,\%. No precision effect exceeds +0.011.
+
+That number means nothing without knowing what this training procedure does
+when nothing is changed at all, and the procedure is unseeded: \texttt{--seed}
+fixes the fold split, not the weight initialisation or the batch order. We
+measured the floor rather than estimating it. The frozen specification was
+trained twice --- same 22\,169-row index, same folds, same schedule, same
+seed, two independent draws --- and both head sets were kept; only one had
+ever been scored under the corrected evaluation masks. Scoring the other
+through the same harness, after requiring that harness to reproduce the
+already-published run at all sixteen stations across every gated column,
+gives what one specification does against itself: a paired mean of
+$+0.0035$ in precision at $t = +1.34$, a per-station standard deviation of
+0.0103, and a single station moving 0.0256. On calls kept the same
+null comparison gives $-0.0039$ at $t = -0.33$, but a per-station standard
+deviation of 0.046 and one station moving 0.125
+(\texttt{loso16\_freqpos\_replicate.csv}).
+
+Read against that floor, block4's $+0.0050$ ($t=+1.74$) is not separable from
+run-to-run noise --- it is 1.4 times a difference we obtained by changing
+nothing --- and this is the replicated case. Blocks 3+4's $+0.0109$
+($t=+2.45$) and the pogonias-free variant's $+0.0102$ ($t=+1.92$) are about
+three times the floor, but each was measured once, and the null comparison
+itself reached $t = +1.34$: a single unseeded run can manufacture most of a
+conventional significance threshold without any change to the model. We
+therefore report these two as suggestive and decline to rank the backbones on
+them. The one effect that does clear the floor is a cost: removing \textit{C.\ pogonias} buys its precision
 by dropping calls, $-0.0462$ of calls kept ($t=-2.83$) --- one confirmed call
 in twenty of those the frozen model keeps --- which is why the deployed
 configuration retains the class. An earlier run of that variant had trained
@@ -1719,9 +1737,10 @@ material unwithheld. It reported +0.0135 where the corrected run reports
 path (relabelled clips keep their station wall) and the figures here are from
 the corrected run
 (\texttt{data/outputs/v13\_runs/nopogonias\_fixed\_2026-08-29/}). The
-sweep's verdict matches the scan's: within the noise of its own training
-procedure, re-ranked precision cannot pick between these backbones, and where
-it does show a nominal winner it is silent about what the win cost.
+sweep's verdict matches the scan's: at a measured noise floor of 0.0035 in the
+paired mean and 0.026 at a single station, re-ranked precision cannot pick
+between these backbones, and where it does show a nominal winner it is silent
+about what the win cost.
 
 Fifth, holding out a station does not by itself hold out an event. A
 \textit{C.\ nictitans} call carries far enough to reach two recorders, and a bout
@@ -2274,10 +2293,11 @@ frequency-position encoding at $-0.0012$ and the second at $+0.0068$, and both
 are consistent with no difference at all.
 
 The honest statement is therefore narrower than the first run invited. The band
-split earns its place, at $t = +2.63$ and eleven of sixteen, and that survives
-both datasets. The frequency-position encoding on top of it is not separable
-from zero in either direction, and we make no recommendation between the two
-heads. An earlier version of this section read the first null as evidence for
+split earns its place, at $t = +2.63$ and eleven of sixteen --- measured once,
+on the ablation build, since the later dataset carries only the
+frequency-position pair. The frequency-position encoding on top of it is not
+separable from zero in either direction, and that null is the one measured
+twice; we make no recommendation between the two heads. An earlier version of this section read the first null as evidence for
 the simpler variant and told a reader to prefer it; a null is not evidence for
 either side, and the second run is the reason we can say so rather than a
 reason to reverse the advice.
@@ -2326,11 +2346,16 @@ unidentifiable, four from the pooled negative class, and two that a blanket rule
 had filed as background at a single station. All 27 are in the build reported
 here: the feature cache was rebuilt on 19 August 2026, and the class now holds
 150 library clips against 27 from this array, 177 in all, of which the field
-clips supply 455 of the class's 3{,}000 packed rows. Whether that is enough to
-move the null is still untested. The \texttt{drop\_pogonias} ablation was last
-run on 8 August 2026 against a smaller and differently composed dataset, so the
-null reported above predates every one of these field clips and does not speak
-to them; rerunning it is the first thing to do with the rebuilt cache.
+clips supply 455 of the class's 3{,}000 packed rows. The \texttt{drop\_pogonias} ablation reported above was run on 8 August 2026
+against a smaller and differently composed dataset, so its null predates every
+one of these field clips and does not speak to them. It has since been rerun on
+the build reported here, and the null does not survive the better dataset:
+removing the class raises time-gated precision by $0.0102$ and costs $0.0462$ of
+the confirmed calls the model keeps, the one effect in the whole sweep larger
+than the training procedure's own run-to-run noise (\S\,Limitations). The class
+is not absent from the result on this build; it is a trade, and the deployed
+configuration keeps it because the recall is worth more here than the
+precision.
 
 It is worth being exact about what that gap is, because ``library'' and
 ``field'' are not opposites and treating them as such misdescribes the problem.

@@ -5,7 +5,8 @@ Restrained, near-monochrome journal style: a single serif typeface, one text
 colour (no grey text), thin hairline rules, neutral light fills, and hatching
 (rather than colour) to distinguish spectrogram bands. Minimal ornament.
 
-  (A) Standard augmentation -- 7x per reference clip, all target classes.
+  (A) Standard augmentation -- four operations cycled to a 3,000-row target,
+      all target classes.
   (B) High-frequency nuisance augmentation -- +2x, Colobus_guereza only:
       the mel band above 1.5 kHz is replaced with the high band of a random
       background clip, leaving the low-frequency roar intact.
@@ -43,22 +44,27 @@ ax.text(50, 97, "Spectrogram data augmentation",
         ha="center", va="center", color=INK)
 
 # ══════════════════════════════════════════════════════════════════════════
-# (A) Standard augmentation -- 7x, all target classes
+# (A) Standard augmentation -- four operations cycled, all target classes
 # ══════════════════════════════════════════════════════════════════════════
 ax.text(4, 89, "(A)  Standard augmentation",
         ha="left", va="center", color=INK)
-ax.text(4, 84.7, "7× per reference clip, all target classes",
+ax.text(4, 84.7, "four operations cycled to 3,000 per class, all target classes",
         ha="left", va="center", color=INK, style="normal")
 
 # Bodies are two lines. At the shared 9 pt scale the one-line versions
 # overran the card borders, and widening five cards would have cost the
 # figure its margins.
+# Order and labels follow scripts/pack_v13_images.py, which passes aug 0
+# through untouched and then selects the transformation as ``kind = aug % 4``.
+# The ×1/×3 multipliers this row used to carry belong to the legacy
+# src/augmentation.py path (config.AUGMENTATION_CONFIG), which the v13 packer
+# that built the shipped set never calls.
 cards = [
-    ("Original", "pass\nthrough", "×1"),
-    ("Background mix", "SNR −5 to\n10 dB", "×3"),
-    ("Time crop", "10–30 % of\ntime axis", "×1"),
-    ("Frequency crop", "10–30 % of\nmel axis", "×1"),
-    ("Frequency shift", "±20 mel\nbins", "×1"),
+    ("Original", "pass\nthrough", "aug 0"),
+    ("Time crop", "5–10 % of\ntime axis", "aug 1"),
+    ("Frequency crop", "5–10 % of\nmel axis", "aug 2"),
+    ("Frequency shift", "±9 mel\nbins", "aug 3"),
+    ("Background mix", "SNR −5 to\n10 dB", "aug 4"),
 ]
 n = len(cards)
 gap = 1.8
@@ -73,7 +79,7 @@ for i, (title, body, mult) in enumerate(cards):
     ax.text(x + cw / 2, cy + ch / 2 - 1.3, body, ha="center", va="center", color=INK, linespacing=1.3)
     ax.text(x + cw / 2, cy + 1.7, mult, ha="center", va="center", color=INK)
 
-ax.text(50, 60.5, "= 7 variants per reference clip",
+ax.text(50, 60.5, "cycled in this order until the class reaches 3,000 examples",
         ha="center", va="center", color=INK, style="normal")
 
 ax.plot([4, 96], [54, 54], color=FRAME, linewidth=0.6, zorder=1)
@@ -83,7 +89,7 @@ ax.plot([4, 96], [54, 54], color=FRAME, linewidth=0.6, zorder=1)
 # ══════════════════════════════════════════════════════════════════════════
 ax.text(4, 50, "(B)  High-frequency nuisance augmentation",
         ha="left", va="center", color=INK)
-ax.text(4, 45.4, "+2× per reference clip, Colobus guereza only",
+ax.text(4, 45.4, "+2× per reference clip, Colobus guereza only — in the released code, not in the packed set measured here",
         ha="left", va="center", color=INK, style="normal")
 
 SPEC_Y, SPEC_H = 8, 28

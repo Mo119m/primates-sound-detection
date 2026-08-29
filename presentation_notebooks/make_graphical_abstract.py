@@ -64,15 +64,15 @@ XS = [1.6, 17.9, 34.2, 50.5, 66.8, 83.1]
 
 boxes = [
     dict(title="Reference clips",
-         body="Curated calls in four\nclasses: Cernic, Colobus,\na hard-negative confuser,\nand Background"),
+         body="Curated calls in five\nclasses: Cernic, Colobus,\nC. pogonias, a confuser,\nand Background"),
     dict(title="Spectrogram\n& augmentation",
-         body="128-mel spectrograms;\n7× augmentation, plus a\nhigh-frequency nuisance\nvariant for Colobus"),
+         body="128-mel spectrograms;\nfour augmentation ops\ncycled to 3,000 clips\nper class"),
     dict(title="Classifier",
          body="VGG19 backbone with a\nfrequency-position CRNN\nhead; two-stage\ntransfer learning"),
     dict(title="Sliding-window\ndetection",
          body="2 s windows; grouping,\nthresholding, NMS, and a\nlow-frequency energy\ngate for Colobus"),
     dict(title="Automatic\ncleanup",
-         body="Three independent filters:\nMahalanobis distance,\nYAMNet tagging, and\ntemporal isolation"),
+         body="Temporal isolation by\ndefault; Mahalanobis and\nYAMNet checks implemented\nbut off"),
     dict(title="Hard-negative\nmining",
          body="Confirmed false positives\nrecycled into Background\nfor iterative\nretraining"),
 ]
@@ -117,8 +117,8 @@ ax.text(50, 5.6,
 # ── footer: headline result ────────────────────────────────────────────────
 ax.plot([18, 82], [3.1, 3.1], color=FRAME, linewidth=0.8, zorder=1)
 ax.text(50, 1.85,
-        "98.12 % validation accuracy · zero confusion between "
-        "the two primate species · minimal manual listening",
+        "16-fold leave-one-station-out over 6,110 reviewed field detections "
+        "· retraining on human verdicts raises precision 0.71 → 0.96",
         ha="center", va="center", fontsize=8.4, color=SUBINK)
 
 plt.subplots_adjust(left=0.0, right=1.0, top=1.0, bottom=0.0)

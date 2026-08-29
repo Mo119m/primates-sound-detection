@@ -665,6 +665,41 @@ def main():
                    "t=-2.83", "nopogonias\\_fixed\\_2026-08-29"):
             check(f"sweep figure in tex: {_s}", 1, int(_s in tex))
 
+    # ---- the measured run-to-run noise floor ----
+    #
+    # Two independent unseeded draws of one specification. This is the number
+    # the whole four-arm conclusion is read against, so it is recomputed here
+    # rather than quoted: if the replicate CSV changes, every "not separable
+    # from noise" sentence in the limitations section has to be re-argued.
+    _rep = maybe("data/outputs/v13_runs/full_2026-08-19/loso16_freqpos_replicate.csv")
+    if _rep is None or _fz is None:
+        check("noise-floor replicate present", "present", None)
+    else:
+        _rep = _rep.set_index("station").sort_index()
+        for _c in ("detections", "gated_detections"):
+            check(f"replicate scores the same pool as the arm it replicates ({_c})",
+                  16, int((_rep[_c] == _fz[_c]).sum()))
+        for _col, _dm, _dt, _sd, _mx in (
+                ("gated_loso_precision", 0.0035, 1.34, 0.0103, 0.0256),
+                ("gated_loso_calls_retained", -0.0039, -0.33, 0.046, 0.125)):
+            _d = (_rep[_col] - _fz[_col]).to_numpy()
+            _se = _d.std(ddof=1) / _sqrt(len(_d))
+            check(f"noise floor {_col}: paired mean", _dm, round(_d.mean(), 4))
+            check("  its t", _dt, round(_d.mean() / _se, 2), 0.005)
+            check("  its per-station SD", _sd, round(_d.std(ddof=1), 4), 0.0005)
+            check("  its largest single-station move", _mx,
+                  round(abs(_d).max(), 4), 0.0005)
+        # The floor must stay below the effects it is used to judge, or the
+        # sentences that judge them are wrong in the other direction.
+        _floor = abs((_rep.gated_loso_precision - _fz.gated_loso_precision).mean())
+        for _nm, _eff in (("block4", 0.0050), ("block34", 0.0109),
+                          ("nopogonias", 0.0102)):
+            check(f"{_nm} effect as a multiple of the floor", True,
+                  bool(_eff > _floor))
+        for _s in ("+0.0035", "t = +1.34", "0.0103", "0.0256", "-0.0039",
+                   "t = -0.33", "0.125", "loso16\_freqpos\_replicate.csv"):
+            check(f"noise floor figure in tex: {_s}", 1, int(_s in tex))
+
     # ---- report ----
     w = max(len(n) for _, n, _, _ in RESULTS)
     print()
