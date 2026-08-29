@@ -62,17 +62,27 @@ folds already in Drive were correctly identified as unusable and redone.
    **Remaining:** write this into the manuscript once block34 lands, so the
    section is rewritten once, not twice.
 
-2. **`block34`, sixteen folds: 7 of 16**, running on Colab in ~2 h sessions
-   (the free tier reclaims the runtime; each disconnect costs only the fold in
-   flight and a click on the Drive consent when resumed).
+2. **`block34`, sixteen folds: DONE 2026-08-28.** Macro 0.9713 / recall
+   0.9217; paired vs frozen +0.0109 at t = +2.45 (without IPA4ST t = +2.28),
+   recall unchanged (t = +0.16). Nominally significant -- but it is a single
+   unseeded run, and block4's replicates showed run selection alone moves a
+   paired mean by ~0.002-0.003. The gap between block34 (+0.0109) and block4
+   (+0.0050) is ~2x that scale: suggestive, not provable from one run each.
 
-3. **`nopogonias`, sixteen folds.** Not started. Frozen trunk, *C. pogonias*
-   dropped. The paper reports a null on this, but that null was last measured
-   on 8 August against a dataset with no field pogonias in it, so it cannot
-   speak to the 27 field clips the class now carries. Minutes per fold, not
-   half an hour: it trains on cached features.
-   **Done when:** the limitations section states the result measured on the
-   dataset the claim is about, rather than one that predates it.
+3. **`nopogonias`, sixteen folds: DONE 2026-08-28, and the null is now a
+   trade.** Macro precision 0.9739 (+0.0135 vs frozen, t = +2.40) bought with
+   recall 0.9037 (-0.0165, t = -1.45). Dropping the class no longer "costs
+   little either way": it buys precision by dropping calls. The limitations
+   section must state this measured-on-the-right-dataset result and retire
+   the 8 August null.
+   **The one manuscript sentence all four arms support:** every variant moves
+   macro precision by at most ~0.014 on single unseeded runs whose
+   demonstrated run-to-run mean-shift is ~0.002-0.003 and single-fold shift
+   up to 0.023; block4's effect is not separable from that noise (replicated),
+   block34's and nopogonias's nominal significance cannot be distinguished
+   from run-selection luck (unreplicated); and the only variant that moves
+   recall, nopogonias, moves it down. The scan comparison, not the re-ranking
+   table, is where a real difference would have to show.
 
 ## Rescans, and why the existing ones cannot be used
 
