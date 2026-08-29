@@ -2283,21 +2283,36 @@ So the head is worth its complexity. Which part of it is worth the complexity is
 a second question, and one sixteen-fold measurement was not enough to answer it,
 although it looked as though it were.
 
-The two arms were run again on a later dataset --- the same pipeline with 1\,056
-expert-selected bird clips and 27 field \textit{C.\ pogonias} added, so a
-different training set and an internally clean comparison within it --- and the
-sign reversed. There \texttt{temporal\_freq} scores 0.9486 against
-\texttt{temporal\_freqpos}'s 0.9554, a paired $-0.0068$ at $t = -1.45$, better
-at six of sixteen folds. Neither run reaches $|t| = 2$: the first put the
-frequency-position encoding at $-0.0012$ and the second at $+0.0068$, and both
-are consistent with no difference at all.
+The two arms were run again on the build the rest of this paper reports --- the
+same pipeline with 1\,056 expert-selected bird clips and 27 field \textit{C.\
+pogonias} added, so a different training set and an internally clean comparison
+within it. There \texttt{temporal\_freq} scores 0.9634 against
+\texttt{temporal\_freqpos}'s 0.9604. Kept in this section's direction --- the
+effect of \emph{adding} the frequency-position encoding --- that is a paired
+$-0.0030$ at $t = -0.90$, the same direction the first ablation found and still
+short of $|t| = 1$. The earlier draft of this paragraph reported the opposite
+sign here; it was computed on the evaluation pool the 2026-08-25 fix retired,
+which scored 6\,478 detections where the review holds 6\,110, and the figures
+above replace it.
+
+Where the sign does turn is narrower than a change of dataset, and that is the
+finding. The frozen specification was trained twice (\S\,Limitations), so
+\texttt{temporal\_freq} can be paired against the second draw instead --- the
+same specification as \texttt{temporal\_freqpos}, differing from it in nothing
+a reader could name. That pairing gives $+0.0005$ at $t = +0.14$.
+\emph{Which way the frequency-position encoding points is decided by which of
+two interchangeable runs it is compared against.} All three estimates ---
+$-0.0012$ on the first build, $-0.0030$ against one frozen run here, $+0.0005$
+against the other --- are smaller in magnitude than the $0.0035$ that one
+specification produces against itself.
 
 The honest statement is therefore narrower than the first run invited. The band
 split earns its place, at $t = +2.63$ and eleven of sixteen --- measured once,
 on the ablation build, since the later dataset carries only the
 frequency-position pair. The frequency-position encoding on top of it is not
 separable from zero in either direction, and that null is the one measured
-twice; we make no recommendation between the two heads. An earlier version of this section read the first null as evidence for
+three times, once with the sign turning on run selection alone;
+we make no recommendation between the two heads. An earlier version of this section read the first null as evidence for
 the simpler variant and told a reader to prefer it; a null is not evidence for
 either side, and the second run is the reason we can say so rather than a
 reason to reverse the advice.
