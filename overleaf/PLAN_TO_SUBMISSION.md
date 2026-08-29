@@ -106,6 +106,35 @@ folds already in Drive were correctly identified as unusable and redone.
    **Written into the manuscript 2026-08-29** (sixteen-fold sweep paragraph,
    limitations, fourth item; guarded by verify_manuscript_numbers.py).
 
+3b. **`nocolobus`: RUN FOR THE FIRST TIME 2026-08-29.** `--drop-colobus` had
+   never been executed once, on any dataset, in this repository's history --
+   confirmed by parsing the trained class composition out of all 47 run.json
+   files rather than trusting the flag. Worth running because balanced
+   weights give each of the five classes 0.200 of the loss (the Colobus pair
+   takes 0.400) while fold_masks scores zero Colobus rows in any fold: every
+   guereza clip is library audio with no station. Result: precision +0.0076
+   (t = +1.37), calls kept -0.0133 (t = -1.31), eval pool identical to
+   frozen 16/16. The measured floor is +0.0035 at t = +1.34 -- the two
+   t-statistics agree to two decimals. File:
+   data/outputs/v13_runs/nocolobus_2026-08-29/loso16_nocolobus.csv.
+
+3c. **`temporal_freq` on the corrected pool: RUN 2026-08-29.** The head
+   ablation's second measurement was still scored on the pre-evalfix pool,
+   so the paper printed 0.9554 for the deployed head in that section and
+   0.9604 for the same head, same build, same folds, 570 lines earlier.
+   Rerun gives freq 0.9634 vs freqpos 0.9604. Two consequences: the old
+   "the sign reversed across datasets" claim is WITHDRAWN (the builds now
+   agree, -0.0012 then -0.0030), and a sharper reversal replaces it --
+   pairing against the frozen replicate instead gives +0.0005, so the sign
+   turns on run selection alone, with all three estimates under the floor.
+
+   **Nothing in the sweep remains unrun.** Five arms plus the replicate;
+   every runnable ablation flag in train_v13_loso.py has now been exercised
+   on the shipped build except --drop-extra-confuser, which was run on the
+   2026-08-19 ablation build and does not need repeating (it deletes rows
+   rather than relabelling them, so it never touched the keep-all-background
+   exemption the 2026-08-29 audit caught).
+
 ## Rescans, and why the existing ones cannot be used
 
 The scans that produced the listening material were run at thresholds fitted
