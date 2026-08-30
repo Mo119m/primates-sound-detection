@@ -48,11 +48,11 @@ OUT = os.environ.get(
     "REP_OUT",
     "/content/drive/MyDrive/primates-sound-detection/replicates_2026-08-29")
 
-ARMS = [
-    # Cheap, and it settles the arm whose recall cost is the only effect in the
-    # whole sweep that clears the floor. If -0.0462 calls kept reproduces, that
-    # finding is safe; if it does not, the sentence recommending the class be
-    # kept has to be rewritten.
+ALL_ARMS = [
+    # Settles the arm whose recall cost is the only effect in the whole sweep
+    # that clears the floor. If -0.0462 calls kept reproduces, that finding is
+    # safe; if it does not, the sentence recommending the class be kept has to
+    # be rewritten.
     ("nopogonias_rep2", ["--drop-pogonias"]),
     # A third draw of the specification the floor is measured on.
     ("frozen_rep3", []),
@@ -62,6 +62,35 @@ ARMS = [
     ("block34_rep2", ["--unfreeze", "2", "--finetune-epochs", "5",
                       "--finetune-lr", "1e-5"]),
 ]
+
+# Which of them to run here, as a comma-separated list in REP_ARMS.
+#
+# The default is block34_rep2 alone, and the reason is measured rather than
+# assumed. The first two arms train a frozen trunk on the cached features, so
+# they need no GPU, and the machine that produced their first draws is three
+# times faster at it than this runtime: 7.2 min/fold locally against 20.8 here,
+# taken from the two runs' own manifests. Only the unfrozen arm has to be here,
+# because unfreezing reads the image pack instead of the cache and is roughly
+# eight times slower per epoch without a GPU.
+#
+# frozen_rep3 also belongs locally for a reason that is not about speed. Draws
+# one and two of that specification were both local, so a third local draw
+# measures training nondeterminism with the machine held fixed. Running it here
+# would confound platform with draw, which turns a clean lower bound on
+# run-to-run noise into something harder to interpret.
+#
+# Set REP_ARMS=all to run all three anyway.
+_want = os.environ.get("REP_ARMS", "block34_rep2")
+if _want.strip().lower() == "all":
+    ARMS = ALL_ARMS
+else:
+    _sel = [a.strip() for a in _want.split(",") if a.strip()]
+    _known = {n for n, _ in ALL_ARMS}
+    _bad = [a for a in _sel if a not in _known]
+    if _bad:
+        raise SystemExit(
+            f"REP_ARMS names no such arm: {_bad}. Known: {sorted(_known)}")
+    ARMS = [(n, x) for n, x in ALL_ARMS if n in _sel]
 
 
 def summarise():
