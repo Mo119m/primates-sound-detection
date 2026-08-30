@@ -1120,10 +1120,12 @@ negative result; \S\,Limitations discusses what it does and does not license.
 
 \paragraph{The \textit{Colobus} detections are spatially impossible for one
 animal.} A verdict that rests on listening rests on one person's ears. The array
-supplies an independent test that does not. AudioMoth writes the deployment
-lat/lon into every filename, which recovers coordinates for 11 of the 16
-stations, a grid spanning 6.68\,km at its widest and 2.49\,km between a
-median pair. A guereza roar carries about 1.6\,km, so two recorders that both hear the
+supplies an independent test that does not. Relative positions are known for
+11 of the 16 stations --- a grid spanning 6.68\,km at its widest and
+2.49\,km between a median pair --- while the other five were deployed without
+position metadata. Absolute positions are withheld throughout, here and in the
+released code and data: \textit{C.\ guereza} is hunted, and a recorder position
+is a place to wait for one. A guereza roar carries about 1.6\,km, so two recorders that both hear the
 same calling animal cannot be more than roughly 3.2\,km apart. Whether a group
 of near-simultaneous detections could have come from a single source is then
 arithmetic rather than judgement.
@@ -1342,10 +1344,10 @@ taken on a station the model has never heard. We therefore retrained the
 classifier sixteen times, once per station, each time withholding every
 training clip that could have come from that station and scoring only that
 station's reviewed detections (\texttt{scripts/train\_v13\_loso.py}). Station
-attribution is not optional here: eleven stations stamp a unique lat/lon into
-each filename, but IPA1, IPA2, IPA4, IPA6 and IPA7 recorded with GPS disabled
-and write identical names, so the 1\,008 clips that could belong to any of them
-sit out every fold they might contaminate. The sixteen held-out folds partition
+attribution is not optional here: five of the sixteen stations were deployed
+without position metadata and write indistinguishable filenames, so the
+1\,008 clips that could belong to any of those five sit out every fold they
+might contaminate. The sixteen held-out folds partition
 the evaluable review exactly: 6\,110 of the 6\,189 reviewed detections, each
 scored once, in the fold of the station it was recorded at. The 79 rows not
 evaluated are reviewed detections whose clips left the training index during

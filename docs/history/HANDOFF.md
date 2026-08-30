@@ -136,10 +136,13 @@ unmeasurable.** The paper should say so.
 | Colobus_guereza | 789 | 789 |
 | Colobus_confuser | 654 | 654 |
 
-Every clip carries `possible_stations`. Eleven stations stamp a unique lat/lon
-into each filename; **IPA1/2/4/6/7 recorded with GPS off and write identical
-names**, and 50 files never locked GPS. Those 1 001 clips sit out every fold they
-could belong to. Without this a leave-one-station-out number is decoration.
+Every clip carries `possible_stations`. Eleven of the sixteen stations carry
+position metadata; **five recorded without it and write identical names**, and
+50 files never locked a fix. Those 1 001 clips sit out every fold they could
+belong to. Without this a leave-one-station-out number is decoration. Which
+five is in `build_v13_dataset.station_of()`, where the pipeline needs it to
+attribute folds; it is deliberately not spelled out here, because a history
+note gets read by people who will never open the code.
 
 ---
 
