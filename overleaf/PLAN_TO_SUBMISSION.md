@@ -274,3 +274,33 @@ Nothing here can be done without him, and the first item blocks the abstract.
 Item 5. Everything else is either an afternoon, a machine running unattended,
 or a decision we can make ourselves. The precision figure is in the abstract,
 it is the number a reader will quote, and only one person can produce it.
+
+**2026-08-30: the three packages and the six manuscript placeholders were sent
+to the species expert, who replied that he will look tomorrow (2026-08-31).**
+
+What happens the moment verdicts arrive, in this order, so none of it is
+improvised on the day:
+
+1. `python scripts/compute_precision_from_verdicts.py` on the 150-clip sheet.
+   It hard-fails on a blank row, which is the point. It prints a proportion
+   and a Wilson interval; that sentence replaces the red placeholder in the
+   abstract (the 92.7 % from 55 non-randomly drawn clips comes out, and 51 of
+   those 55 verdicts were never written down, so nothing is lost).
+2. The 117 dawn windows decide one sentence: either a confirmed roar, which
+   rewrites the C. guereza section, or the sentence and its count come out.
+   The claim is currently unsafe in both directions -- our one confirmed field
+   roar fails the same low-frequency screen these candidates fail.
+3. The 196 rescan clips: 71 Colobus (one confirmed roar changes a section),
+   65 pogonias (the referee on two stations whose models disagree), 60 Cernic.
+   These land in Method validation as the first ear-checked precision for the
+   corrected-threshold scans -- and must be reported as precision of an
+   UNGATED scan, because the OOD statistics were never rebuilt for the
+   evalfix heads (see item 12b).
+4. Re-run `scripts/verify_manuscript_numbers.py`. Any number that moved and
+   was not updated shows up as OFF; that is what the 315 checks are for.
+5. Fill the six placeholders from his reply: name, affiliation, permit
+   authority (or delete the sentence), CRediT, funding, and whether the
+   optional supplementary section stays.
+
+Nothing in that list needs a machine. Everything that needed one is either
+finished or running as of 2026-08-30.
