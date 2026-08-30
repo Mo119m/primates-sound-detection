@@ -730,6 +730,49 @@ def main():
                    "t = -0.33", "0.125", "loso16\_freqpos\_replicate.csv"):
             check(f"noise floor figure in tex: {_s}", 1, int(_s in tex))
 
+    # ---- the Colobus OOD positive control ----
+    #
+    # This block exists because its absence let a false sentence stand for
+    # nineteen days. The manuscript names one fitted parameter a reproducer
+    # must copy -- the 97th-percentile override for Colobus_guereza -- and it
+    # justified that parameter by the behaviour of a statistics file that was
+    # overwritten under its own filename on 2026-08-20. Nothing recomputed the
+    # controls afterwards, so nothing noticed. Now the claim is a number.
+    _ctl = maybe("data/outputs/colobus_ood_controls.csv")
+    if _ctl is None:
+        check("Colobus OOD control scores", "present", None)
+    else:
+        _best = _ctl[_ctl["convention"] == "best"].set_index("stats")
+        check("control clips scored (9)", 9, int(_ctl["n_controls"].iloc[0]))
+        check("shipped statistics files scored (5)", 5, len(_best))
+        # The two cutoffs the manuscript prints for the head the override was
+        # fitted for.
+        check("fold_IPA4ST Colobus p90 (283.7)", 283.7,
+              float(_best.loc["fold_IPA4ST", "p90"]), 0.05)
+        check("fold_IPA4ST Colobus p97 (377.8)", 377.8,
+              float(_best.loc["fold_IPA4ST", "p97"]), 0.05)
+        # "one of the nine roars passes, at either percentile" -- the sentence
+        # that replaced "all nine pass".
+        for _q in ("pass_p90", "pass_p97"):
+            check(f"fold_IPA4ST controls admitted, {_q} (1 of 9)", 1,
+                  int(_best.loc["fold_IPA4ST", _q]))
+        # "the best any percentile achieves is five of nine"
+        check("best across all shipped heads at p90 or p97 (5 of 9)", 5,
+              int(max(_best["pass_p90"].max(), _best["pass_p97"].max())))
+        # "only the 99th reaches nine on any single head"
+        check("heads where p99 admits all nine (1)", 1,
+              int((_best["pass_p99"] == 9).sum()))
+        check("heads where p97 admits all nine (0)", 0,
+              int((_best["pass_p97"] == 9).sum()))
+        # The retired statistics the justification was fitted on must not
+        # reappear: if some file ever ships with these values again, the
+        # retraction has to be revisited rather than silently contradicted.
+        check("no shipped head still carries the retired p90 202.9", 0,
+              int((abs(_best["p90"] - 202.9) < 0.1).sum()))
+        for _s in ("283.7", "377.8", "202.9", "328.4",
+                   "score\_colobus\_controls.py"):
+            check(f"OOD retraction figure in tex: {_s}", 1, int(_s in tex))
+
     # ---- report ----
     w = max(len(n) for _, n, _, _ in RESULTS)
     print()
