@@ -422,9 +422,15 @@ def main():
         check("later run: arms share an evaluation set", True,
               all(later["freq"].loc[s, "gated_detections"]
                   == later["freqpos"].loc[s, "gated_detections"] for s in sts2))
-        for a, want in (("freq", 0.9634), ("freqpos", 0.9604)):
+        # Half a unit in the last printed place, against the UNROUNDED mean.
+        # Until 2026-08-30 this compared round(mean, 4) with a constant that had
+        # itself been produced by round(mean, 4), so it could not detect a
+        # mis-rounded figure -- and it did not: the freq arm's exact mean is
+        # 0.96334999..., whose correct rendering is 0.9633, while round() gave
+        # 0.9634 and the manuscript printed that for a day.
+        for a, want in (("freq", 0.9633), ("freqpos", 0.9604)):
             check(f"later run: {a} precision", want,
-                  round(later[a]["gated_loso_precision"].mean(), 4), 0.0001)
+                  later[a]["gated_loso_precision"].mean(), 0.00005)
         d2 = np.array([later["freq"].loc[s, "gated_loso_precision"]
                        - later["freqpos"].loc[s, "gated_loso_precision"]
                        for s in sts2])
@@ -861,6 +867,39 @@ def main():
                    "0.544", "-0.59", "4.6 times", r"3\,476",
                    r"prauc\_head\_ablation.py"):
             check(f"head ablation figure in tex: {_s}", 1, int(_s in _flat))
+
+    # ---- Table 3's second panel, cell by cell ----
+    #
+    # The table carried only the ablation build until 2026-08-30, under a
+    # caption promising "identical data and evaluation sets" while the body
+    # reported the same three heads on a different build. Both panels now print,
+    # and both are checked against half a unit in the last printed place of the
+    # unrounded mean -- not against round(), which cannot catch a mis-rounded
+    # figure because it produces one. That is how 0.9634 stood for a day where
+    # the exact mean is 0.96334999.
+    _panel = {
+        "temporal": ("full_2026-08-19/loso16_temporal_evalfix.csv", 0.9537, 0.8839),
+        "temporal_freq": ("full_2026-08-19/loso16_freq_evalfix.csv", 0.9633, 0.9146),
+        "temporal_freqpos": ("full_2026-08-19/loso16_freqpos_evalfix.csv", 0.9604, 0.9202),
+        "second draw": ("full_2026-08-19/loso16_freqpos_replicate.csv", 0.9638, 0.9163),
+    }
+    for _nm, (_p, _wp, _wr) in _panel.items():
+        _d = maybe("data/outputs/v13_runs/" + _p)
+        if _d is None:
+            check(f"Table 3 lower panel, {_nm}", "present", None)
+            continue
+        check(f"Table 3 lower panel, {_nm} precision", _wp,
+              _d.gated_loso_precision.mean(), 0.00005)
+        check(f"Table 3 lower panel, {_nm} recall", _wr,
+              _d.gated_loso_calls_retained.mean(), 0.00005)
+        check(f"  and {_wp} is printed in the tex", 1, int(str(_wp) in tex))
+    # The caption's promise is now panel-local, so the two pool sizes must both
+    # appear or the warning not to compare across panels loses its evidence.
+    for _s in (r"3\,476", r"3\,497"):
+        check(f"Table 3 caption names pool size {_s}", 1, int(_s in tex))
+    # And the retired figures must not have crept back into the header comment.
+    check("header comment no longer asserts the superseded +0.0138", 1,
+          int("SUPERSEDED 2026-08-30" in tex))
 
     # ---- report ----
     w = max(len(n) for _, n, _, _ in RESULTS)

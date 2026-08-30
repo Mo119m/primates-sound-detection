@@ -51,13 +51,18 @@
 %%      folds could not test it. The four arms ran at sixteen folds locally --
 %%      not on Colab, whose GPU quota was exhausted; the trunk is frozen and the
 %%      features cached, so a fold is about six minutes on CPU. The answer
-%%      separates the two components: the four-band split is worth its
-%%      complexity (+0.0138 precision, t = +2.63, 11/16). The
-%%      frequency-position encoding on top of it is not separable from zero:
-%%      -0.0012 at t = -0.26 on that dataset, +0.0068 at t = -1.45 when both
-%%      arms were rerun on the later one. Updated 2026-08-20 -- the first run
-%%      alone read as evidence for the simpler head and it is not, a null being
-%%      evidence for neither side. No recommendation is made between the heads.
+%%      separates the two components. SUPERSEDED 2026-08-30, and the figures
+%%      that were here (+0.0138, t = +2.63; and +0.0068, t = -1.45) must not be
+%%      pasted back: they came from the ablation build, scored under the code
+%%      the 2026-08-25 evaluation fix retired. The simplest head was rerun on
+%%      the corrected pool and the comparison redone threshold-free, because the
+%%      two arms are scored at fitted thresholds averaging 0.287 and 0.544 and
+%%      their per-station precision and recall differences anti-correlate at
+%%      r = -0.59 -- an operating point sliding, not a curve lifting. The band
+%%      split is +0.0021 average precision, t = +1.36, 12/16, which is 4.6 times
+%%      smaller than the fitted-threshold figure. The frequency-position
+%%      encoding remains not separable from zero, now measured four ways. No
+%%      recommendation is made between the heads.
 
 \documentclass[final,3p,times]{elsarticle}
 
@@ -2304,17 +2309,34 @@ station by station.
 
 \begin{table}[H]
 \centering
-\caption{Architecture and class ablation, sixteen folds, identical data and
-evaluation sets. Precision and recall are at each fold's own fitted threshold.}
+\caption{Architecture and class ablation, sixteen folds. Within each panel the
+data and evaluation set are identical across arms; \emph{between} panels they
+are not, which is why the two halves must not be compared row against row. The
+upper panel is the 2026-08-19 ablation build (3\,476 gated detections, scored
+under the code the 2026-08-25 evaluation fix retired) and carries the fourth,
+class ablation. The lower is the build every other result in this paper uses
+(3\,497 gated detections, corrected scoring), and its last row is a second
+unseeded draw of the deployed head --- the same specification as the row above
+it, differing in nothing but the draw, which is the noise floor these
+differences are read against. Precision and recall are at each fold's own
+fitted threshold, and Table~\ref{tab:headablation} should be read alongside the
+threshold-free comparison in the text, which removes that dependence.}
 \label{tab:headablation}
 \begin{tabular}{lccc}
 \toprule
 head & precision & recall & val.\ accuracy \\
 \midrule
+\multicolumn{4}{@{}l}{\textit{Ablation build, 2026-08-19} (3\,476 gated detections)} \\
 \texttt{temporal}          & 0.9566 & 0.8622 & 0.9320 \\
 \texttt{temporal\_freq}    & 0.9703 & 0.8888 & 0.9411 \\
 \texttt{temporal\_freqpos} & 0.9692 & 0.8984 & 0.9362 \\
 \texttt{temporal\_freqpos}, no confuser & 0.9586 & 0.9092 & 0.9429 \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{Build reported throughout this paper} (3\,497 gated detections)} \\
+\texttt{temporal}          & 0.9537 & 0.8839 & 0.9158 \\
+\texttt{temporal\_freq}    & 0.9633 & 0.9146 & 0.9211 \\
+\texttt{temporal\_freqpos} & 0.9604 & 0.9202 & 0.9200 \\
+\texttt{temporal\_freqpos}, second draw & 0.9638 & 0.9163 & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -2337,7 +2359,7 @@ although it looked as though it were.
 The two arms were run again on the build the rest of this paper reports --- the
 same pipeline with 1\,056 expert-selected bird clips and 27 field \textit{C.\
 pogonias} added, so a different training set and an internally clean comparison
-within it. There \texttt{temporal\_freq} scores 0.9634 against
+within it. There \texttt{temporal\_freq} scores 0.9633 against
 \texttt{temporal\_freqpos}'s 0.9604. Kept in this section's direction --- the
 effect of \emph{adding} the frequency-position encoding --- that is a paired
 $-0.0030$ at $t = -0.90$, the same direction the first ablation found and still
@@ -2367,7 +2389,7 @@ null is now measured four times --- twice across builds, once with the sign
 turning on run selection alone, and once threshold-free, where it is
 $+0.0017$ at $t = +0.70$ and seven of sixteen folds, a Wilcoxon $p$ of 0.98. We
 make no recommendation between the two heads. On the corrected pool the simplest head scores 0.9537 against the band-split
-head's 0.9634: a paired $+0.0096$ at $t = +1.66$, better at ten of sixteen
+head's 0.9633: a paired $+0.0096$ at $t = +1.66$, better at ten of sixteen
 folds, 95\,\% CI $[-0.003, +0.022]$. That reads like a smaller version of the
 ablation build's $+0.0138$ at $t = +2.63$, and we first wrote it up as one. It
 is not, for a reason worth more than the number.
