@@ -247,6 +247,24 @@ Nothing here can be done without him, and the first item blocks the abstract.
     verifier's 223 checks read one .tex and nothing else, so a future edit
     to these figures will not be caught.
 
+12b. ~~**The OOD override's stated justification.**~~ **RETRACTED 2026-08-30.**
+    The manuscript told a reproducer to copy the 97th-percentile Colobus
+    override and justified it by "all nine field-verified roars pass". True of
+    the statistics it was fitted on (2026-08-10, IPA4ST head, Colobus p90
+    202.9 / p97 328.4); false of every statistics file the repo ships.
+    ood_stats/fold_IPA4ST.npz was rewritten under its own filename on
+    2026-08-20 and now gives p90 283.7 / p97 377.8, admitting ONE of the nine
+    at either percentile -- on the head the override exists for, it changes
+    nothing. Best across all five shipped files is 5 of 9. Retracted in
+    methodsx_manuscript.tex and src/config.py rather than re-tuned: refitting
+    a cutoff on nine clips until those nine pass is choosing a parameter by
+    its answer. scripts/score_colobus_controls.py now makes the measurement a
+    repo artifact. **Root cause worth keeping in view:** nothing in this
+    repository scored the controls between 2026-08-11 and 2026-08-30, so a
+    false sentence about the one parameter the paper asks a reader to copy
+    stood for nineteen days. The verifier reads one .tex and CSVs; it had no
+    way to see this.
+
 13. **MethodsX house style.** Bracketed placeholders remain: co-author name,
     second affiliation, the ethics permit sentence, funding, CRediT.
     The template's own checklist has not been walked end to end.
