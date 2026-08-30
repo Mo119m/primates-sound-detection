@@ -901,6 +901,28 @@ def main():
     check("header comment no longer asserts the superseded +0.0138", 1,
           int("SUPERSEDED 2026-08-30" in tex))
 
+    # ---- the BirdNET non-baseline, stated in the Background ----
+    #
+    # The one claim in the paper that answers "why build this at all". It is
+    # recomputed rather than quoted because it is load-bearing for the
+    # motivation and nothing else in this file touches the 2026-08-17 build.
+    _wb = maybe("data/outputs/v13_runs/withbirdnet_2026-08-17/v13_index.csv")
+    if _wb is None:
+        check("BirdNET labels on this array", "present", None)
+    else:
+        _b = _wb[_wb["source"].astype(str).str.startswith("birdnet")]
+        _lab = _b["source"].astype(str).str.split(":").str[-1]
+        check("BirdNET detections on this array (17,101)", 17101, len(_b))
+        check("  distinct labels (250)", 250, int(_lab.nunique()))
+        check("  of which eBird species codes (249)", 249,
+              int(_lab[_lab.str.fullmatch(r"[a-z]{4,8}[0-9]?")].nunique()))
+        _prim = _lab[_lab.str.contains(
+            "cercopith|colobus|monkey|guenon|primate|nictitans|pogonias|guereza",
+            case=False, regex=True)]
+        check("  of which primates (none)", 0, int(_prim.nunique()))
+        for _s in (r"17\,101", "250 distinct labels", "249 are eBird"):
+            check(f"Background prints {_s}", 1, int(_s in " ".join(tex.split())))
+
     # ---- report ----
     w = max(len(n) for _, n, _, _ in RESULTS)
     print()
