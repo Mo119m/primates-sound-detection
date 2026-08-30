@@ -436,24 +436,36 @@ OOD_STATS_CACHE = 'outputs/ood_class_stats.npz'
 # meant scanning a second station loaded the first station's statistics.
 OOD_STATS_DIR = 'outputs/ood_stats'
 
-# Per-class percentile overrides. Colobus needs one because the default p90 is
-# wrong for it in a way that costs detections: the nine field-verified roars sit
-# at distances 97 to 321 in the IPA4ST head's feature space while the 55 pops the
-# expert rejected start at 293, so the two distributions touch and p90 (202.9)
-# would reject two of the nine roars. The smallest cutoff keeping all nine is
-# 321, which is that head's 97th percentile, and it still rejects 98 % of the
-# pops.
+# Per-class percentile overrides.
 #
-# Expressed as a percentile rather than as 321, because 321 is a coordinate in
-# one head's feature space. Every LOSO fold trains its own head; an absolute
-# number carried to another fold means nothing there, while "the 97th percentile
-# of this class's own in-sample distances" is the same instruction everywhere.
+# WHAT THIS WAS FITTED FOR, AND WHY THAT NO LONGER HOLDS (checked 2026-08-30).
 #
-# Two things about it are honest to state. It is fitted on nine clips, the entire
-# field record for this species, so it has almost no margin. And it is placed at
-# the worst of those nine deliberately: a rejected roar is a lost detection of a
-# species we can barely evidence, while an admitted pop is one more clip in a
-# review queue.
+# Set on 2026-08-10 against the then-current Colobus statistics for the IPA4ST
+# head: the nine field-verified roars sat at distances 97 to 321 while the 55
+# pops the expert rejected started at 293, so the two distributions touched and
+# p90 (202.9) would have rejected two of the nine. The smallest cutoff keeping
+# all nine was 321 -- that head's 97th percentile -- and it still rejected 98 %
+# of the pops. It was expressed as a percentile rather than as 321 because 321
+# is a coordinate in one head's feature space, and every LOSO fold trains its
+# own head.
+#
+# Those statistics are gone. ood_stats/fold_IPA4ST.npz was rewritten under its
+# own filename on 2026-08-20 when the class statistics were refitted on the
+# 2026-08-19 build. The shipped file gives p90 283.7 and p97 377.8, and scoring
+# the same nine roars through it admits ONE of the nine at either percentile:
+# on the head this override exists for, it now changes nothing. Across all five
+# shipped statistics files the best any percentile reaches is five of nine.
+# Recompute with scripts/score_colobus_controls.py; the numbers the manuscript
+# prints live in data/outputs/colobus_ood_controls.csv and are checked by
+# scripts/verify_manuscript_numbers.py.
+#
+# The override is kept and disclosed rather than re-tuned. Refitting a cutoff
+# each time the statistics move, on nine clips, on the criterion that those nine
+# pass, is choosing a parameter by its answer. The failure is the more useful
+# result: this percentile is not portable across folds for a class evidenced
+# this thinly, and the gate as released has no validated positive control for
+# C. guereza. Anyone deploying it for this species should score their own
+# controls first.
 OOD_GATE_PERCENTILE_BY_CLASS = {
     'Colobus_guereza': 97,
 }

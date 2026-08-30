@@ -698,9 +698,36 @@ looked up by a fingerprint of that head's weights, and a detection farther
 from its class than the 90th percentile of the class's own training distances
 is dropped (\texttt{OOD\_GATE\_ENABLED}, \texttt{src/config.py}) --- with one
 per-class override a reproducer must copy: \textit{Colobus\_guereza} uses the
-97th percentile (\texttt{OOD\_GATE\_PERCENTILE\_BY\_CLASS}), loosened so that
-all nine field-verified roars pass the gate; at the global 90th they do not
-all survive. When no
+97th percentile (\texttt{OOD\_GATE\_PERCENTILE\_BY\_CLASS}).
+
+That override needs a longer note than a parameter usually deserves, because
+the reason it was set no longer holds and we would rather say so than let a
+reproducer inherit a justification that fails on the released build. It was
+fitted on 10 August against the then-current \textit{Colobus} statistics for
+the IPA4ST head (90th percentile 202.9, 97th 328.4), where it was the smallest
+cutoff admitting all nine field-verified roars --- the entire field record for
+this species at these sites --- while still rejecting 98\,\% of the pops the
+expert had rejected. Those statistics no longer exist. They were rewritten
+under their own filename on 20 August when the class statistics were refitted
+on the dataset reported here, and the shipped file gives 283.7 and 377.8.
+Scored against it, one of the nine roars passes, at either percentile: on the
+head it was fitted for, the override now changes nothing. Across all five
+shipped statistics files the best any percentile achieves is five of nine, and
+only the 99th reaches nine on any single head
+(\texttt{scripts/score\_colobus\_controls.py},
+\texttt{data/outputs/colobus\_ood\_controls.csv}).
+
+We report the override rather than re-tuning it. A cutoff refitted each time
+the statistics move, on nine clips, chosen by whether those nine pass, is a
+parameter selected by its own answer; and the failure is itself the more useful
+result, because it says the percentile is not portable across folds for a class
+this thinly evidenced. What follows for a reader is concrete: the gate as
+released is a conservatism with no validated positive control for
+\textit{C.\ guereza}, it can drop field-verified roars, and anyone deploying
+this pipeline for that species should score their own controls through
+\texttt{score\_colobus\_controls.py} before trusting any percentile. It is one
+more instance of the pattern this paper keeps meeting --- a calibration that
+survived until it met the field, and then did not. When no
 statistics exist for a head, the distance column is left empty and nothing is
 dropped, which is the correct failure: statistics fitted in another fold's
 feature space would give meaningless distances, and a silent wrong answer is
