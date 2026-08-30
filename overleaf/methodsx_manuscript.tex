@@ -136,9 +136,13 @@ recovers 90\% of the recoverable calls from half.
 
 \begin{itemize}
 \item A VGG19 transfer-learning model whose CRNN head splits the spectrum into
-four bands, which a sixteen-fold ablation shows is worth its complexity
-($+0.0138$ precision, $t = +2.63$), while the frequency-position encoding on top
-of it is not separable from zero on two datasets in either direction.
+four bands. Measured threshold-free over sixteen leave-one-station-out folds the
+split is worth $+0.0021$ average precision ($t = +1.36$, better at twelve of
+sixteen stations): consistent in direction, and small. Scored instead at each
+fold's own fitted threshold it appears 4.6 times larger, because the fitted
+threshold moves with the head; that gap is the finding. The frequency-position
+encoding on top of the split is not separable from zero, threshold-free or
+otherwise, on either dataset.
 \item A cleanup that groups and orders detections for review instead of
 discarding them, measured against a review of every field detection.
 \item A complete, reusable pipeline that recycles confirmed errors into
@@ -2353,13 +2357,79 @@ $-0.0012$ on the first build, $-0.0030$ against one frozen run here, $+0.0005$
 against the other --- are smaller in magnitude than the $0.0035$ that one
 specification produces against itself.
 
-The honest statement is therefore narrower than the first run invited. The band
-split earns its place, at $t = +2.63$ and eleven of sixteen --- measured once,
-on the ablation build, since the later dataset carries only the
-frequency-position pair. The frequency-position encoding on top of it is not
-separable from zero in either direction, and that null is the one measured
-three times, once with the sign turning on run selection alone;
-we make no recommendation between the two heads. An earlier version of this section read the first null as evidence for
+The honest statement is therefore narrower than the first run invited, and
+narrower again than we wrote it a day ago. The simplest head has since been run
+on the corrected pool as well, so the band split no longer rests on one build,
+and the comparison has been redone in a way that does not depend on where a
+fitted threshold lands. Both are set out below. The frequency-position encoding
+on top of the split is not separable from zero in either direction, and that
+null is now measured four times --- twice across builds, once with the sign
+turning on run selection alone, and once threshold-free, where it is
+$+0.0017$ at $t = +0.70$ and seven of sixteen folds, a Wilcoxon $p$ of 0.98. We
+make no recommendation between the two heads. On the corrected pool the simplest head scores 0.9537 against the band-split
+head's 0.9634: a paired $+0.0096$ at $t = +1.66$, better at ten of sixteen
+folds, 95\,\% CI $[-0.003, +0.022]$. That reads like a smaller version of the
+ablation build's $+0.0138$ at $t = +2.63$, and we first wrote it up as one. It
+is not, for a reason worth more than the number.
+
+The two arms are not scored at the same place on their curves. Averaged over the
+folds the fitted threshold is 0.287 for the simplest head and 0.544 for the
+band-split head, and the consequence is visible station by station: the
+precision and recall differences between the arms are anti-correlated at
+$r = -0.59$. IPA1ST loses 0.0167 of precision and gains 0.1818 of recall;
+IPA11ST gains 0.0379 of precision and loses 0.0476 of recall. Only three of the
+sixteen gain on both, and two of those three gain 0.002 or less of precision, so
+what looks like an architectural improvement at thirteen stations is a trade.
+That is one operating point sliding along one curve rather than one curve
+sitting above another --- and a reader can slide their own threshold without
+rewriting their head.
+
+So the comparison was redone with no threshold in it, as average precision over
+the same evaluation rows (\texttt{scripts/prauc\_head\_ablation.py}). The band
+split's advantage falls to $+0.0021$ at $t = +1.36$, 95\,\% CI
+$[-0.001, +0.005]$ --- 4.6 times smaller than the fitted-threshold figure.
+\emph{Most of what the sweep attributed to the architecture was where the
+threshold landed.} What survives is smaller and steadier than what it replaces:
+twelve of sixteen folds rather than ten, the most consistent fold count anywhere
+in this comparison, though a binomial $p$ of 0.077 on that count is the whole of
+its support.
+
+We fixed falsification criteria in writing before the simplest head was run: a
+paired mean at or below $+0.0035$, a $|t|$ at or below $1.34$, or nine or fewer
+folds. At fitted thresholds none of the three is met, and we now judge the
+criteria too weak to have carried the weight we gave them. All three were read
+off a single paired difference between two draws of one specification, and that
+difference is not itself distinguishable from zero; had we labelled the two
+draws in the other order the first bar would have read $-0.0035$ and any
+positive result would have cleared it. A $|t|$ bar of 1.34 on fifteen degrees of
+freedom admits noise about one time in five, ten of sixteen folds is what a fair
+coin gives about one time in four, and the null comparison itself won nine of
+sixteen, so the fold leg was passed by a single station. Clearing all three was
+closer to clearing one weak test than three.
+
+Two further facts bound how far any of this should be read. The fitted-threshold
+mean is carried by its extremes --- dropping the largest station takes $+0.0096$
+to $+0.0060$ and dropping the largest two takes it to $+0.0037$, the
+pre-registered bar itself --- and outside each metric's three largest stations,
+which are not the same three, the split is worth $+0.0013$ of precision and
+$+0.0075$ of recall. And the two builds do not agree on which stations gain:
+their per-station differences correlate at $r = 0.38$ and agree in sign at nine
+of the fourteen stations that moved in both, which is what two coins would give.
+The $+0.0138$ we reported first is also not a second measurement of the same
+quantity and should not be read as corroboration: it came from the 2026-08-17
+index this paper does not otherwise report, scored under the code the 2026-08-25
+evaluation fix retired, on a gated pool of 3\,476 detections against the
+corrected 3\,497.
+
+What we will say is narrower than the first write-up and is not nothing. The
+band split is ahead of the simplest head in every comparison we have made ---
+both builds, both metrics, and threshold-free --- and behind in none, so a
+reader building this head should include it. What a reader should not do is plan
+on a size: threshold-free it is two parts in a thousand, it is not significant
+at sixteen folds, and we report no station covariates that would tell anyone in
+advance whether their site is one of the three where it mattered.
+
+An earlier version of this section read the first null as evidence for
 the simpler variant and told a reader to prefer it; a null is not evidence for
 either side, and the second run is the reason we can say so rather than a
 reason to reverse the advice.

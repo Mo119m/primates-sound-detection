@@ -727,7 +727,7 @@ def main():
             check(f"{_nm} effect as a multiple of the floor", True,
                   bool(_eff > _floor))
         for _s in ("+0.0035", "t = +1.34", "0.0103", "0.0256", "-0.0039",
-                   "t = -0.33", "0.125", "loso16\_freqpos\_replicate.csv"):
+                   "t = -0.33", "0.125", r"loso16\_freqpos\_replicate.csv"):
             check(f"noise floor figure in tex: {_s}", 1, int(_s in tex))
 
     # ---- the Colobus OOD positive control ----
@@ -770,8 +770,97 @@ def main():
         check("no shipped head still carries the retired p90 202.9", 0,
               int((abs(_best["p90"] - 202.9) < 0.1).sum()))
         for _s in ("283.7", "377.8", "202.9", "328.4",
-                   "score\_colobus\_controls.py"):
+                   r"score\_colobus\_controls.py"):
             check(f"OOD retraction figure in tex: {_s}", 1, int(_s in tex))
+
+    # ---- the head ablation, threshold-free and at fitted thresholds ----
+    #
+    # This block exists because three independent readers found the first
+    # write-up of this comparison overclaiming, and every one of their
+    # objections was a number nobody had computed. The paired figures at fitted
+    # thresholds are not wrong, they are answers to a different question: the
+    # two arms are scored at mean thresholds 0.287 and 0.544, so part of the
+    # difference is the operating point. Both are recomputed here.
+    _pr = maybe("data/outputs/v13_runs/full_2026-08-19/head_ablation_prauc.csv")
+    _tmp = maybe("data/outputs/v13_runs/full_2026-08-19/loso16_temporal_evalfix.csv")
+    if _pr is None or _tmp is None or _fz is None:
+        check("head ablation, corrected pool", "present", None)
+    else:
+        _tmp = _tmp.set_index("station").sort_index()
+        _frq = maybe("data/outputs/v13_runs/full_2026-08-19/loso16_freq_evalfix.csv")
+        _frq = _frq.set_index("station").sort_index()
+        check("temporal arm eval pool identical to frozen (16/16)", 16,
+              int((_tmp["gated_detections"] == _fz["gated_detections"]).sum()))
+        check("temporal macro gated precision (0.9537)", 0.9537,
+              round(_tmp.gated_loso_precision.mean(), 4))
+        # at fitted thresholds
+        _dp = (_frq.gated_loso_precision - _tmp.gated_loso_precision)
+        _dr = (_frq.gated_loso_calls_retained - _tmp.gated_loso_calls_retained)
+        _se = _dp.std(ddof=1) / _sqrt(16)
+        check("band split at fitted thresholds (+0.0096)", 0.0096,
+              round(_dp.mean(), 4))
+        check("  its t (+1.66)", 1.66, round(_dp.mean() / _se, 2), 0.005)
+        check("  folds won (10)", 10, int((_dp > 0).sum()))
+        check("mean fitted threshold, temporal (0.287)", 0.287,
+              round(_tmp.gated_loso_threshold.mean(), 3), 0.0005)
+        check("mean fitted threshold, freq (0.544)", 0.544,
+              round(_frq.gated_loso_threshold.mean(), 3), 0.0005)
+        check("precision/recall anti-correlation (-0.59)", -0.59,
+              round(_dp.corr(_dr), 2), 0.005)
+        check("stations gaining on both metrics (3)", 3,
+              int(((_dp > 0) & (_dr > 0)).sum()))
+        _o = _dp.sort_values(ascending=False)
+        check("mean without the largest station (+0.0060)", 0.0060,
+              round(_dp.drop(_o.index[0]).mean(), 4))
+        check("mean without the largest two (+0.0037)", 0.0037,
+              round(_dp.drop(list(_o.index[:2])).mean(), 4))
+        check("outside each metric's top three, precision (+0.0013)", 0.0013,
+              round(_dp.drop(list(_dp.sort_values(ascending=False).index[:3])).mean(), 4))
+        check("outside each metric's top three, recall (+0.0075)", 0.0075,
+              round(_dr.drop(list(_dr.sort_values(ascending=False).index[:3])).mean(), 4))
+        # threshold-free -- the measurement the passage now leads with
+        _piv = _pr.pivot(index="station", columns="arm", values="ap")
+        for _a, _want in (("temporal", 0.9787), ("freq", 0.9808), ("freqpos", 0.9825)):
+            check(f"macro average precision, {_a}", _want,
+                  round(_piv[_a].mean(), 4))
+        _d2 = (_piv["freq"] - _piv["temporal"])
+        _se2 = _d2.std(ddof=1) / _sqrt(len(_d2))
+        check("band split THRESHOLD-FREE (+0.0021)", 0.0021, round(_d2.mean(), 4))
+        check("  its t (+1.36)", 1.36, round(_d2.mean() / _se2, 2), 0.005)
+        check("  folds won (12)", 12, int((_d2 > 0).sum()))
+        check("  the fitted-threshold figure is 4.6x larger", 4.6,
+              round(_dp.mean() / _d2.mean(), 1), 0.05)
+        _d3 = (_piv["freqpos"] - _piv["freq"])
+        _se3 = _d3.std(ddof=1) / _sqrt(len(_d3))
+        check("CoordConv threshold-free (+0.0017)", 0.0017, round(_d3.mean(), 4))
+        check("  its t (+0.70)", 0.70, round(_d3.mean() / _se3, 2), 0.005)
+        check("  folds won (7)", 7, int((_d3 > 0).sum()))
+        # cross-build agreement, the reason the ablation build is called
+        # superseded rather than corroborating
+        _ab = {}
+        for _n in ("temporal", "freq"):
+            _p = maybe(f"data/outputs/v13_runs/ablations_2026-08-19/abl_{_n}.csv")
+            if _p is not None:
+                _ab[_n] = _p.set_index("station").sort_index()
+        if len(_ab) == 2:
+            _d0 = (_ab["freq"].gated_loso_precision
+                   - _ab["temporal"].gated_loso_precision)
+            check("cross-build per-station correlation (0.38)", 0.38,
+                  round(_d0.corr(_dp), 2), 0.005)
+            _nz = (_d0 != 0) & (_dp != 0)
+            check("  stations moving in both builds (14)", 14, int(_nz.sum()))
+            check("  of which agree in sign (9)", 9,
+                  int((np.sign(_d0[_nz]) == np.sign(_dp[_nz])).sum()))
+            check("ablation build gated pool (3,476)", 3476,
+                  int(_ab["temporal"].gated_detections.sum()))
+        # Line-wrap-insensitive: the manuscript wraps at 79 columns, so a
+        # phrase check that assumes a single space fails on a break. Collapse
+        # whitespace in the haystack once and search that.
+        _flat = " ".join(tex.split())
+        for _s in ("+0.0021", "t = +1.36", "twelve of sixteen", "0.287",
+                   "0.544", "-0.59", "4.6 times", r"3\,476",
+                   r"prauc\_head\_ablation.py"):
+            check(f"head ablation figure in tex: {_s}", 1, int(_s in _flat))
 
     # ---- report ----
     w = max(len(n) for _, n, _, _ in RESULTS)
