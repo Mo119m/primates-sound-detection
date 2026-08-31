@@ -194,6 +194,20 @@ Nothing here can be done without him, and the first item blocks the abstract.
 
 ## Repository and manuscript hygiene
 
+0. **Branches, 2026-08-31.** `claude/review-repo-QAc6j` deleted, local and
+   remote. It carried 1,540 lines that never reached main -- src/field_gate.py,
+   src/hard_negatives.py, scripts/gate_retrain.py,
+   scripts/mine_hard_negatives.py, and 586 lines of tests for the first two --
+   and the manuscript names none of them (zero occurrences of all four in the
+   .tex). main has its own implementation of that work: the `:confirmed_fp`
+   recycling in build_v13_dataset.py, and scripts/run_hard_negative_mining.py,
+   whose imports were checked and resolve entirely on main. So it was a
+   superseded parallel implementation rather than unmerged work.
+   Recoverable: **psd-branch-review-repo-QAc6j-2026-08-31.bundle** on the
+   Desktop, verified to record a complete history, tip f34b744. Restore with
+   `git fetch <bundle> claude/review-repo-QAc6j:claude/review-repo-QAc6j`.
+   Only main and v13-honest-labels remain, and they are identical.
+
 9. ~~Coordinates in the public repository's history~~ **RESOLVED 2026-08-28.**
    The audit showed all nine recorder positions recoverable from pushed
    history (55 commits, two files), and -- decisive -- from GitHub's 28
