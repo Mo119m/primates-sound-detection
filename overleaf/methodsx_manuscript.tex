@@ -1758,17 +1758,27 @@ That number means nothing without knowing what this training procedure does
 when nothing is changed at all, and the procedure is unseeded: \texttt{--seed}
 fixes the fold split, not the weight initialisation or the batch order. We
 measured the floor rather than estimating it. The frozen specification was
-trained twice --- same 22\,169-row index, same folds, same schedule, same
-seed, two independent draws --- and both head sets were kept; only one had
-ever been scored under the corrected evaluation masks. Scoring the other
-through the same harness, after requiring that harness to reproduce the
-already-published run at all sixteen stations across every gated column,
-gives what one specification does against itself: a paired mean of
-$+0.0035$ in precision at $t = +1.34$, a per-station standard deviation of
-0.0103, and a single station moving 0.0256. On calls kept the same
-null comparison gives $-0.0039$ at $t = -0.33$, but a per-station standard
-deviation of 0.046 and one station moving 0.125
-(\texttt{loso16\_freqpos\_replicate.csv}).
+trained three times --- same 22\,169-row index, same folds, same schedule, same
+seed, three independent draws --- and every head set was kept and scored under
+the same corrected evaluation masks, the scoring harness having first been
+required to reproduce the already-published run at all sixteen stations across
+every gated column.
+
+Three draws give three pairwise comparisons, and what they show is a range
+rather than a number. In macro precision the pairs differ by $+0.0035$,
+$0.0000$ and $-0.0035$: they sum to zero, as three pairwise differences among
+three values must, so the useful statement is the largest of them. Changing
+nothing at all moves the paired sixteen-station mean by up to 0.0035, with a
+per-station standard deviation of 0.0103 and one station moving 0.0256. On
+calls kept the same three comparisons give 0.0039, 0.0115 and 0.0076, a
+per-station standard deviation of 0.046, and one station moving 0.125.
+
+We stress the shape of that because a single pair invites the wrong reading.
+Had we stopped at two draws we would have had one number, $+0.0035$, and it is
+tempting to treat one number as a threshold. It is not one: it is one end of a
+range whose centre is zero, and its sign is a labelling choice between two
+interchangeable runs
+(\texttt{loso16\_freqpos\_replicate.csv}, \texttt{replicates\_2026-08-30/}).
 
 Read against that floor, block4's $+0.0050$ ($t=+1.74$) is not separable from
 run-to-run noise --- it is 1.4 times a difference we obtained by changing
@@ -1796,10 +1806,21 @@ loss returns a result indistinguishable from changing nothing at all, which is
 the strongest statement available here that carrying an unscored class is not
 what limits the measured one.
 
-The one effect that does clear the floor is a cost: removing \textit{C.\ pogonias} buys its precision
-by dropping calls, $-0.0462$ of calls kept ($t=-2.83$) --- one confirmed call
-in twenty of those the frozen model keeps --- which is why the deployed
-configuration retains the class. An earlier run of that variant had trained
+The one effect that does clear the floor is a cost, and it is the only arm we
+have run twice. Removing \textit{C.\ pogonias} buys its precision by dropping
+calls. Its two draws do not agree on how many: the first gives $-0.0462$ of
+calls kept at $t = -2.83$, the second $-0.0248$ at $t = -1.90$, which on its
+own would not be significant. Reported from either draw alone the paper would
+have overstated the size or missed the effect, which is the concrete cost of
+the single-run reporting this section is otherwise arguing against. Taken
+together --- two pogonias draws against three frozen draws --- the cost is
+$-0.0304$ of calls kept ($t = -2.42$, $p = 0.029$, 95\,\% CI
+$[-0.057, -0.004]$) against a precision gain of $+0.0105$ ($t = +2.54$,
+$p = 0.022$, CI $[+0.002, +0.019]$). Both intervals exclude zero and both are
+several times the largest difference the floor produces, so this survives
+replication where nothing else in the sweep does. The size is not what one run
+said: roughly one kept call in thirty-three rather than one in twenty. That is
+why the deployed configuration retains the class. An earlier run of that variant had trained
 on 23 of its own evaluation windows: class relabelling ran before the fold
 masks, and the relabelled clips inherited the exemption that keeps background
 material unwithheld. It reported +0.0135 where the corrected run reports

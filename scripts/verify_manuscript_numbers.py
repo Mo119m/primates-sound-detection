@@ -692,8 +692,9 @@ def main():
             check("retired leaky nopogonias files (16 stations)", 16, None)
         for _s in ("0.9604", "0.9654", "0.9713", "0.9705", "0.9680", "93.6",
                    "92.2", "87.4", "90.7", "+0.0050", "+0.0109", "+0.0102",
-                   "+0.0076", "t = +1.37", "-0.0462",
-                   "t=-2.83", "nopogonias\\_fixed\\_2026-08-29"):
+                   "+0.0076", "t = +1.37", "-0.0462", "-0.0248",
+                   "-0.0304", "t = -2.42", "+0.0105", "t = +2.54",
+                   "nopogonias\\_fixed\\_2026-08-29"):
             check(f"sweep figure in tex: {_s}", 1, int(_s in tex))
 
     # ---- the measured run-to-run noise floor ----
@@ -732,8 +733,8 @@ def main():
                           ("nopogonias", 0.0102), ("nocolobus", 0.0076)):
             check(f"{_nm} effect as a multiple of the floor", True,
                   bool(_eff > _floor))
-        for _s in ("+0.0035", "t = +1.34", "0.0103", "0.0256", "-0.0039",
-                   "t = -0.33", "0.125", r"loso16\_freqpos\_replicate.csv"):
+        for _s in ("+0.0035", "0.0103", "0.0256", "0.0039", "0.0115",
+                   "0.0076", "0.125", r"loso16\_freqpos\_replicate.csv"):
             check(f"noise floor figure in tex: {_s}", 1, int(_s in tex))
 
     # ---- the Colobus OOD positive control ----
@@ -922,6 +923,61 @@ def main():
         check("  of which primates (none)", 0, int(_prim.nunique()))
         for _s in (r"17\,101", "250 distinct labels", "249 are eBird"):
             check(f"Background prints {_s}", 1, int(_s in " ".join(tex.split())))
+
+    # ---- the floor on three draws, and pogonias on two ----
+    #
+    # Both arms finished 2026-08-31. Three draws of one specification give three
+    # pairwise differences that must sum to zero, so the number that bounds
+    # anything is the largest of them, not whichever one got quoted first. And
+    # the pogonias arm is the only one run twice: its two draws disagree on the
+    # size of the recall cost by more than the frozen draws disagree with each
+    # other, which is why the manuscript now reports the average with an
+    # interval rather than either draw alone.
+    _d3 = maybe("data/outputs/v13_runs/replicates_2026-08-30/frozen_rep3/loso16.csv")
+    _n2 = maybe("data/outputs/v13_runs/replicates_2026-08-30/nopogonias_rep2/loso16.csv")
+    _n1 = maybe("data/outputs/v13_runs/nopogonias_fixed_2026-08-29/loso16_nopogonias.csv")
+    if any(x is None for x in (_d3, _n2, _n1)) or _fz is None or _rep is None:
+        check("third frozen draw and second pogonias draw", "present", None)
+    else:
+        _d3 = _d3.set_index("station").sort_index()
+        _n2 = _n2.set_index("station").sort_index()
+        _n1 = _n1.set_index("station").sort_index()
+        for _nm, _d in (("frozen_rep3", _d3), ("nopogonias_rep2", _n2)):
+            check(f"{_nm}: sixteen folds", 16, len(_d))
+            check(f"{_nm}: eval pool identical to frozen", 16,
+                  int((_d["detections"] == _fz["detections"]).sum()))
+        _draws = {"d1": _fz, "d2": _rep, "d3": _d3}
+        _pairs = (("d2", "d1"), ("d3", "d1"), ("d3", "d2"))
+        for _c, _want in (("gated_loso_precision", [0.0, 0.0035, 0.0035]),
+                          ("gated_loso_calls_retained", [0.0039, 0.0076, 0.0115])):
+            # float(), not just round(): a numpy scalar stringifies as
+            # "np.float64(0.0035)" and the comparison below is textual, so
+            # without the cast this check fails on a repr rather than a value.
+            _got = sorted(float(round(abs((_draws[a][_c] - _draws[b][_c]).mean()), 4))
+                          for a, b in _pairs)
+            check(f"floor pairwise |d|, {_c}", str(_want), str(_got))
+        check("largest floor difference in precision (0.0035)", 0.0035,
+              max(abs((_draws[a].gated_loso_precision
+                       - _draws[b].gated_loso_precision).mean())
+                  for a, b in _pairs), 0.00005)
+        for _nm, _d, _wk, _wt in (("draw 1", _n1, -0.0462, -2.83),
+                                  ("draw 2", _n2, -0.0248, -1.90)):
+            _x = (_d.gated_loso_calls_retained
+                  - _fz.gated_loso_calls_retained).to_numpy()
+            _se = _x.std(ddof=1) / _sqrt(16)
+            check(f"pogonias {_nm} calls-kept delta", _wk, _x.mean(), 0.00005)
+            check(f"  its t", _wt, round(_x.mean() / _se, 2), 0.005)
+        _cols = ["gated_loso_precision", "gated_loso_calls_retained"]
+        _npm = (_n1[_cols] + _n2[_cols]) / 2
+        _frm = (_fz[_cols] + _rep[_cols] + _d3[_cols]) / 3
+        for _c, _wm, _wt in (("gated_loso_precision", 0.0105, 2.54),
+                             ("gated_loso_calls_retained", -0.0304, -2.42)):
+            _x = (_npm[_c] - _frm[_c]).to_numpy()
+            _se = _x.std(ddof=1) / _sqrt(16)
+            check(f"pogonias averaged, {_c}", _wm, _x.mean(), 0.00005)
+            check(f"  its t", _wt, round(_x.mean() / _se, 2), 0.005)
+            check("  and its 95% CI excludes zero", True,
+                  bool(abs(_x.mean() / _se) > 2.131))
 
     # ---- report ----
     w = max(len(n) for _, n, _, _ in RESULTS)
