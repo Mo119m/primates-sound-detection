@@ -1786,9 +1786,34 @@ nothing --- and this is the replicated case. Blocks 3+4's $+0.0109$
 ($t=+2.45$) and the pogonias-free variant's $+0.0102$ ($t=+1.92$) are about
 three times the floor, but each was measured once, and the null comparison
 itself reached $t = +1.34$: a single unseeded run can manufacture most of a
-conventional significance threshold without any change to the model. We
-therefore report these two as suggestive and decline to rank the backbones on
-them.
+conventional significance threshold without any change to the model.
+
+Every figure in that paragraph is scored at each fold's own fitted threshold,
+and the head ablation below shows what that can hide: the four-band split's
+$+0.0096$ becomes $+0.0021$ when average precision replaces the fitted cut, so
+four fifths of it was threshold placement rather than architecture. The two
+fine-tuned arms had never been checked for the same confound, and checking them
+needed no training --- the run that produced them saved each fold's whole model,
+trunk included, so both could be scored threshold-free over the same evaluation
+rows (\texttt{colab/prauc\_arms.py}, pools verified against the frozen arm's
+station by station).
+
+The answer is not the band split's answer, and the difference is the useful
+part. Releasing block4 gives $+0.0048$ of average precision against
+$+0.0050$ at fitted thresholds --- the same number --- and releasing blocks 3+4
+gives $+0.0073$ against $+0.0109$, so between all and two thirds of the
+fine-tuning effect is a real lift of the curve rather than a slide along it.
+Unfreezing the trunk does something the band split largely did not.
+
+What it does not do is clear the floor. Threshold-free, block4 is $+0.0048$ at
+$t = +1.55$ ($p = 0.14$, better at eleven of fifteen folds; that arm's
+sixteenth was lost with the session and is not included) and blocks 3+4 are
+$+0.0073$ at $t = +1.45$ ($p = 0.17$, 95\,\% CI $[-0.003, +0.018]$, twelve of
+sixteen). Both intervals contain zero, and blocks 3+4's $t$ has fallen from
+$+2.45$ to a value the null comparison of one specification against itself
+already reached. The sweep's only nominally significant backbone effect does not
+survive being measured without a fitted threshold in it. We therefore report
+both arms as suggestive and decline to rank the backbones on them.
 
 The \textit{Colobus}-free arm is the cleanest null in the set, and it answers a
 question the rest of this paper raises without settling. Balanced class weights

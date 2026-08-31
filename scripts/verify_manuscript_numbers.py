@@ -979,6 +979,47 @@ def main():
             check("  and its 95% CI excludes zero", True,
                   bool(abs(_x.mean() / _se) > 2.131))
 
+    # ---- the fine-tuned arms, threshold-free ----
+    #
+    # Added after the head ablation showed a fitted-threshold comparison can be
+    # mostly threshold placement (the band split lost four fifths of its effect
+    # that way). These two arms carry the sweep's only nominally significant
+    # backbone effect and had never been checked for the same confound. Scored
+    # from the weights the 2026-08-21 run saved, so no retraining was involved.
+    _ap = maybe("data/outputs/v13_runs/unfreeze_2026-08-21_drive/arms_prauc.csv")
+    _fzap = maybe("data/outputs/v13_runs/full_2026-08-19/head_ablation_prauc.csv")
+    if _ap is None or _fzap is None or _fz is None:
+        check("fine-tuned arms scored threshold-free", "present", None)
+    else:
+        _fzap = _fzap[_fzap["arm"] == "freqpos"].set_index("station")
+        _want = {"block34": (16, 0.0073, 1.45, 12, 0.0109),
+                 "block4": (15, 0.0048, 1.55, 11, 0.0050)}
+        for _arm, _g in _ap.groupby("arm"):
+            _g = _g.set_index("station")
+            _n, _wm, _wt, _ww, _fitted = _want[_arm]
+            check(f"{_arm} threshold-free: folds scored", _n, len(_g))
+            # the evaluation pool has to be the frozen arm's, or the paired
+            # comparison is between different questions
+            check(f"  its pool matches frozen (gated detections)", len(_g),
+                  int((_g["n"] == _fz.loc[_g.index, "gated_detections"]).sum()))
+            check(f"  and the same call counts", len(_g),
+                  int((_g["n_calls"] == _fzap.loc[_g.index, "n_calls"]).sum()))
+            _x = np.array([_g.ap[_s] - _fzap.ap[_s] for _s in _g.index])
+            _se = _x.std(ddof=1) / _sqrt(len(_x))
+            check(f"  paired average-precision delta", _wm, _x.mean(), 0.00005)
+            check(f"  its t", _wt, round(_x.mean() / _se, 2), 0.005)
+            check(f"  folds won", _ww, int((_x > 0).sum()))
+            # the sentence's claim: neither interval excludes zero
+            check(f"  its 95% CI contains zero", True,
+                  bool(abs(_x.mean() / _se) < 2.145))
+            # and the claim that these are NOT the band split's 4.6x case
+            check(f"  fitted-threshold figure is under 2x the threshold-free",
+                  True, bool(_fitted / _x.mean() < 2.0))
+        for _s in ("+0.0073", "t = +1.45", "+0.0048", "t = +1.55",
+                   r"prauc\_arms.py"):
+            check(f"threshold-free arm figure in tex: {_s}", 1,
+                  int(_s in " ".join(tex.split())))
+
     # ---- report ----
     w = max(len(n) for _, n, _, _ in RESULTS)
     print()
