@@ -1035,6 +1035,58 @@ def main():
             check(f"threshold-free arm figure in tex: {_s}", 1,
                   int(_s in " ".join(tex.split())))
 
+    # ---- what the Background exemption costs ----
+    #
+    # The largest effect in the study, and it is a protocol choice rather than a
+    # model. Two sweeps that each move one factor: strict withholding alone, and
+    # strict withholding plus the runbook's verified-only eligibility rule.
+    # Recomputed here because the manuscript now tells a reader to compare
+    # against 0.9349 rather than 0.9604, which is a number someone will check.
+    _st = maybe("data/outputs/v13_runs/strict_withhold_2026-08-31/loso16_strict.csv")
+    _pv = maybe("data/outputs/v13_runs/primary_verified_only_2026-08-29/loso16_primary.csv")
+    if _st is None or _pv is None or _fz is None:
+        check("strict-withholding and verified-only sweeps", "present", None)
+    else:
+        _st = _st.set_index("station").sort_index()
+        _pv = _pv.set_index("station").sort_index()
+        for _nm, _d, _wp, _wk in (("strict", _st, 0.9349, 0.9404),
+                                  ("primary (verified-only)", _pv, 0.9164, 0.9342)):
+            check(f"{_nm}: sixteen folds", 16, len(_d))
+            check(f"  its pool is still frozen's", 16,
+                  int((_d["detections"] == _fz["detections"]).sum()))
+            check(f"  macro precision", _wp, _d.gated_loso_precision.mean(), 0.00005)
+            check(f"  macro calls kept", _wk,
+                  _d.gated_loso_calls_retained.mean(), 0.00005)
+
+        def _pair(_a, _b, _c):
+            _x = (_a[_c] - _b[_c]).to_numpy()
+            return _x.mean(), _x.mean() / (_x.std(ddof=1) / _sqrt(16)), int((_x > 0).sum())
+
+        _m, _t, _w = _pair(_st, _fz, "gated_loso_precision")
+        check("Background exemption costs (strict - frozen)", -0.0254, _m, 0.00005)
+        check("  its t", -3.37, round(_t, 2), 0.005)
+        check("  folds where strict wins", 2, _w)
+        _mk, _tk, _ = _pair(_st, _fz, "gated_loso_calls_retained")
+        check("  and calls kept move the other way", 0.0202, _mk, 0.00005)
+        _m2, _t2, _ = _pair(_pv, _st, "gated_loso_precision")
+        check("verified-only adds (primary - strict)", -0.0185, _m2, 0.00005)
+        check("  its t", -0.87, round(_t2, 2), 0.005)
+        check("  and is not separable from noise", True, bool(abs(_t2) < 2.131))
+        # The claim that carries the paragraph: this is the largest |t| here.
+        _others = [1.74, 2.45, 1.92, 1.37, 2.54, 2.42, 1.66, 1.36, 1.55]
+        check("the exemption has the largest |t| in the study", True,
+              bool(abs(_t) > max(_others)))
+        # and seven times the floor
+        if _rep is not None:
+            _floor = max(abs((a.gated_loso_precision - b.gated_loso_precision).mean())
+                         for a, b in ((_rep, _fz),))
+            check("  and about seven times the measured floor", 7,
+                  round(abs(_m) / _floor), 1)
+        for _s in ("0.9349", "0.9164", "-0.0254", "t = -3.37", "-0.0185",
+                   "0.0202"):
+            check(f"exemption figure in tex: {_s}", 1,
+                  int(_s in " ".join(tex.split())))
+
     # ---- report ----
     w = max(len(n) for _, n, _, _ in RESULTS)
     print()

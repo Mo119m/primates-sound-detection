@@ -13,12 +13,13 @@ coordinate fails without anyone having to remember.
 
 Two design notes, both learned rather than chosen.
 
-The coordinate pattern is deliberately width-loose. The strict form used
-elsewhere -- two digits of latitude, three of longitude -- is correct for the
-filenames it was written to strip, and on 2026-08-31 an audit found it passing
-+000.0000+000.0000 straight through a check that claimed to refuse any
-coordinate. A guard should be wider than the data it guards. The no-fix
-sentinel is exempted by exact value below, never by width: exempting a value
+The coordinate pattern is deliberately width-loose. A narrower one elsewhere in
+this repository is pinned to the exact field widths it was written to strip,
+which is right for a stripper and wrong for a guard: on 2026-08-31 an audit
+found that narrower pattern passing a coordinate-shaped token straight through
+a check that claimed to refuse any coordinate, because the token's digit counts
+did not match. A guard should be wider than the data it guards. The one
+exemption below is by exact value and never by width -- exempting a value
 cannot let a real coordinate through, and widening a pattern can.
 
 And binary files are skipped, which is a real limit rather than a safe one. A

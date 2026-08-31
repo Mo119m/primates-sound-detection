@@ -1860,6 +1860,34 @@ paired mean and 0.026 at a single station, re-ranked precision cannot pick
 between these backbones, and where it does show a nominal winner it is silent
 about what the win cost.
 
+One more comparison belongs here, and it is the one that puts the rest in
+proportion. Every arm above passes \texttt{--keep-all-background}: Background
+rows are not withheld by station. The reason is stated in the flag itself and we
+still hold it --- collecting negatives from a site's own rejected detections is
+part of this method rather than a leak, so a fold that withholds them measures a
+situation no user of the protocol is in. What we did not have was a number for
+what that choice is worth, and the choice appeared once in this paper, in a
+table caption's provenance line.
+
+Two further sweeps supply one, and they separate because each moves a single
+factor. Withholding Background by station and changing nothing else takes macro
+precision from 0.9604 to 0.9349: a paired $-0.0254$ at $t = -3.37$, $p = 0.004$,
+better at two of sixteen folds, with $+0.0202$ of calls kept moving the other
+way. Adding the eligibility rule this repository's own experiment runbook
+prespecifies --- train only on rows a person has marked verified --- takes it to
+0.9164, a further $-0.0185$ that is not separable from noise ($t = -0.87$,
+$p = 0.40$).
+
+\emph{The largest effect in this study is an evaluation-protocol choice, not a
+model.} At seven times the measured floor and the largest $|t|$ anywhere in
+these comparisons, the Background exemption moves precision further than any
+architecture, any fine-tuning depth and any class ablation we ran, and it does
+so in the direction that flatters the method. We keep it, for the reason above,
+and a reader comparing this protocol against one that withholds all material by
+station should compare 0.9349 rather than 0.9604. It also re-scopes a sentence
+above: removing \textit{C.\ pogonias} is the one \emph{arm} whose effect clears
+the floor, not the one effect in the study that does.
+
 Fifth, holding out a station does not by itself hold out an event. A
 \textit{C.\ nictitans} call carries far enough to reach two recorders, and a bout
 that appears at a training station and at the held-out station would let the
