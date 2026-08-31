@@ -1,30 +1,26 @@
 """Fail when a tracked file explains WHERE the recorder positions can be found.
 
 The project has one hard rule: no station coordinate reaches anything public,
-because \x43olobus guereza is hunted and a recorder position is a place to wait for
-one. The guard built for that rule searches for the coordinate pattern itself,
-and on 2026-08-30 a submission audit found what that guard is structurally
-unable to see. The manuscript contained, in prose:
-
-    "AudioMoth writes the deployment lat/lon into every filename, which
-     recovers coordinates for 11 of the 16 stations"
-
-and, four hundred lines later:
-
-    "eleven stations stamp a unique lat/lon into each filename, but IPA1,
-     IPA2, IPA4, IPA6 and IPA7 recorded with GPS disabled"
-
-Neither sentence contains a coordinate, so neither tripped the regex. Together
-they tell a reader that the coordinates live in the filenames and name, by
-elimination, the eleven stations whose filenames carry them -- beside a Data
+because C. guereza is hunted and a recorder position is a place to wait for one.
+The guard built for that rule searches for the coordinate pattern itself, and on
+2026-08-30 a submission audit found what that guard is structurally unable to
+see -- two sentences in the manuscript that between them named the file field
+the positions are written into, said how many stations carry it, and listed the
+stations that do not, which identifies the rest by elimination. Neither sentence
+contained a coordinate, so neither tripped the regex, and they sat beside a Data
 availability statement offering the raw recordings on request. A pointer to the
 data is the same disclosure as the data.
 
-So this looks for the pointer rather than the payload: a sentence that puts a
-position word next to a place-to-find-it word. It is a heuristic and it will
-raise things that turn out to be fine, which is the right failure direction for
-a rule whose other failure mode is irreversible. Every hit is either rewritten
-or added to ALLOWED with a reason.
+Those sentences are NOT quoted here. An earlier version of this file reproduced
+them in full to explain itself, which put the payload back into the public
+repository inside the artefact documenting its removal, and then exempted itself
+from its own check. The shape is enough: a position word beside a place-to-find-
+it word, or beside a station identifier.
+
+So this looks for the pointer rather than the payload. It is a heuristic and it
+errs loud, which is the right direction for a rule whose other failure mode
+cannot be undone. Every hit is either rewritten or added to ALLOWED with a
+reason.
 
     python scripts/check_no_location_disclosure.py [path ...]
 """
@@ -39,8 +35,12 @@ POSITION = r"(lat/lon|latitude|longitude|\bGPS\b|coordinates?|geotag|deployment 
 LOCATOR = r"(filename|file name|in the name|metadata|EXIF|header|stamp|written into|encoded in|embedded)"
 STATION = r"\bIPA\d+(ST)?\b"
 
+# ipynb is deliberately NOT skipped. It was, until the same audit found a
+# third instance of the pointer chain in a notebook markdown cell that no
+# one had decided to exempt -- an extension list had excluded every
+# notebook in the repository silently.
 SKIP_EXT = {"pdf", "png", "jpg", "jpeg", "npy", "h5", "zip", "docx", "wav",
-            "pyc", "ico", "gz", "ipynb"}
+            "pyc", "ico", "gz"}
 
 # Exemptions, each a decision on the record rather than a convenience.
 #
@@ -53,10 +53,13 @@ SKIP_EXT = {"pdf", "png", "jpg", "jpeg", "npy", "h5", "zip", "docx", "wav",
 # and read, and it sat beside a Data availability statement offering the raw
 # recordings on request, which is what made the same sentence an instruction.
 ALLOWED = [
-    # Quotes the retired sentences in order to define the check.
+    # This file, and narrowly: its POSITION/LOCATOR patterns and the reasons
+    # below necessarily contain the trigger words, so it matches itself four
+    # times over its own machinery. A blanket exemption is what let an earlier
+    # docstring carry the disclosure verbatim, so the exemption is paired with
+    # _assert_no_payload_here() -- the specific thing it could hide is checked
+    # explicitly, every run, before anything else.
     "scripts/check_no_location_disclosure.py",
-    # Records the incident and the scrub. Not part of the submission.
-    "overleaf/PLAN_TO_SUBMISSION.md",
     # Implements the stripping. station_of() needs the no-GPS station list to
     # attribute folds correctly, and _canon() needs the coordinate pattern to
     # remove it; both are the mechanism by which coordinates stay out of every
@@ -85,6 +88,41 @@ ALLOWED = [
 ]
 
 
+def _assert_no_payload_here():
+    """This file must describe the shape and never restate the sentences.
+
+    Paired with this file's own ALLOWED entry. The exemption is needed -- the
+    patterns above match themselves -- but on 2026-08-31 an audit found that an
+    earlier docstring had used that exemption to carry the two retired
+    sentences in full, in a public repository, inside the artefact documenting
+    their removal. So the exemption buys silence on the machinery only, and
+    these fragments are refused by name.
+    """
+    # The list below is the definition of what is forbidden, so it necessarily
+    # contains it. Searching the whole file would therefore always fire -- the
+    # first version of this function did exactly that. Everything between the
+    # two markers is excluded from the search, and nothing else is.
+    fragments = [                                    # BEGIN-FORBIDDEN-LIST
+        "stamp a unique lat",
+        "recovers coordinates for 11",
+        "writes the deployment lat",
+        "recorded with GPS disabled",
+        "recorded with GPS off",
+    ]                                                # END-FORBIDDEN-LIST
+    raw = open(os.path.abspath(__file__), encoding="utf-8").read()
+    a, b = raw.find("BEGIN-FORBIDDEN-LIST"), raw.find("END-FORBIDDEN-LIST")
+    if a < 0 or b < 0:
+        sys.exit("the forbidden-list markers are gone; this check is disarmed")
+    text = (raw[:a] + raw[b:]).lower()
+    found = [f for f in fragments if f.lower() in text]
+    if found:
+        sys.exit(
+            "this file restates the disclosure it exists to catch: "
+            + ", ".join(repr(f) for f in found)
+            + "\n  Describe the sentence shape instead. The exemption in "
+              "ALLOWED silences the machinery, not the payload.")
+
+
 def sentences(text):
     for para in text.split("\n\n"):
         for s in re.split(r"(?<=[.!?])\s+", para.replace("\n", " ")):
@@ -93,6 +131,7 @@ def sentences(text):
 
 
 def main():
+    _assert_no_payload_here()
     targets = sys.argv[1:]
     if not targets:
         targets = subprocess.run(["git", "-C", REPO, "ls-files"],

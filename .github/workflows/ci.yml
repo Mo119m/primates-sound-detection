@@ -5,9 +5,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, v13-honest-labels]
   pull_request:
-    branches: [main]
+    branches: [main, v13-honest-labels]
 
 jobs:
   test:
@@ -37,3 +37,23 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -v
+
+      # The two guards for the project's one hard rule: C. guereza is hunted,
+      # a recorder position is a place to wait for one, and no coordinate may
+      # reach anything public. Both read tracked text only, so they need no
+      # data and no TensorFlow, and they run in seconds.
+      #
+      # They were run by hand until 2026-08-31, which is to say the rule was
+      # enforced by someone remembering. An audit that week found a coordinate
+      # disclosure that had been reintroduced into the very file written to
+      # remove it. Remembering is not a control.
+      #
+      # Not added here: verify_manuscript_numbers.py. It recomputes every claim
+      # from CSVs under data/, which is gitignored, so in CI it would SKIP
+      # everything and report success -- a check that cannot fail, which this
+      # repository has been bitten by before and will not ship again.
+      - name: No coordinates, keys or tokens in tracked files
+        run: python scripts/check_no_coordinates.py
+
+      - name: No prose pointing at where recorder positions live
+        run: python scripts/check_no_location_disclosure.py

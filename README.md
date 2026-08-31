@@ -27,10 +27,12 @@ see below.
 The production V12 model (`best_model_v12.h5`, 142 MiB) is required for
 detection. It is not included in the repository due to file size.
 
-**Download:** <!-- TODO: replace with actual link -->
-> The pretrained model will be available at: [link to be added]
->
-> After downloading, place the file at:
+**How to obtain it:** the weights are available from the corresponding author
+on request, which is what the manuscript's Data availability statement says.
+There is no public download link, and this line used to promise one that was
+never filled in.
+
+> Once you have the file, place it at:
 > ```
 > data/outputs/models/best_model_v12.h5
 > ```

@@ -14,14 +14,21 @@ import os
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
+# splitlines(keepends=True), not split("\n"). A notebook source list is joined
+# with no separator when the cell runs, so the newlines have to be inside the
+# strings. split() strips them and the statements run together: ten of this
+# notebook's eleven code cells were one line each and five were syntax errors,
+# from the day it was generated until an audit on 2026-08-31 read the notebook
+# instead of the generator. Cell 3 opened
+# "from google.colab import drivedrive.mount(...)".
 def md(text):
     return {"cell_type": "markdown", "metadata": {},
-            "source": text.strip().split("\n")}
+            "source": text.strip().splitlines(keepends=True)}
 
 
 def code(text):
     return {"cell_type": "code", "execution_count": None, "metadata": {},
-            "outputs": [], "source": text.strip().split("\n")}
+            "outputs": [], "source": text.strip().splitlines(keepends=True)}
 
 
 CELLS = [
@@ -127,9 +134,9 @@ this file.
 ## 3. The full sweep
 
 Sixteen folds. Each withholds one station from training entirely — including the
-1 348 clips whose filenames narrow their origin to a group of stations without
-naming one, because the five stations that recorded with GPS off write identical
-filenames and guessing between them would leak quietly into every fold.
+1 348 clips whose origin narrows to a group of stations rather than to one,
+because five of the sixteen were deployed without position metadata and cannot
+be told apart; guessing between them would leak quietly into every fold.
 """),
 
     code("""

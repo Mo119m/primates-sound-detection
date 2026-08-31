@@ -118,8 +118,9 @@ due to file size. Download it and place it at:
 data/outputs/models/best_model_v12.h5
 ```
 
-<!-- TODO: replace with actual download link -->
-> **Download link:** [to be added — check the README for the latest link]
+> **How to obtain it:** from the corresponding author on request. There is no
+> public download link; this line used to point at the README for one, and the
+> README used to point at a link that was never filled in.
 
 Create the folder if it doesn't exist yet:
 

@@ -90,3 +90,9 @@ outputs/
 # manuscript; a .docx export goes stale the moment the .tex moves, and one
 # sat fifteen days behind it while looking authoritative.
 /paper/*.docx
+
+# The submission plan is a working document, not part of the paper. It records
+# how the coordinate scrub was done -- the archive repo name, the exposure
+# window, the vector, the placeholder shape -- which is a recovery map for the
+# thing the scrub removed. It lives in the private paper repo and on disk.
+overleaf/PLAN_TO_SUBMISSION.md
