@@ -1869,14 +1869,21 @@ situation no user of the protocol is in. What we did not have was a number for
 what that choice is worth, and the choice appeared once in this paper, in a
 table caption's provenance line.
 
-Two further sweeps supply one, and they separate because each moves a single
-factor. Withholding Background by station and changing nothing else takes macro
-precision from 0.9604 to 0.9349: a paired $-0.0254$ at $t = -3.37$, $p = 0.004$,
-better at two of sixteen folds, with $+0.0202$ of calls kept moving the other
-way. Adding the eligibility rule this repository's own experiment runbook
-prespecifies --- train only on rows a person has marked verified --- takes it to
-0.9164, a further $-0.0185$ that is not separable from noise ($t = -0.87$,
-$p = 0.40$).
+Three further sweeps supply one, and they separate because each moves a single
+factor. Withholding Background by station and changing nothing else was run
+twice, since it turned out to be the largest effect here and everything else
+that size in this paper has a second draw. The two agree: $-0.0254$ at
+$t = -3.37$ and $-0.0222$ at $t = -2.70$, each individually past $p = 0.02$, and
+they differ from each other by $0.0032$ --- the same spread the frozen
+specification shows against itself, so the floor measured on one configuration
+holds on this one too. Averaged, two withheld draws against three exempt ones,
+the exemption is worth $-0.0250$ of precision at $t = -3.84$, $p = 0.0016$,
+95\,\% CI $[-0.039, -0.011]$, taking macro precision from 0.9604 to 0.9382 and
+0.9349. Calls kept move the other way by $+0.0208$, and that half does not reach
+significance once both draws are in ($t = +1.77$, $p = 0.10$). Adding the
+eligibility rule this repository's own experiment runbook prespecifies --- train
+only on rows a person has marked verified --- takes precision to 0.9164, a
+further $-0.0185$ that is not separable from noise ($t = -0.87$, $p = 0.40$).
 
 \emph{The largest effect in this study is an evaluation-protocol choice, not a
 model.} At seven times the measured floor and the largest $|t|$ anywhere in
@@ -1884,7 +1891,7 @@ these comparisons, the Background exemption moves precision further than any
 architecture, any fine-tuning depth and any class ablation we ran, and it does
 so in the direction that flatters the method. We keep it, for the reason above,
 and a reader comparing this protocol against one that withholds all material by
-station should compare 0.9349 rather than 0.9604. It also re-scopes a sentence
+station should compare the withheld figure rather than 0.9604. It also re-scopes a sentence
 above: removing \textit{C.\ pogonias} is the one \emph{arm} whose effect clears
 the floor, not the one effect in the study that does.
 

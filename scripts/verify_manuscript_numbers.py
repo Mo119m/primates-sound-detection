@@ -1066,8 +1066,41 @@ def main():
         check("Background exemption costs (strict - frozen)", -0.0254, _m, 0.00005)
         check("  its t", -3.37, round(_t, 2), 0.005)
         check("  folds where strict wins", 2, _w)
-        _mk, _tk, _ = _pair(_st, _fz, "gated_loso_calls_retained")
-        check("  and calls kept move the other way", 0.0202, _mk, 0.00005)
+        # The exemption is the largest effect in the study, so it was run twice
+        # -- everything else this size in the paper has a second draw, and it
+        # would have been the only one that did not. The two agree, and their
+        # spread lands on the floor measured from an entirely different
+        # configuration, which is the useful cross-check.
+        _s2 = maybe("data/outputs/v13_runs/strict_withhold_rep2_2026-08-31/loso16.csv")
+        if _s2 is None:
+            check("strict-withholding second draw", "present", None)
+        else:
+            _s2 = _s2.set_index("station").sort_index()
+            check("strict draw 2: sixteen folds", 16, len(_s2))
+            check("  its pool is still frozen's", 16,
+                  int((_s2["detections"] == _fz["detections"]).sum()))
+            _m2b, _t2b, _w2b = _pair(_s2, _fz, "gated_loso_precision")
+            check("strict draw 2 vs frozen", -0.0222, _m2b, 0.00005)
+            check("  its t", -2.70, round(_t2b, 2), 0.005)
+            check("  folds where it wins", 4, _w2b)
+            _dd = (_s2.gated_loso_precision - _st.gated_loso_precision).mean()
+            check("strict draw-to-draw spread (0.0032)", 0.0032, _dd, 0.00005)
+            check("  which lands on the frozen floor (0.0035)", True,
+                  bool(abs(abs(_dd) - 0.0035) < 0.001))
+            # averaged: two withheld draws against three exempt ones
+            _cols2 = ["gated_loso_precision", "gated_loso_calls_retained"]
+            _sm = (_st[_cols2] + _s2[_cols2]) / 2
+            _fm2 = (_fz[_cols2] + _rep[_cols2] + _d3[_cols2]) / 3
+            for _c, _wm, _wt in ((_cols2[0], -0.0250, -3.84),
+                                 (_cols2[1], 0.0208, 1.77)):
+                _x = (_sm[_c] - _fm2[_c]).to_numpy()
+                _se = _x.std(ddof=1) / _sqrt(16)
+                check(f"exemption averaged, {_c}", _wm, _x.mean(), 0.00005)
+                check("  its t", _wt, round(_x.mean() / _se, 2), 0.005)
+            # the paragraph says the recall half does NOT reach significance
+            _xk = (_sm[_cols2[1]] - _fm2[_cols2[1]]).to_numpy()
+            check("  and the recall half stays inside its interval", True,
+                  bool(abs(_xk.mean() / (_xk.std(ddof=1) / _sqrt(16))) < 2.131))
         _m2, _t2, _ = _pair(_pv, _st, "gated_loso_precision")
         check("verified-only adds (primary - strict)", -0.0185, _m2, 0.00005)
         check("  its t", -0.87, round(_t2, 2), 0.005)
@@ -1082,8 +1115,9 @@ def main():
                          for a, b in ((_rep, _fz),))
             check("  and about seven times the measured floor", 7,
                   round(abs(_m) / _floor), 1)
-        for _s in ("0.9349", "0.9164", "-0.0254", "t = -3.37", "-0.0185",
-                   "0.0202"):
+        for _s in ("0.9349", "0.9382", "0.9164", "-0.0254", "t = -3.37",
+                   "-0.0222", "t = -2.70", "-0.0250", "t = -3.84", "-0.0185",
+                   "0.0208"):
             check(f"exemption figure in tex: {_s}", 1,
                   int(_s in " ".join(tex.split())))
 
