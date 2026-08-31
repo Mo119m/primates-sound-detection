@@ -998,6 +998,21 @@ def main():
             _g = _g.set_index("station")
             _n, _wm, _wt, _ww, _fitted = _want[_arm]
             check(f"{_arm} threshold-free: folds scored", _n, len(_g))
+            # block4 stops at fifteen for a reason worth pinning: the fold
+            # itself ran and is in Table 2, but the 2026-08-21 archive kept no
+            # weights for it, so it cannot be rescored. Asserting both halves
+            # stops the manuscript's explanation drifting back to "the fold was
+            # lost", which is what it said until 2026-08-31 and was wrong.
+            if _arm == "block4":
+                _b4 = maybe("data/outputs/v13_runs/unfreeze_2026-08-21_drive/"
+                            "block4_loso16.csv")
+                check("  but block4's own sweep has all sixteen folds", 16,
+                      len(_b4) if _b4 is not None else None)
+                check("  including IPA20ST, the one that cannot be rescored",
+                      True, bool(_b4 is not None
+                                 and "IPA20ST" in set(_b4["station"])))
+                check("  and the text says the weights, not the fold, are gone",
+                      True, "did not keep that" in " ".join(tex.split()))
             # the evaluation pool has to be the frozen arm's, or the paired
             # comparison is between different questions
             check(f"  its pool matches frozen (gated detections)", len(_g),
