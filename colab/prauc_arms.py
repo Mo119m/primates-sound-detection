@@ -122,7 +122,32 @@ def main():
                 continue
 
             mdl = build_full_model(len(class_names))
-            mdl.load_weights(wf)
+            try:
+                mdl.load_weights(wf)
+            except Exception as e:
+                # The architecture here is rebuilt, not deserialised -- the
+                # artefact is a weights file. If training built the graph even
+                # slightly differently this raises, and it will raise on the
+                # first fold rather than after fifteen. Say what would be
+                # needed to fix it instead of leaving a Keras traceback as the
+                # only evidence, because this runs unattended.
+                import h5py
+                try:
+                    with h5py.File(wf, "r") as _h:
+                        groups = list(_h.keys())
+                except Exception:
+                    groups = ["<unreadable>"]
+                print(f"\n!! could not load {arm}/{st} into the rebuilt model.")
+                print(f"   model: {len(mdl.layers)} layers, "
+                      f"{mdl.count_params():,} params, tap {TAP}, "
+                      f"pooling temporal_freqpos")
+                print(f"   file:  {os.path.getsize(wf):,} bytes, "
+                      f"top-level groups {groups}")
+                print(f"   error: {type(e).__name__}: {e}")
+                print("   Nothing was written. The rebuilt graph has to match "
+                      "the one that trained these weights; send the three "
+                      "lines above and it can be corrected without a rerun.")
+                sys.exit(2)
             X = images[pack_row[ev_mask][keep]].astype("float32") / 255.0
             p = mdl.predict(X, batch_size=64, verbose=0)[:, ti]
             tf.keras.backend.clear_session()
