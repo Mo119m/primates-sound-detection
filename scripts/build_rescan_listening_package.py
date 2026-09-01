@@ -113,8 +113,18 @@ def main():
     with open(os.path.join(OUT, "README_FIRST.txt"), "w", encoding="ascii") as f:
         f.write(
             "DETECTIONS FROM THE RETRAINED MODEL -- 2026-08-28\n\n"
-            "Each clip is 6 s: the 2 s detection window plus 2 s before and 4 s\n"
-            "after. The name tells you which species the model claimed:\n\n")
+            # The cut below is start_time - 2 to start_time + 4, and start_time
+            # is where the 2 s window BEGINS, not where it ends. The earlier
+            # wording here read the +4 as "4 s after the window", which
+            # describes an 8 s clip; the files are 6 s. Measured, not assumed:
+            # all 196 clips in the shipped package are exactly 6.00 s.
+            "Each clip is 6 s and the detection sits in the middle: 2 s of\n"
+            "lead-in, then the 2 s window the model fired on, then 2 s of tail.\n"
+            "The window is therefore 2.0-4.0 s into the clip.\n\n"
+            "The lead-in and tail are there because a bare 2 s window is hard\n"
+            "to judge by ear -- these species call in bouts, and the context is\n"
+            "often what separates a call from a fragment of one.\n\n"
+            "The name tells you which species the model claimed:\n\n")
         for sp in PLAN:
             n = int((key.species == sp).sum())
             f.write(f"  {SHORT[sp]}***.wav  ({n:3d} clips)  {QUESTION[sp]}\n")
