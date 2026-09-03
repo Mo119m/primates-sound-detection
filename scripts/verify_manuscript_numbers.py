@@ -12,6 +12,7 @@ silently -- "no file" and "matches" must not look alike.
 """
 import os
 import re
+import sys
 
 import pandas as pd
 
@@ -921,7 +922,7 @@ def main():
             "cercopith|colobus|monkey|guenon|primate|nictitans|pogonias|guereza",
             case=False, regex=True)]
         check("  of which primates (none)", 0, int(_prim.nunique()))
-        for _s in (r"17\,101", "250 distinct labels", "249 are eBird"):
+        for _s in (r"17\,101", "250 distinct labels", "249 of them eBird"):
             check(f"Background prints {_s}", 1, int(_s in " ".join(tex.split())))
 
     # ---- the floor on three draws, and pogonias on two ----
@@ -1120,6 +1121,25 @@ def main():
                    "0.0208"):
             check(f"exemption figure in tex: {_s}", 1,
                   int(_s in " ".join(tex.split())))
+
+    # ---- the journal's own limits ----
+    #
+    # Delegated to scripts/check_methodsx_limits.py, which counts the abstract
+    # and Background and reads the document class. Called here so that one
+    # command still answers "is this submittable", and because both caps were
+    # exceeded for weeks while every check in this file passed -- a cap stated
+    # in a template comment is not a check.
+    try:
+        import subprocess as _sp
+        _r = _sp.run([sys.executable,
+                      os.path.join(REPO, "scripts", "check_methodsx_limits.py")],
+                     capture_output=True, text=True)
+        check("MethodsX word caps and document class", 0, _r.returncode)
+        for _line in _r.stdout.splitlines():
+            if _line.strip().startswith("OVER"):
+                check(f"  {_line.strip()}", "within limit", "OVER")
+    except Exception as _e:
+        check("MethodsX limits check runs", "yes", None)
 
     # ---- report ----
     w = max(len(n) for _, n, _, _ in RESULTS)
