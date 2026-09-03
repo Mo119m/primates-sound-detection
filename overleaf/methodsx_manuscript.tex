@@ -973,10 +973,10 @@ blocks are unfrozen. Both stages use early stopping and learning-rate
 reduction on a validation-accuracy plateau.
 
 \paragraph{We do not report a validation accuracy, and the reason is a result.}
-Earlier versions of this manuscript reported 98.12\,\% overall accuracy on a
-stratified validation split, with per-class figures and a confusion matrix whose
-cross-species off-diagonal was zero. Those numbers measured memorisation and
-have been withdrawn. The split was taken \emph{after} augmentation: with an
+A validation accuracy of 98.12\,\% on a stratified split, with per-class
+figures and a confusion matrix whose cross-species off-diagonal was zero,
+appears in this project's earlier materials and in the repository's history. It
+is withdrawn: those numbers measured memorisation. The split was taken \emph{after} augmentation: with an
 augmentation multiplier of seven, a source clip keeps all of its variants on one
 side of an 80/20 split only $0.8^{7} = 21\,\%$ of the time, so roughly 79\,\% of
 source clips placed a near-duplicate of a validation image into training. The
@@ -1703,7 +1703,7 @@ of training-set version and stopping rule is the held-out precision --- the
 number this method is tuned on.
 
 The claim this licenses is a decoupling, not a constancy, and the distinction
-matters because an earlier draft of this section overstated it. Across the
+is easy to overstate. Across the
 configurations run here the recovered set moved once, at one station, by eleven
 calls in two bouts; the held-out figure moved by 0.81 at a station where the
 recovered set did not move at all, and by 0.002 at the station where it did.
@@ -2430,10 +2430,9 @@ within it. There \texttt{temporal\_freq} scores 0.9633 against
 \texttt{temporal\_freqpos}'s 0.9604. Kept in this section's direction --- the
 effect of \emph{adding} the frequency-position encoding --- that is a paired
 $-0.0030$ at $t = -0.90$, the same direction the first ablation found and still
-short of $|t| = 1$. The earlier draft of this paragraph reported the opposite
-sign here; it was computed on the evaluation pool the 2026-08-25 fix retired,
-which scored 6\,478 detections where the review holds 6\,110, and the figures
-above replace it.
+short of $|t| = 1$. Computed on the evaluation pool the 2026-08-25 fix
+retired --- which scored 6\,478 detections where the review holds 6\,110 --- the
+same contrast points the other way, and the figures above replace it.
 
 Where the sign does turn is narrower than a change of dataset, and that is the
 finding. The frozen specification was trained twice (\S\,Limitations), so
@@ -2447,7 +2446,8 @@ against the other --- are smaller in magnitude than the $0.0035$ that one
 specification produces against itself.
 
 The honest statement is therefore narrower than the first run invited, and
-narrower again than we wrote it a day ago. The simplest head has since been run
+narrower again once the comparison stops depending on a fitted threshold. The
+simplest head has since been run
 on the corrected pool as well, so the band split no longer rests on one build,
 and the comparison has been redone in a way that does not depend on where a
 fitted threshold lands. Both are set out below. The frequency-position encoding
@@ -2458,8 +2458,8 @@ $+0.0017$ at $t = +0.70$ and seven of sixteen folds, a Wilcoxon $p$ of 0.98. We
 make no recommendation between the two heads. On the corrected pool the simplest head scores 0.9537 against the band-split
 head's 0.9633: a paired $+0.0096$ at $t = +1.66$, better at ten of sixteen
 folds, 95\,\% CI $[-0.003, +0.022]$. That reads like a smaller version of the
-ablation build's $+0.0138$ at $t = +2.63$, and we first wrote it up as one. It
-is not, for a reason worth more than the number.
+ablation build's $+0.0138$ at $t = +2.63$. It is not, for a reason worth more
+than the number.
 
 The two arms are not scored at the same place on their curves. Averaged over the
 folds the fitted threshold is 0.287 for the simplest head and 0.544 for the
@@ -2510,7 +2510,7 @@ index this paper does not otherwise report, scored under the code the 2026-08-25
 evaluation fix retired, on a gated pool of 3\,476 detections against the
 corrected 3\,497.
 
-What we will say is narrower than the first write-up and is not nothing. The
+What survives is narrow and is not nothing. The
 band split is ahead of the simplest head in every comparison we have made ---
 both builds, both metrics, and threshold-free --- and behind in none, so a
 reader building this head should include it. What a reader should not do is plan
@@ -2518,9 +2518,9 @@ on a size: threshold-free it is two parts in a thousand, it is not significant
 at sixteen folds, and we report no station covariates that would tell anyone in
 advance whether their site is one of the three where it mattered.
 
-An earlier version of this section read the first null as evidence for
-the simpler variant and told a reader to prefer it; a null is not evidence for
-either side, and the second run is the reason we can say so rather than a
+It would be a mistake to read the first null as evidence for
+the simpler variant and prefer it on that basis; a null is not evidence for
+either side, and the second run is the reason that can be said rather than a
 reason to reverse the advice.
 
 The fourth arm is a null on the same evidence. Removing the reviewed deployment

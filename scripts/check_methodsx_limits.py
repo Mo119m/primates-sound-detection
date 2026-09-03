@@ -37,6 +37,45 @@ def word_count(text):
     return sum(1 for w in text.split() if any(c.isalnum() for c in w))
 
 
+# Phrases that narrate the manuscript's own revision history. A reader can check
+# a claim about the evidence and cannot check a claim about a draft they never
+# saw, so these read as a research diary rather than a method -- and a
+# submission audit on 2026-08-31 named them the clearest desk-reject lever in
+# the file. Seven were removed that day; several had been added in the four
+# days before it.
+#
+# The line is narrow. Reporting a SUPERSEDED RESULT is fine and stays: the
+# withdrawn 98.12 % accuracy, a figure that came from an evaluation pool a later
+# fix retired. So is self-criticism of the ANALYSIS -- "we now judge the
+# criteria too weak". What is refused is the reference to a previous draft.
+DRAFTING_HISTORY = [
+    "earlier version of this",
+    "earlier draft",
+    "we first wrote",
+    "than we wrote it",
+    "first write-up",
+    "this section overstated",
+    "used to read",
+]
+
+
+def _drafting_history(tex):
+    """Body only. A %% comment cannot desk-reject anything -- but it can be
+    pasted into text that can, so comments are reported separately rather than
+    ignored."""
+    body, comments = [], []
+    for i, line in enumerate(tex.splitlines(), 1):
+        (comments if line.lstrip().startswith("%") else body).append((i, line))
+    hits = {"body": [], "comment": []}
+    for where, lines in (("body", body), ("comment", comments)):
+        for i, line in lines:
+            low = line.lower()
+            for p in DRAFTING_HISTORY:
+                if p in low:
+                    hits[where].append((i, p, line.strip()[:90]))
+    return hits
+
+
 def main():
     tex = open(TEX, encoding="utf-8").read()
     bad = 0
@@ -63,6 +102,20 @@ def main():
     print(f"  {'OK ' if ok else 'OVER'} documentclass  [{cls}]"
           + ("" if ok else "   should be [review,...] at submission"))
     bad += not ok
+
+    hits = _drafting_history(tex)
+    if hits["body"]:
+        bad += 1
+        print(f"  OVER drafting history  {len(hits['body'])} sentence(s) in the body")
+        for i, p, line in hits["body"]:
+            print(f"       line {i}: {p!r} -- {line}")
+        print("       A reader cannot check a claim about a draft. Report the"
+              " superseded RESULT instead, which they can.")
+    else:
+        print("  OK  drafting history  none in the body")
+    if hits["comment"]:
+        print(f"  --  ({len(hits['comment'])} in %% comments, not counted:"
+              f" they do not render, but they do get pasted)")
     return 1 if bad else 0
 
 
