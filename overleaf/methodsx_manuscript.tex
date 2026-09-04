@@ -1738,10 +1738,15 @@ Three draws give three pairwise comparisons, and what they show is a range
 rather than a number. In macro precision the pairs differ by $+0.0035$,
 $0.0000$ and $-0.0035$: they sum to zero, as three pairwise differences among
 three values must, so the useful statement is the largest of them. Changing
-nothing at all moves the paired sixteen-station mean by up to 0.0035, with a
-per-station standard deviation of 0.0103 and one station moving 0.0256. On
-calls kept the same three comparisons give 0.0039, 0.0115 and 0.0076, a
-per-station standard deviation of 0.046, and one station moving 0.125.
+nothing at all moves the paired sixteen-station mean by up to 0.0035. Reading
+the dispersion the same way --- the largest of the three pairs rather than any
+one of them --- the per-station standard deviation reaches 0.0179 and one
+station moves 0.0388. On calls kept the same three comparisons give 0.0039,
+0.0115 and 0.0076, with a per-station standard deviation reaching 0.0668 and
+one station moving 0.2031. The three pairs are not interchangeable: on
+precision their standard deviations run 0.0103, 0.0143 and 0.0179, so a floor
+taken from any single pair understates the one taken from all three by up to
+two fifths.
 
 We stress the shape of that because a single pair invites the wrong reading.
 Had we stopped at two draws we would have had one number, $+0.0035$, and it is
@@ -1826,7 +1831,7 @@ path (relabelled clips keep their station wall) and the figures here are from
 the corrected run
 (\texttt{data/outputs/v13\_runs/nopogonias\_fixed\_2026-08-29/}). The
 sweep's verdict matches the scan's: at a measured noise floor of 0.0035 in the
-paired mean and 0.026 at a single station, re-ranked precision cannot pick
+paired mean and 0.039 at a single station, re-ranked precision cannot pick
 between these backbones, and where it does show a nominal winner it is silent
 about what the win cost.
 

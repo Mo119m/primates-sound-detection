@@ -753,10 +753,16 @@ def main():
                 ("gated_loso_calls_retained", -0.0039, -0.33, 0.046, 0.125)):
             _d = (_rep[_col] - _fz[_col]).to_numpy()
             _se = _d.std(ddof=1) / _sqrt(len(_d))
-            check(f"noise floor {_col}: paired mean", _dm, round(_d.mean(), 4))
+            check(f"d2-d1 pair only, {_col}: paired mean", _dm,
+                  round(_d.mean(), 4))
             check("  its t", _dt, round(_d.mean() / _se, 2), 0.005)
-            check("  its per-station SD", _sd, round(_d.std(ddof=1), 4), 0.0005)
-            check("  its largest single-station move", _mx,
+            # Labelled as ONE PAIR, not as the floor. The manuscript quoted
+            # these two as the three-draw dispersion until 2026-09-04; they are
+            # the smallest of the three pairs on both. The floor itself is
+            # checked over all three pairs further down.
+            check("  its per-station SD (this pair alone)", _sd,
+                  round(_d.std(ddof=1), 4), 0.0005)
+            check("  its largest single-station move (this pair alone)", _mx,
                   round(abs(_d).max(), 4), 0.0005)
         # The floor must stay below the effects it is used to judge, or the
         # sentences that judge them are wrong in the other direction.
@@ -770,9 +776,15 @@ def main():
                           ("nopogonias", 0.0102), ("nocolobus", 0.0076)):
             check(f"{_nm} effect as a multiple of the floor", True,
                   bool(_eff > _floor))
-        for _s in ("+0.0035", "0.0103", "0.0256", "0.0039", "0.0115",
-                   "0.0076", "0.125", r"loso16\_freqpos\_replicate.csv"):
+        for _s in ("+0.0035", "0.0103", "0.0388", "0.0039", "0.0115",
+                   "0.0076", "0.2031", r"loso16\_freqpos\_replicate.csv"):
             check(f"noise floor figure in tex: {_s}", 1, int(_s in tex))
+        # The two the manuscript must NOT print as the floor any more: they are
+        # the d2-d1 pair alone, and printing them was the 2026-09-04 correction.
+        for _s in ("deviation of 0.0103 and one station moving 0.0256",
+                   "deviation of 0.046, and one station moving 0.125",
+                   "0.026 at a single station"):
+            check(f"retired floor wording absent: {_s[:40]!r}", 0, int(_s in tex))
 
     # ---- the Colobus OOD positive control ----
     #
@@ -997,6 +1009,42 @@ def main():
               max(abs((_draws[a].gated_loso_precision
                        - _draws[b].gated_loso_precision).mean())
                   for a, b in _pairs), 0.00005)
+
+        # ---- the floor's DISPERSION, over all three pairs ----
+        #
+        # Added 2026-09-04. Until then this block checked the three pairwise
+        # means and nothing else, which let the manuscript print the d2-d1
+        # pair's SD and single-station maximum as the three-draw figures. They
+        # were the smallest of the three on all four numbers, understating the
+        # floor by up to two fifths -- in the direction that makes every arm
+        # comparison look further from noise than it is.
+        #
+        # The rule the paragraph states for the means ("the useful statement is
+        # the largest of them") is applied here to the dispersion, and the
+        # printed value must BE that maximum, not merely match some pair.
+        for _c, _wsd, _wmx, _allsd in (
+                ("gated_loso_precision", 0.0179, 0.0388, [0.0103, 0.0143, 0.0179]),
+                ("gated_loso_calls_retained", 0.0668, 0.2031, None)):
+            _sds, _mxs = [], []
+            for a, b in _pairs:
+                _dd = (_draws[a][_c] - _draws[b][_c]).to_numpy()
+                _sds.append(round(float(_dd.std(ddof=1)), 4))
+                _mxs.append(round(float(abs(_dd).max()), 4))
+            check(f"floor SD over all three pairs, {_c}", _wsd, max(_sds), 0.00005)
+            check(f"  largest single-station move, {_c}", _wmx, max(_mxs), 0.00005)
+            check(f"  printed SD is the MAXIMUM over pairs, {_c}",
+                  True, _wsd >= max(_sds) - 1e-9)
+            if _allsd is not None:
+                check(f"  the three pair SDs themselves, {_c}",
+                      str(_allsd), str(sorted(_sds)))
+        # The manuscript prints these; a change in any draw must move both.
+        for _t, _n in (("standard deviation reaches 0.0179", 1),
+                       ("station moves 0.0388", 1),
+                       ("reaching 0.0668", 1),
+                       ("station moving 0.2031", 1),
+                       ("0.039 at a single station", 1),
+                       ("0.0103, 0.0143 and 0.0179", 1)):
+            check(f"tex prints {_t!r}", _n, tex.count(_t))
         for _nm, _d, _wk, _wt in (("draw 1", _n1, -0.0462, -2.83),
                                   ("draw 2", _n2, -0.0248, -1.90)):
             _x = (_d.gated_loso_calls_retained
