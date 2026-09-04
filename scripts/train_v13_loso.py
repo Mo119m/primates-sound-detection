@@ -64,6 +64,56 @@ TAP_LAYER = "block4_conv4"
 DEFAULT_RESULTS_PATH = os.path.join(REPO, "data/outputs/v13_loso.csv")
 IMAGE_SHAPE = (224, 224, 3)
 FEATURE_CACHE_SHAPE = (28, 28, 512)
+
+# Frozen trunks the feature cache can be built from. Everything downstream of
+# the tap adapts to the map's shape, so the entry is the whole specification.
+#
+# 'scale' is the input convention, and it is the one thing here that fails
+# silently if it is wrong:
+#   div255  -- x / 255. VGG19's entry, kept because every reported number in
+#              this project was produced with it. It is NOT keras's documented
+#              vgg19.preprocess_input; changing it would move the baseline.
+#   raw255  -- pass [0, 255] straight in. ConvNeXt and EfficientNetV2 hold a
+#              Normalization layer inside the graph that expects that range.
+#   tf      -- keras resnet_v2.preprocess_input, to [-1, 1].
+#   torch   -- keras densenet.preprocess_input.
+TRUNKS = {
+    "vgg19": dict(app="VGG19", tap="block4_conv4",
+                  shape=(28, 28, 512), scale="div255"),
+    "convnext_tiny": dict(app="ConvNeXtTiny",
+                          tap="convnext_tiny_downsampling_block_0",
+                          shape=(28, 28, 192), scale="raw255"),
+    "effnetv2s": dict(app="EfficientNetV2S", tap="block4a_expand_activation",
+                      shape=(28, 28, 256), scale="raw255"),
+    "effnetv2m": dict(app="EfficientNetV2M", tap="block4a_expand_activation",
+                      shape=(28, 28, 320), scale="raw255"),
+    "resnet152v2": dict(app="ResNet152V2", tap="conv3_block8_1_relu",
+                        shape=(28, 28, 128), scale="tf"),
+    "densenet201": dict(app="DenseNet201", tap="pool3_conv",
+                        shape=(28, 28, 256), scale="torch"),
+}
+
+
+def trunk_spec(name):
+    if name not in TRUNKS:
+        raise SystemExit(f"unknown --trunk {name!r}; "
+                         f"choose from {sorted(TRUNKS)}")
+    return TRUNKS[name]
+
+
+def _scale_batch(x, how):
+    """Apply one trunk's documented input convention to a float32 [0,255] batch."""
+    if how == "div255":
+        return x / 255.0
+    if how == "raw255":
+        return x
+    if how == "tf":
+        from tensorflow.keras.applications import resnet_v2
+        return resnet_v2.preprocess_input(x)
+    if how == "torch":
+        from tensorflow.keras.applications import densenet
+        return densenet.preprocess_input(x)
+    raise ValueError(f"unknown scale {how!r}")
 ARTIFACT_LOCK_KIND = "v13-artifact-lock"
 ARTIFACT_LOCK_SCHEMA_VERSION = 1
 MANIFEST_IDENTITY_COLUMNS = (
@@ -525,7 +575,7 @@ def load_index(index_path, manifest_path=None, verified_only=False,
     return selected
 
 
-def feature_cache(images_path, cache_path, batch=64, replace_existing=False):
+def feature_cache(images_path, cache_path, batch=64, replace_existing=False, trunk="vgg19"):
     """
     Run the frozen VGG19 once and keep the tap activations.
 
@@ -542,7 +592,7 @@ def feature_cache(images_path, cache_path, batch=64, replace_existing=False):
         try:
             metadata = _npy_metadata(
                 cache_path, "feature cache", expected_rows=n,
-                expected_trailing_shape=FEATURE_CACHE_SHAPE,
+                expected_trailing_shape=trunk_spec(trunk)["shape"],
                 expected_dtype=np.float16)
         except ArtifactIntegrityError as error:
             if not replace_existing:
@@ -565,7 +615,7 @@ def feature_cache(images_path, cache_path, batch=64, replace_existing=False):
             try:
                 metadata = _npy_metadata(
                     cache_path, "feature cache", expected_rows=n,
-                    expected_trailing_shape=FEATURE_CACHE_SHAPE,
+                    expected_trailing_shape=trunk_spec(trunk)["shape"],
                     expected_dtype=np.float16)
             except ArtifactIntegrityError:
                 if not replace_existing:
@@ -575,15 +625,20 @@ def feature_cache(images_path, cache_path, batch=64, replace_existing=False):
                 return np.load(cache_path, mmap_mode="r")
 
         import tensorflow as tf
-        from tensorflow.keras.applications import VGG19
+        from tensorflow.keras import applications as _apps
 
-        base = VGG19(weights="imagenet", include_top=False,
-                     input_shape=IMAGE_SHAPE)
-        extractor = tf.keras.Model(base.input, base.get_layer(TAP_LAYER).output)
+        spec = trunk_spec(trunk)
+        base = getattr(_apps, spec["app"])(
+            weights="imagenet", include_top=False, input_shape=IMAGE_SHAPE)
+        extractor = tf.keras.Model(base.input,
+                                   base.get_layer(spec["tap"]).output)
         shape = tuple(extractor.output.shape[1:])
-        if shape != FEATURE_CACHE_SHAPE:
+        if shape != spec["shape"]:
             raise ArtifactIntegrityError(
-                f"{TAP_LAYER} produced {shape}, expected {FEATURE_CACHE_SHAPE}")
+                f"{trunk}:{spec['tap']} produced {shape}, "
+                f"expected {spec['shape']}")
+        print(f"  trunk {trunk} ({spec['app']}), tap {spec['tap']}, "
+              f"input scaling {spec['scale']}")
         print(f"  extracting {n} x {shape} -> {cache_path} "
               f"({n * np.prod(shape) * 2 / 1e9:.1f} GB float16)")
 
@@ -593,7 +648,7 @@ def feature_cache(images_path, cache_path, batch=64, replace_existing=False):
         t0 = time.time()
         for lo in range(0, n, batch):
             hi = min(n, lo + batch)
-            x = images[lo:hi].astype("float32") / 255.0
+            x = _scale_batch(images[lo:hi].astype("float32"), spec["scale"])
             out[lo:hi] = extractor.predict(x, verbose=0).astype("float16")
             if lo % (batch * 20) == 0:
                 rate = hi / max(time.time() - t0, 1e-9)
@@ -1172,6 +1227,11 @@ def main():
                     help="JSON sidecar recording arguments, exact manifest/index "
                          "hashes, selected-label counts, and output paths. "
                          "Default: <out stem>.run.json.")
+    ap.add_argument("--trunk", default="vgg19", choices=sorted(TRUNKS),
+                    help="Frozen ImageNet trunk the feature cache is built "
+                         "from. Default vgg19 reproduces every reported "
+                         "number; any other value needs its OWN --cache path, "
+                         "because the tap shape differs.")
     ap.add_argument("--prepare-cache-only", action="store_true",
                     help="Validate the manifest/index/image-pack contract, "
                          "build or validate a feature cache, record metadata, "
@@ -1364,7 +1424,7 @@ def main():
             try:
                 cache_metadata = _npy_metadata(
                     args.cache, "feature cache", expected_rows=packed_rows,
-                    expected_trailing_shape=FEATURE_CACHE_SHAPE,
+                    expected_trailing_shape=trunk_spec(args.trunk)["shape"],
                     expected_dtype=np.float16)
             except ArtifactIntegrityError as error:
                 input_metadata["feature_cache"] = {
@@ -1521,14 +1581,15 @@ def main():
         print("Feature cache preparation")
         try:
             feats = feature_cache(args.images, args.cache,
-                                  replace_existing=args.replace_cache)
+                                  replace_existing=args.replace_cache,
+                                  trunk=args.trunk)
             mmap = getattr(feats, "_mmap", None)
             if mmap is not None:
                 mmap.close()
             del feats
             run_metadata["input_artifacts"]["feature_cache"] = _npy_metadata(
                 args.cache, "feature cache", expected_rows=packed_rows,
-                expected_trailing_shape=FEATURE_CACHE_SHAPE,
+                expected_trailing_shape=trunk_spec(args.trunk)["shape"],
                 expected_dtype=np.float16)
         except ArtifactIntegrityError as error:
             run_metadata.update(
