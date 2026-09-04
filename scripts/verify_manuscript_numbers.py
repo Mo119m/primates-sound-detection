@@ -37,6 +37,19 @@ def check(name, claimed, actual, tol=0.0):
     RESULTS.append(("OK" if good else "OFF", name, claimed, actual))
 
 
+def _wilson(k, n, z=1.959964):
+    """95 % Wilson interval. Duplicated from score_santi_verdicts.py on purpose:
+    a verifier that imports the script it checks agrees with it by construction,
+    which is the failure this file has hit three times."""
+    if n == 0:
+        return float("nan"), float("nan")
+    p = k / n
+    d = 1 + z * z / n
+    c = p + z * z / (2 * n)
+    h = (p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5 * z
+    return (c - h) / d, (c + h) / d
+
+
 def maybe(path):
     p = os.path.join(REPO, path)
     return pd.read_csv(p) if os.path.exists(p) else None
@@ -1224,6 +1237,100 @@ def main():
                 check(f"  {_line.strip()}", "within limit", "OVER")
     except Exception as _e:
         check("MethodsX limits check runs", "yes", None)
+
+    # ---- the species expert's returned verdicts (2026-09-04) ----
+    #
+    # Recomputed from the two returned sheets, not quoted. These carry the
+    # headline precision and the two zeros the C. guereza and C. pogonias null
+    # results rest on, so if a sheet is edited the manuscript must move with it.
+    #
+    # A missing sheet FAILS here rather than skipping. Both live under data/,
+    # which is gitignored, and a block that quietly vanishes when its source is
+    # absent is the exact failure the 2026-09-03 sweep found three times.
+    _SV = os.path.join(REPO, "data/outputs/santi_verdicts_2026-09-04")
+    for _fn, _n, _idcol in (("precision_150_checked.csv", 150, "MANUAL ID*"),
+                            ("rescan_196_checked.csv", 196, "MANUAL ID")):
+        _p = os.path.join(_SV, _fn)
+        if not os.path.exists(_p):
+            check(f"expert sheet present: {_fn}", "present", "MISSING")
+            continue
+        _s = pd.read_csv(_p, encoding="utf-8-sig")
+        _s.columns = [_c.strip() for _c in _s.columns]
+        check(f"{_fn}: rows", _n, len(_s))
+        _v = _s[_idcol].astype(str).str.strip()
+        check(f"  no blank verdicts in {_fn}", 0,
+              int((~_v.isin(("C nic", "Noise"))).sum()))
+        check(f"  no duplicate clips in {_fn}", len(_s),
+              int(_s["IN FILE"].astype(str).str.strip().nunique()))
+
+        if _fn.startswith("precision"):
+            _yes = int((_v == "C nic").sum())
+            check("deployed precision numerator (111 calls)", 111, _yes)
+            check("  as a proportion (0.740)", 0.740, round(_yes / len(_s), 3))
+            _lo, _hi = _wilson(_yes, len(_s))
+            check("  Wilson lower (0.664)", 0.664, round(_lo, 3))
+            check("  Wilson upper (0.804)", 0.804, round(_hi, 3))
+            # The abstract and the validation paragraph must both carry it.
+            for _t in ("precision is 0.74 (95\\,\\% Wilson 0.66--0.80)",
+                       "$111/150 = 0.740$",
+                       "95\\,\\% Wilson interval $[0.664, 0.804]$"):
+                check(f"  tex prints {_t[:34]!r}", 1, tex.count(_t))
+        else:
+            # Blinded clip names carry the species and nothing else, so the
+            # prefix IS the package. 71 col, 65 pog, 60 cer.
+            _pre = _s["IN FILE"].astype(str).str.strip().str.replace(
+                r"\d+\.wav$", "", regex=True)
+            for _sp, _cnt in (("col", 71), ("pog", 65), ("cer", 60)):
+                check(f"  {_sp} clips adjudicated", _cnt, int((_pre == _sp).sum()))
+            for _sp in ("col", "pog"):
+                check(f"  {_sp}: zero positives", 0,
+                      int(((_pre == _sp) & (_v == "C nic")).sum()))
+            check("  cer: confirmed calls (28)", 28,
+                  int(((_pre == "cer") & (_v == "C nic")).sum()))
+
+    # ---- the rescan census behind the C. guereza null ----
+    #
+    # Every Colobus candidate the retrained model produced at the four
+    # rescanned stations went to the expert; none was sampled away. That makes
+    # the null an enumeration rather than an estimate, so the counts have to be
+    # exact and are recomputed here from the scan summaries.
+    _RS = os.path.join(REPO, "data/outputs/detection_review")
+    _percol, _found = {}, 0
+    for _st in ("IPA2ST", "IPA4ST", "IPA19ST", "IPA20ST"):
+        _f = os.path.join(_RS, f"{_st}_0500-1900_evalfix", f"{_st}_summary.csv")
+        if not os.path.exists(_f):
+            check(f"rescan summary present: {_st}", "present", "MISSING")
+            continue
+        _found += 1
+        _d = pd.read_csv(_f)
+        _percol[_st] = int((_d["species"] == "Colobus_guereza").sum())
+    if _found == 4:
+        for _st, _want in (("IPA2ST", 2), ("IPA4ST", 3),
+                           ("IPA19ST", 49), ("IPA20ST", 17)):
+            check(f"{_st} Colobus candidates", _want, _percol[_st])
+        check("Colobus candidates, all four stations (71)", 71,
+              sum(_percol.values()))
+        # The morning-hour concentration the paragraph prints. Parsed from the
+        # AudioMoth filename stamp plus the detection offset.
+        _d19 = pd.read_csv(os.path.join(
+            _RS, "IPA19ST_0500-1900_evalfix", "IPA19ST_summary.csv"))
+        _c19 = _d19[_d19["species"] == "Colobus_guereza"]
+        _hrs = []
+        for _, _r in _c19.iterrows():
+            _m = re.search(r"S(\d{8})T(\d{2})(\d{2})(\d{2})", str(_r["source_file"]))
+            if _m:
+                _h = int(_m.group(2)) + (int(_m.group(3)) * 60 + int(_m.group(4))
+                                         + float(_r["start_time"])) / 3600.0
+                _hrs.append(int(_h % 24))
+        check("  IPA19ST candidates with a parsable time", 49, len(_hrs))
+        check("  the modal hour holds 28 of them", 28,
+              max(_hrs.count(_h) for _h in set(_hrs)) if _hrs else 0)
+        check("  and it is a single hour, not a dawn window", 1,
+              sum(1 for _h in set(_hrs) if _hrs.count(_h) == 28))
+        for _t in ("produced 71", "two at IPA2ST, three at IPA4ST, 17 at",
+                   "28 of the 49 fall inside a single morning hour",
+                   "no roar in any of the 71"):
+            check(f"  tex prints {_t[:38]!r}", 1, tex.count(_t))
 
     # ---- citations, labels and figures all resolve ----
     #

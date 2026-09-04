@@ -31,9 +31,24 @@ import sys
 import pandas as pd
 
 REPO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+# The returned sheets are archived in the repo (under gitignored data/) so this
+# does not depend on a Desktop that gets tidied. The Desktop originals are the
+# fallback, named as they arrived.
+_ARCH = os.path.join(REPO, "data/outputs/santi_verdicts_2026-09-04")
 DESK = "C:/Users/Fudap/OneDrive/Desktop"
-PREC_SHEET = os.path.join(DESK, "precision 150 checked.csv")
-RESC_SHEET = os.path.join(DESK, "FOR_SANTI_2026-08-28_Checked.csv")
+
+
+def _first(*paths):
+    for p in paths:
+        if os.path.exists(p):
+            return p
+    return paths[0]
+
+
+PREC_SHEET = _first(os.path.join(_ARCH, "precision_150_checked.csv"),
+                    os.path.join(DESK, "precision 150 checked.csv"))
+RESC_SHEET = _first(os.path.join(_ARCH, "rescan_196_checked.csv"),
+                    os.path.join(DESK, "FOR_SANTI_2026-08-28_Checked.csv"))
 PREC_KEY = os.path.join(REPO, "data/outputs/precision_resample/sampling_key.csv")
 RESC_KEY = os.path.join(REPO,
                         "data/outputs/detection_review/rescan_package_key_2026-08-28.csv")
@@ -124,9 +139,9 @@ def main():
     vocab = sorted(set(rm.verdict))
     print(f"  label vocabulary used: {vocab}")
     if "unsure" not in [v.lower() for v in vocab]:
-        print("    note: no 'unsure' category was used. Either none arose, or it")
-        print("    was folded into Noise. Ask before reporting a positive rate as")
-        print("    exact; the two null results are unaffected in direction.")
+        print("    note: no 'unsure' category. Confirmed deliberate on enquiry")
+        print("    (2026-09-04) -- the expert double-checked rather than leaving")
+        print("    anything unresolved, so the proportions carry no unsure rows.")
 
     for sp in ("Cernic", "C_pogonias", "Colobus_guereza"):
         g = rm[rm.species == sp]

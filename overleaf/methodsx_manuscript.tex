@@ -30,10 +30,15 @@
 %%      the same reason. Worse, the verdicts were never written down: all 185
 %%      rows of IPA20ST_day_sheet.csv and IPA4ST_day_sheet.csv have an empty
 %%      verdict column, so 51/55 cannot be reproduced from any file.
-%%      REPLACEMENT IN PROGRESS: an equal-probability sample of 150 of the 768
+%%      RESOLVED 2026-09-04. An equal-probability sample of 150 of the 768
 %%      detections at >= 0.95 (seed 20260811, design in
-%%      data/outputs/precision_resample/DESIGN.txt) is with the species expert.
-%%      Report that result and its Wilson interval; state the sampling design.
+%%      data/outputs/precision_resample/DESIGN.txt) was adjudicated clip by
+%%      clip by the species expert: 111 calls, 39 errors, no blank rows and no
+%%      unsure category (confirmed deliberate on enquiry). Deployed precision
+%%      is 111/150 = 0.740, Wilson 95 % [0.664, 0.804], scored by
+%%      scripts/score_santi_verdicts.py. The 0.927 it replaces stays in the
+%%      text as a superseded RESULT with the reason it was wrong, which a
+%%      reader can check; it must not be quoted anywhere as current.
 %%
 %%   2. The "117 of the 124 dawn candidates have more than 95 % of their energy
 %%      above 1.5 kHz and cannot be a low-frequency roar" sentence is falsified
@@ -123,9 +128,9 @@ former was confirmed in the field; the latter is a negative result. Across a six
 leave-one-station-out sweep over 6\,110 reviewed field detections,
 retraining on human verdicts rather than on filter guesses raises precision from
 0.71 to 0.96 while keeping 92\,\% of confirmed calls. The fitted threshold does
-not transfer between sites, though the procedure for fitting it does. \textbf{[a design-weighted precision from an
-equal-probability sample of 150 detections is with the species expert and
-replaces this sentence]}
+not transfer between sites, though the procedure for fitting it does. On an
+equal-probability sample of 150 high-confidence detections adjudicated by ear,
+deployed precision is 0.74 (95\,\% Wilson 0.66--0.80).
 
 \begin{itemize}
 \item A transfer-learning detector trained from a few hundred reference clips
@@ -1270,6 +1275,28 @@ Readers holding further confirmed roars can extend the test with
 \texttt{scripts/colobus\_dawn\_probe.py} and
 \texttt{scripts/scan\_roar\_pulse.py}.
 
+A second line of evidence closes the question from the other side. Rescanning
+the retrained model over four stations under the corrected threshold produced 71
+\textit{C.\ guereza} candidates --- two at IPA2ST, three at IPA4ST, 17 at
+IPA20ST and 49 at IPA19ST, where 28 of the 49 fall inside a single morning hour
+and the rest run on through the afternoon. All 71 were cut to six-second clips,
+blinded to station and
+confidence, and given to the species expert with a single question: is a
+\textit{Colobus guereza} roar audible. None was sampled away; the sampling plan
+took every candidate at every station specifically because one confirmed roar
+would have rewritten this section. He returned no roar in any of the 71
+(\texttt{scripts/score\_santi\_verdicts.py}).
+
+Because that is a complete enumeration rather than a draw, there is no rate to
+bound and no interval to report: every candidate the model produced was
+listened to, and none was the animal. The null therefore no longer rests on a
+detector's silence, which is always ambiguous, but on a detector firing 71 times
+and an expert ear rejecting every one. Its scope is narrower than the earlier
+statement in exactly one respect, and the two should not be conflated: the
+enumeration covers the four rescanned stations, not all sixteen, and it bears on
+what the retrained model can be made to fire on rather than on what the forest
+contains.
+
 The contrast with \textit{C.\ nictitans} remains instructive. That species had
 2\,535 field-verified calls behind it, and every claim made about it here is
 testable against them. \textit{C.\ guereza} has nine, obtained late and from
@@ -1488,11 +1515,25 @@ second reason: the verdicts were spoken, not recorded. The verdict column is
 empty in all 185 rows of both listening sheets, so 51/55 cannot be reproduced
 from any file in the repository. An equal-probability sample of 150 of the 768
 detections (simple random without replacement, seed 20260811, design recorded in
-\texttt{data/outputs/precision\_resample/DESIGN.txt}) is with the species expert;
-every member has the same 150/768 chance of inclusion, which is what makes an
-unweighted proportion and its interval mean what they say. \textbf{[Result and
-Wilson interval to be inserted here on return; the abstract figure depends on
-it.]}
+\texttt{data/outputs/precision\_resample/DESIGN.txt}) was sent to the species
+expert instead; every member has the same 150/768 chance of inclusion, which is what makes an
+unweighted proportion and its interval mean what they say.
+
+The sheet was returned on 2026-09-04, adjudicated clip by clip: 111 calls and 39
+errors, with no row left blank. Deployed precision is therefore
+$111/150 = 0.740$, 95\,\% Wilson interval $[0.664, 0.804]$. That is 19
+percentage points below the 0.927 the stratified sample reported, and the gap is
+the size of the bias the strata introduced rather than a change in the detector.
+The expert used two labels and no ``unsure'' category, confirming on enquiry
+that this was deliberate rather than a collapsed third option, so the proportion
+carries no unresolved rows and needs no bracket
+(\texttt{scripts/score\_santi\_verdicts.py}).
+
+The sample pools by design, so the per-station split below it is descriptive
+only and 150 clips do not power a between-station test. It is worth printing
+anyway because it points the same way as everything else in this section: 54 of
+59 at IPA20ST against 57 of 91 at IPA4ST, a station gap of 29 percentage points
+in the deployed model at the operating point the pipeline actually ships.
 
 The comparison between the two stations is the part worth keeping. The deployed
 model's precision differs between them by 25 percentage points; the retrained
