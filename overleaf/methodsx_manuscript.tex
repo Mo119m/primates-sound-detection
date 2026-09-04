@@ -67,8 +67,20 @@
 %%      their per-station precision and recall differences anti-correlate at
 %%      r = -0.59 -- an operating point sliding, not a curve lifting. The band
 %%      split is +0.0021 average precision, t = +1.36, 12/16, which is 4.6 times
-%%      smaller than the fitted-threshold figure. The frequency-position
-%%      encoding remains not separable from zero, now measured four ways. No
+%%      smaller than the fitted-threshold figure.
+%%      UPDATED 2026-09-04: that +0.0021 is INSIDE the floor of its own metric,
+%%      which nothing had measured until then. Three draws of one specification,
+%%      scored through the identical path, differ by -0.0025, +0.0001 and
+%%      +0.0026, and the largest of those pairs wins 12 of 16 stations at a |t|
+%%      above the effect's. Smaller mean, smaller t, same fold count: the null
+%%      matches or beats the effect on every leg. Do not quote +0.0021 as a
+%%      result, and do not restore the retired sentence calling those twelve
+%%      folds the steadiest count here -- 12/16 is what changing nothing
+%%      returns, and verify_manuscript_numbers.py refuses that wording by name.
+%%      The frequency-position
+%%      encoding remains not separable from zero, now measured four ways and now
+%%      with a floor in the right metric. The unfreeze contrast at +0.0073 is
+%%      the only threshold-free figure here that clears the floor. No
 %%      recommendation is made between the heads.
 
 \documentclass[review,3p,times]{elsarticle}
@@ -2524,10 +2536,25 @@ the same evaluation rows (\texttt{scripts/prauc\_head\_ablation.py}). The band
 split's advantage falls to $+0.0021$ at $t = +1.36$, 95\,\% CI
 $[-0.001, +0.005]$ --- 4.6 times smaller than the fitted-threshold figure.
 \emph{Most of what the sweep attributed to the architecture was where the
-threshold landed.} What survives is smaller and steadier than what it replaces:
-twelve of sixteen folds rather than ten, the most consistent fold count anywhere
-in this comparison, though a binomial $p$ of 0.077 on that count is the whole of
-its support.
+threshold landed.}
+
+What remains has to be read against a floor in its own metric, and until
+2026-09-04 there was not one: the 0.0035 quoted throughout this section is
+macro precision at fitted thresholds, and nothing had measured what changing
+nothing does to average precision. The three draws of the frozen specification
+were scored through the identical path to supply it
+(\texttt{scripts/prauc\_noise\_floor.py}; the three head sets were confirmed
+distinct by checksum first, since identical weights would have made the floor
+circular). Their pairwise differences are $-0.0025$, $+0.0001$ and $+0.0026$,
+at $|t|$ of 1.42, 0.08 and 1.89, with per-station standard deviations to 0.0071
+and one station moving 0.0221. The last pair favoured one draw at twelve of
+sixteen stations.
+
+The band split is $+0.0021$ at $t = +1.36$ and twelve of sixteen. Every leg of
+that is matched or exceeded by two draws of one specification differing in
+nothing: the mean is smaller than 0.0026, the $t$ is smaller than 1.89, and the
+fold count is the same twelve. We had described those twelve folds as the most
+consistent count in this comparison; they are what changing nothing returns.
 
 We fixed falsification criteria in writing before the simplest head was run: a
 paired mean at or below $+0.0035$, a $|t|$ at or below $1.34$, or nine or fewer
@@ -2556,13 +2583,18 @@ index this paper does not otherwise report, scored under the code the 2026-08-25
 evaluation fix retired, on a gated pool of 3\,476 detections against the
 corrected 3\,497.
 
-What survives is narrow and is not nothing. The
-band split is ahead of the simplest head in every comparison we have made ---
-both builds, both metrics, and threshold-free --- and behind in none, so a
-reader building this head should include it. What a reader should not do is plan
-on a size: threshold-free it is two parts in a thousand, it is not significant
-at sixteen folds, and we report no station covariates that would tell anyone in
-advance whether their site is one of the three where it mattered.
+What survives is narrower than that. The band split is ahead of the simplest
+head in every comparison we have made --- both builds, both metrics, and
+threshold-free --- and behind in none, which is a consistent direction across
+four attempts and is the only claim the evidence carries. It is not a size, and
+on the threshold-free measurement it is not a resolvable difference: two parts
+in a thousand, under a floor of two and a half parts in a thousand measured the
+same way. A reader choosing between these heads should choose on cost, on the
+frequency structure of their own target, or on the published evidence for
+band-split architectures --- not on this comparison, which at sixteen stations
+and a ceiling of 0.98 cannot separate them in either direction. We report no
+station covariates that would tell anyone in advance whether their site is one
+of the three where it mattered.
 
 It would be a mistake to read the first null as evidence for
 the simpler variant and prefer it on that basis; a null is not evidence for

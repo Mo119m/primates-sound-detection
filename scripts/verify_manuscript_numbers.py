@@ -11,6 +11,7 @@ whose source file is missing prints SKIP with the reason rather than passing
 silently -- "no file" and "matches" must not look alike.
 """
 import os
+import itertools as _itertools
 import re
 import sys
 
@@ -1331,6 +1332,56 @@ def main():
                    "28 of the 49 fall inside a single morning hour",
                    "no roar in any of the 71"):
             check(f"  tex prints {_t[:38]!r}", 1, tex.count(_t))
+
+    # ---- the noise floor in AVERAGE PRECISION ----
+    #
+    # Added 2026-09-04. The section's other floor (0.0035) is macro precision at
+    # fitted thresholds; three of the paper's conclusions are threshold-free and
+    # had no floor in their own metric. Measured from the three draws of the
+    # frozen temporal_freqpos specification, scored through the same path.
+    _APF = maybe("data/outputs/v13_runs/full_2026-08-19/prauc_noise_floor.csv")
+    if _APF is None:
+        check("AP noise-floor CSV present", "present", "MISSING")
+    else:
+        _p = _APF.pivot(index="station", columns="arm", values="ap")
+        check("AP floor: three draws scored", 3, len(_p.columns))
+        check("  all sixteen stations", 16, len(_p))
+        _pairs, _means, _ts, _sds, _mxs, _wins = [], [], [], [], [], []
+        for _a, _b in _itertools.combinations(sorted(_p.columns), 2):
+            _d = (_p[_a] - _p[_b]).dropna().to_numpy()
+            _se = _d.std(ddof=1) / _sqrt(len(_d))
+            _means.append(round(float(_d.mean()), 4))
+            _ts.append(round(abs(float(_d.mean() / _se)), 2))
+            _sds.append(round(float(_d.std(ddof=1)), 4))
+            _mxs.append(round(float(abs(_d).max()), 4))
+            _wins.append(int((_d > 0).sum()))
+        check("  the three pairwise means", "[-0.0025, 0.0001, 0.0026]",
+              str(sorted(_means)))
+        check("  largest |t| among them (1.89)", 1.89, max(_ts), 0.005)
+        check("  largest per-station SD (0.0071)", 0.0071, max(_sds), 0.00005)
+        check("  largest single station (0.0221)", 0.0221, max(_mxs), 0.00005)
+        check("  a null pair wins 12 of 16 stations", 12, max(_wins))
+
+        # The load-bearing comparison. The band split must NOT clear the floor
+        # on any leg; if a future draw changes that, the paragraph is wrong.
+        _floor_mean, _floor_t = max(abs(_m) for _m in _means), max(_ts)
+        check("band split mean (0.0021) is under the AP floor", True,
+              0.0021 < _floor_mean)
+        check("  its t (1.36) is under the floor's t", True, 1.36 < _floor_t)
+        check("  its 12/16 is matched by a null pair", True, max(_wins) >= 12)
+        check("freqpos null (0.0017) is under the AP floor", True,
+              0.0017 < _floor_mean)
+        check("unfreeze block34 (0.0073) clears the AP floor", True,
+              0.0073 > _floor_mean)
+        for _t in ("$-0.0025$, $+0.0001$ and $+0.0026$",
+                   "1.42, 0.08 and 1.89",
+                   "standard deviations to 0.0071",
+                   "one station moving 0.0221"):
+            check(f"  tex prints {_t[:32]!r}", 1, tex.count(_t))
+        # The sentence the measurement retired.
+        for _t in ("the most consistent fold count anywhere",
+                   "so a\nreader building this head should include it"):
+            check(f"  retired claim absent: {_t[:34]!r}", 0, tex.count(_t))
 
     # ---- citations, labels and figures all resolve ----
     #
