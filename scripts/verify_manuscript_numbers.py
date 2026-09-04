@@ -234,15 +234,32 @@ def main():
             # So a printed cell is accepted when it differs from the file's
             # rendering by at most one unit in the last printed place. That
             # tolerance admits only the tie, and nothing larger.
+            # Raw file values, not their formatted renderings: the formatting is
+            # what loses the precision that decides a tie.
+            raw = [float(row[cols[0]]), float(row[cols[1]]), float(row[cols[2]]),
+                   float(row[cols[3]]), 100 * float(row[cols[4]]),
+                   100 * float(row[cols[5]])]
             for i, (got, exp) in enumerate(zip(cells, want)):
                 if got == exp:
                     continue
+                # A printed cell is accepted only if it is a VALID ROUNDING of
+                # the underlying value: within HALF a unit of the last printed
+                # place. IPA10ST's deployed precision is 103/113 = 0.911504,
+                # stored as 0.9115, and both 0.911 and 0.912 are half a unit
+                # away -- a genuine tie, which exact string equality wrongly
+                # rejected and which is why this branch exists.
+                #
+                # The first version of this tolerance used a WHOLE unit, and
+                # was caught the same day accepting 0.910 for that cell: not a
+                # rounding of anything, just wrong. Loosening a guard is where
+                # to be most careful, so the bound is half a unit and the
+                # comparison is against the raw value.
                 try:
                     dec = len(exp.split(".")[1]) if "." in exp else 0
-                    tie = abs(float(got) - float(exp)) <= 10 ** (-dec) + 1e-12
-                except ValueError:
-                    tie = False
-                if not tie:
+                    valid = abs(float(got) - raw[i]) <= 0.5 * 10 ** (-dec) + 1e-9
+                except (ValueError, IndexError):
+                    valid = False
+                if not valid:
                     bad.append(f"{st} col{i + 2}: printed {got}, file {exp}")
         check("Table 2 cells matching the CSV", 0, len(bad))
         for b in bad[:10]:
