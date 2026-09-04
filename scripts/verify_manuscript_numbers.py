@@ -1177,6 +1177,26 @@ def main():
     except Exception as _e:
         check("MethodsX limits check runs", "yes", None)
 
+    # ---- citations, labels and figures all resolve ----
+    #
+    # Delegated to scripts/check_manuscript_refs.py. Added 2026-08-31 after the
+    # abstract and Background were each cut by about a third in one sitting --
+    # the failure that kind of surgery leaves is a \cite whose entry lived in
+    # the deleted paragraph, or a \ref to a label that moved, and neither
+    # shows up in a word count or in any check in this file, which only ever
+    # asks whether a string is present.
+    try:
+        import subprocess as _sp2
+        _r2 = _sp2.run([sys.executable,
+                        os.path.join(REPO, "scripts", "check_manuscript_refs.py")],
+                       capture_output=True, text=True)
+        check("citations, labels and figures resolve", 0, _r2.returncode)
+        for _l in _r2.stdout.splitlines():
+            if _l.strip().startswith("OVER"):
+                check(f"  {_l.strip()[:90]}", "resolves", "DANGLING")
+    except Exception:
+        check("reference check runs", "yes", None)
+
     # ---- report ----
     w = max(len(n) for _, n, _, _ in RESULTS)
     print()

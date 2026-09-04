@@ -204,7 +204,7 @@ the original training set. The result is a detector with a high false-positive
 rate, and verifying every detection by hand reintroduces exactly the
 manual-listening bottleneck that automation was meant to remove.
 
-Nor is there anything off the shelf for these species. BirdNET, the most widely
+Nor is there anything off the shelf for forest primates. BirdNET, the most widely
 used general-purpose bioacoustic classifier, was run over this array's
 recordings while the negative class was assembled: it returned 17\,101
 detections across 250 distinct labels, 249 of them eBird species codes and the
@@ -231,8 +231,8 @@ information rather than merely failing to confirm what was already known.
 \textbf{[Santi --- please add more background here, e.g.\ the conservation /
 IUCN status of the two species and why acoustic monitoring matters for their
 conservation.]}
-Rather
-than only training a classifier, we wrap it in (i) a detection stage with
+
+The method is therefore more than a classifier. We wrap one in (i) a detection stage with
 domain-appropriate post-processing, (ii) an automatic cleanup that flags likely
 false positives using signals independent of the detector, and (iii) a loop that
 recycles confirmed false positives into the background class and retrains. The
